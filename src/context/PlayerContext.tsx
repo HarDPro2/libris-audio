@@ -31,6 +31,8 @@ interface PlayerContextValue extends PlayerState {
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [books, setBooks] = useState<Book[]>([]);
@@ -72,7 +74,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const bk = state.currentBook;
     
     if (bk?.bookId) {
-      audio.src = `http://localhost:8000/api/audio/${bk.bookId}/${bk.currentPartIndex || 0}?voice=${state.voice}`;
+      audio.src = `${API_URL}/api/audio/${bk.bookId}/${bk.currentPartIndex || 0}?voice=${state.voice}`;
     } else if (bk?.audioUrl) {
       audio.src = bk.audioUrl;
     } else {
@@ -99,7 +101,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const bk = state.currentBook;
     if (bk && bk.bookId && bk.partsCount && (bk.currentPartIndex || 0) < bk.partsCount - 1) {
       const nextIndex = (bk.currentPartIndex || 0) + 1;
-      const nextUrl = `http://localhost:8000/api/audio/${bk.bookId}/${nextIndex}?voice=${state.voice}`;
+      const nextUrl = `${API_URL}/api/audio/${bk.bookId}/${nextIndex}?voice=${state.voice}`;
       const prefetcher = new Audio();
       prefetcher.preload = 'auto';
       prefetcher.src = nextUrl;

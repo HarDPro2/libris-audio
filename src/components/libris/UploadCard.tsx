@@ -14,7 +14,7 @@ import {
 
 import { Button } from '@/components/ui/button';
 
-
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 export function UploadCard() {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -79,7 +79,7 @@ export function UploadCard() {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch('http://localhost:8000/api/upload-pdf', {
+      const response = await fetch(`${API_URL}/api/upload-pdf`, {
         method: 'POST',
         body: formData,
       });

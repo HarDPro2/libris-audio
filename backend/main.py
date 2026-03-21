@@ -8,10 +8,19 @@ from pathlib import Path
 import edge_tts
 import fitz  # PyMuPDF
 import uvicorn
+import httpx
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from supabase import create_client, Client
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL") or os.environ.get("VITE_SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_ANON_KEY") or os.environ.get("VITE_SUPABASE_ANON_KEY")
+
+supabase: Client | None = None
+if SUPABASE_URL and SUPABASE_KEY:
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ---------------------------------------------------------------------------
 # App setup
@@ -216,6 +225,9 @@ async def get_tts_sample(voice: str = "es-MX-JorgeNeural"):
 @app.post("/api/upload-pdf")
 async def upload_pdf(file: UploadFile = File(...)):
     # ── Validate ──────────────────────────────────────────────────────────
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase no configurado en el backend")
+        
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Solo se aceptan archivos PDF.")
 
@@ -244,11 +256,9 @@ async def upload_pdf(file: UploadFile = File(...)):
     chunks = chunk_text(text, max_chars=3800)
     if not chunks:
          raise HTTPException(status_code=422, detail="No se pudo extraer texto suficiente.")
-         
+
     book_id = uuid.uuid4().hex[:12]
-    book_dir = BOOKS_DIR / book_id
-    book_dir.mkdir()
-    
+
     # ── Extract Cover ────────────────────────────────────────────────────────
     cover_url = None
     try:
@@ -256,20 +266,28 @@ async def upload_pdf(file: UploadFile = File(...)):
         if len(doc) > 0:
             page = doc.load_page(0)
             pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5))
-            pix.save(book_dir / "cover.png")
-            cover_url = f"http://localhost:8000/static/books/{book_id}/cover.png"
+            cover_bytes = pix.tobytes("png")
+            
+            cover_path = f"{book_id}/cover.png"
+            supabase.storage.from_("books").upload(
+                cover_path,
+                cover_bytes,
+                {"content-type": "image/png"}
+            )
+            cover_url = supabase.storage.from_("books").get_public_url(cover_path)
+            
         doc.close()
     except Exception as e:
         print(f"[PDF] Error extracting cover: {e}")
-    
+
+    # ── Upload Chunks ────────────────────────────────────────────────────────
     for i, chunk in enumerate(chunks):
-        (book_dir / f"part_{i}.txt").write_text(chunk, encoding="utf-8")
-        
-    (book_dir / "metadata.json").write_text(json.dumps({
-        "title": title,
-        "parts_count": len(chunks),
-        "cover_url": cover_url
-    }), encoding="utf-8")
+        txt_path = f"{book_id}/text/part_{i}.txt"
+        supabase.storage.from_("books").upload(
+            txt_path,
+            chunk.encode("utf-8"),
+            {"content-type": "text/plain"}
+        )
 
     return JSONResponse({
         "title": title,
@@ -282,26 +300,61 @@ async def upload_pdf(file: UploadFile = File(...)):
 @app.get("/api/audio/{book_id}/{part_index}")
 async def get_book_audio(book_id: str, part_index: int, voice: str = "es-MX-JorgeNeural"):
     """JIT Engine: Delivers audio for a specific part. Generates it if missing."""
-    book_dir = BOOKS_DIR / book_id
-    if not book_dir.exists():
-        raise HTTPException(status_code=404, detail="Libro no encontrado")
-        
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase no configurado")
+
     safe_voice = sanitize_filename(voice)
-    mp3_path = book_dir / f"part_{part_index}_{safe_voice}.mp3"
-    txt_path = book_dir / f"part_{part_index}.txt"
-    metadata_path = book_dir / "metadata.json"
+    mp3_path = f"{book_id}/audio/part_{part_index}_{safe_voice}.mp3"
+    public_mp3_url = supabase.storage.from_("books").get_public_url(mp3_path)
     
-    if not txt_path.exists():
-        raise HTTPException(status_code=404, detail="Parte no encontrada")
-        
-    if not mp3_path.exists():
-        text = txt_path.read_text(encoding="utf-8")
+    # 1. Check if it already exists in Cloud Storage by pinging its public URL
+    async with httpx.AsyncClient() as client:
         try:
-            await text_to_mp3(text, mp3_path, voice=voice)
-        except Exception as exc:
-            raise HTTPException(status_code=500, detail=f"Error al generar audio: {exc}")
+            r = await client.head(public_mp3_url)
+            if r.status_code == 200:
+                print(f"[Audio] Caching Hit for {mp3_path}")
+                return RedirectResponse(public_mp3_url)
+        except Exception:
+            pass
+
+    # 2. Doesn't exist. We must generate it. Download text first.
+    txt_path = f"{book_id}/text/part_{part_index}.txt"
+    public_txt_url = supabase.storage.from_("books").get_public_url(txt_path)
+    
+    async with httpx.AsyncClient() as client:
+        r = await client.get(public_txt_url)
+        if r.status_code != 200:
+            raise HTTPException(status_code=404, detail="Parte de texto no encontrada en la nube")
+        text = r.text
+        
+    print(f"[Audio] Generando MP3 localmente para {mp3_path}...")
+    local_mp3 = Path(f"/tmp/{book_id}_part_{part_index}_{safe_voice}.mp3")
+    local_mp3.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        await text_to_mp3(text, local_mp3, voice=voice)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Error al generar audio: {exc}")
+        
+    # 3. Upload the generated MP3 to Cloud Storage
+    print(f"[Audio] Subiendo generacion a Supabase Storage: {mp3_path}")
+    with open(local_mp3, "rb") as f:
+        try:
+            supabase.storage.from_("books").upload(
+                mp3_path,
+                f.read(),
+                {"content-type": "audio/mpeg"}
+            )
+        except Exception as e:
+            print(f"[Audio] Error subiendo MP3 a Supabase: {e}")
             
-    return FileResponse(mp3_path, media_type="audio/mpeg")
+    # Clean up local temp file
+    try:
+        local_mp3.unlink()
+    except:
+        pass
+        
+    # 4. Redirect seamlessly to the newly generated public MP3 file!
+    return RedirectResponse(public_mp3_url)
 
 
 
