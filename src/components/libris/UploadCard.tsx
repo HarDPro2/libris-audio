@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import { usePlayer } from '@/context/PlayerContext';
 import { checkDuplicateHash, addGlobalBook } from '@/hooks/useBooks';
 import { useToast } from '@/components/ui/use-toast';
+import { BOOK_CATEGORIES } from '@/data/categories';
 import {
   Select,
   SelectContent,
@@ -68,9 +69,12 @@ export function UploadCard() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedVoice, setSelectedVoice] = useState(VOICES[0].id);
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [isPlayingSample, setIsPlayingSample] = useState(false);
   const { refreshBooks } = usePlayer();
   const { toast } = useToast();
+
+  const selectableCategories = BOOK_CATEGORIES.filter(c => c !== "Todas" && c !== "Nuevos");
 
   const playSample = () => {
     if (isPlayingSample) return;
@@ -82,6 +86,10 @@ export function UploadCard() {
   };
 
   const handleClick = () => {
+    if (!selectedCategory) {
+      setError('Debes elegir una categoría primero.');
+      return;
+    }
     if (!isProcessing) {
       setError(null);
       fileRef.current?.click();
@@ -100,6 +108,12 @@ export function UploadCard() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (file.size > 10 * 1024 * 1024) {
+      setError('El archivo supera los 10 MB.');
+      if (fileRef.current) fileRef.current.value = '';
+      return;
+    }
+
     setIsProcessing(true);
     setError(null);
 
@@ -113,7 +127,6 @@ export function UploadCard() {
           description: "Este PDF ya se encuentra en la biblioteca global.",
           variant: "default",
         });
-        // You could also forcefully refresh books or fetch global books here
         return;
       }
 
@@ -135,7 +148,7 @@ export function UploadCard() {
       
       // Push to global library via Supabase
       await addGlobalBook({
-        id: crypto.randomUUID(), // Will be overridden or used by Supabase
+        id: crypto.randomUUID(),
         title: data.title,
         author: 'Documento PDF',
         coverUrl: data.coverUrl || 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=300&h=400&fit=crop',
@@ -149,11 +162,9 @@ export function UploadCard() {
         currentPartIndex: 0,
         voice: data.voice,
         fileHash: hash,
-        category: 'Nuevos'
+        category: selectedCategory
       });
 
-      // We added it directly to global. The Library "Explorar" tab will fetch it.
-      // But we should refresh context just in case.
       await refreshBooks();
 
       toast({
@@ -167,6 +178,7 @@ export function UploadCard() {
       setError(message);
     } finally {
       setIsProcessing(false);
+      setSelectedCategory(''); // Reset
       if (fileRef.current) fileRef.current.value = '';
     }
   };
@@ -204,35 +216,52 @@ export function UploadCard() {
               <Plus className="h-7 w-7 text-muted-foreground" />
             </div>
             <span className="text-sm text-muted-foreground font-medium">Subir Nuevo PDF</span>
+            <span className="text-[10px] text-muted-foreground mt-1">Máximo 10 MB</span>
           </>
         )}
       </div>
 
-      <div className="flex gap-2 w-full">
-        <Select value={selectedVoice} onValueChange={setSelectedVoice} disabled={isProcessing || isPlayingSample}>
-          <SelectTrigger className="flex-1 bg-[hsl(var(--card))] border-[hsl(var(--border))]">
-            <SelectValue placeholder="Voz" />
+      <div className="flex flex-col gap-2 w-full">
+        <Select value={selectedCategory} onValueChange={(val) => { setSelectedCategory(val); setError(null); }} disabled={isProcessing}>
+          <SelectTrigger className="w-full bg-[hsl(var(--card))] border-[hsl(var(--border))]">
+            <SelectValue placeholder="Categoría obligatoria" />
           </SelectTrigger>
           <SelectContent>
-            {VOICES.map((v) => (
-              <SelectItem key={v.id} value={v.id}>
-                {v.name}
+            {selectableCategories.map((c) => (
+              <SelectItem key={c} value={c}>
+                {c}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <Button 
-          variant="outline" 
-          size="icon" 
-          onClick={playSample} 
-          disabled={isPlayingSample || isProcessing}
-          className="shrink-0 bg-[hsl(var(--card))] border-[hsl(var(--border))]"
-          title="Escuchar muestra de voz"
-        >
-          {isPlayingSample ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <Volume2 className="h-4 w-4 text-primary" />}
-        </Button>
+
+        <div className="flex gap-2 w-full">
+          <Select value={selectedVoice} onValueChange={setSelectedVoice} disabled={isProcessing || isPlayingSample}>
+            <SelectTrigger className="flex-1 bg-[hsl(var(--card))] border-[hsl(var(--border))]">
+              <SelectValue placeholder="Voz" />
+            </SelectTrigger>
+            <SelectContent>
+              {VOICES.map((v) => (
+                <SelectItem key={v.id} value={v.id}>
+                  {v.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button 
+            variant="outline" 
+            size="icon" 
+            onClick={playSample} 
+            disabled={isPlayingSample || isProcessing}
+            className="shrink-0 bg-[hsl(var(--card))] border-[hsl(var(--border))]"
+            title="Escuchar muestra de voz"
+          >
+            {isPlayingSample ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <Volume2 className="h-4 w-4 text-primary" />}
+          </Button>
+        </div>
       </div>
     </div>
   );
 }
+
 
