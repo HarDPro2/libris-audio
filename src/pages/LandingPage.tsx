@@ -137,6 +137,25 @@ export default function LandingPage() {
         .l-footer-logo { font-size:1rem;font-weight:800;background:linear-gradient(135deg,#A78BFA,#06B6D4);-webkit-background-clip:text;-webkit-text-fill-color:transparent; }
         .l-footer p { font-size:0.82rem;color:#94A3B8; }
         @media(max-width:768px) { .l-nav { padding:1rem; } .l-nav-links { display:none; } .cta-card { padding:3rem 1.5rem; } .l-footer { flex-direction:column;text-align:center; } }
+
+        /* ── FLOATING BUTTON ── */
+        .landing-floating-btn {
+          position: fixed; bottom: 2rem; right: 2rem; z-index: 99;
+          background: linear-gradient(135deg, #06B6D4, #8B5CF6);
+          color: #fff; width: 60px; height: 60px; border-radius: 50%;
+          display: flex; align-items: center; justify-content: center;
+          text-decoration: none; box-shadow: 0 10px 25px rgba(6,182,212,0.4);
+          transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .landing-floating-btn:hover { transform: translateY(-4px) scale(1.05); box-shadow: 0 15px 35px rgba(6,182,212,0.6); }
+        .landing-floating-btn svg { width: 26px; height: 26px; }
+        .landing-floating-tooltip {
+          position: absolute; right: 75px; background: #0d0d1f; border: 1px solid rgba(255,255,255,0.08);
+          padding: 0.5rem 0.8rem; border-radius: 8px; font-size: 0.85rem; font-weight: 500;
+          white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s;
+          transform: translateX(10px);
+        }
+        .landing-floating-btn:hover .landing-floating-tooltip { opacity: 1; transform: translateX(0); }
       `}</style>
 
       {/* Background orbs */}
@@ -168,19 +187,19 @@ export default function LandingPage() {
 
       {/* HERO */}
       <section className="hero">
-        <div className="hero-badge"><span className="dot" /> Potenciado por IA de Microsoft · Gratis y sin límites</div>
-        <h1>Convierte tus <span className="gradient-text">PDFs en Audiolibros</span> con Inteligencia Artificial</h1>
-        <p>Sube cualquier libro en PDF y escúchalo narrado por voces neurales de alta calidad. Sin registros, sin costos, sin límites de tiempo.</p>
+        <div className="hero-badge"><span className="dot" /> Biblioteca de audiolibros en constante crecimiento</div>
+        <h1>Un <span className="gradient-text">catálogo curado</span> que te acompaña a todas partes</h1>
+        <p>Escucha una selección creciente de libros narrados por IA neural. Crea tu cuenta gratuita para guardar tu progreso en la nube y retoma tus lecturas exactamente donde las dejaste.</p>
         <div className="hero-buttons">
           <button className="btn-primary" onClick={goToApp}>
-            ▶ Comenzar ahora — Es gratis
+            ▶ Explorar la Biblioteca
           </button>
           <a href="#how" className="btn-outline">Ver cómo funciona →</a>
         </div>
         <div className="hero-stats">
-          <div className="stat"><span className="stat-num">34+</span><span className="stat-label">Géneros literarios</span></div>
+          <div className="stat"><span className="stat-num">34+</span><span className="stat-label">Categorías</span></div>
           <div className="stat"><span className="stat-num">30+</span><span className="stat-label">Voces neurales</span></div>
-          <div className="stat"><span className="stat-num">∞</span><span className="stat-label">Sin límite de páginas</span></div>
+          <div className="stat"><span className="stat-num">☁️</span><span className="stat-label">Progreso en la nube</span></div>
           <div className="stat"><span className="stat-num">0€</span><span className="stat-label">Costo total</span></div>
         </div>
       </section>
@@ -215,13 +234,13 @@ export default function LandingPage() {
         <div className="section-header reveal">
           <div className="section-eyebrow">Pasos</div>
           <h2 className="section-title">Tan simple como 1, 2, 3</h2>
-          <p className="section-sub">De PDF a audiolibro narrado en menos de 30 segundos.</p>
+          <p className="section-sub">Empieza a escuchar tus obras favoritas o contribuye a la comunidad.</p>
         </div>
         <div className="steps">
           {[
-            { title: 'Sube tu PDF', desc: 'Arrastra y suelta o selecciona cualquier libro en formato PDF. Soporta desde artículos de 5 páginas hasta novelas de 1.000 páginas.' },
-            { title: 'Elige tu voz preferida', desc: 'Selecciona entre más de 30 voces neurales de alta calidad. La IA eliminará encabezados, pies de página y ruido visual automáticamente.' },
-            { title: 'Dale Play y disfruta', desc: 'Tu audiolibro comienza en segundos. Controla la velocidad, salta partes, ajusta el volumen y el progreso se guarda solo.' },
+            { title: 'Explora el Catálogo', desc: 'Nuestra biblioteca principal crece día a día. Navega por categorías, autores o descubrimientos recientes. Escucha un par de minutos para encontrar el tono ideal.' },
+            { title: 'Crea una cuenta para guardar progreso', desc: 'Al registrarte, la app sincroniza exactamente en qué segundo dejaste tu lectura para que continúes sin importar el dispositivo.' },
+            { title: '¿Falta algo? ¡Súbelo o solicítalo!', desc: 'Puedes subir PDFs pequeños (máx 10 MB) para sumar a la comunidad, o solicitar títulos pesados para que los procesemos.' },
           ].map((s, i) => (
             <div key={i} className="step reveal">
               <div className="step-num">{i + 1}</div>
@@ -268,12 +287,18 @@ export default function LandingPage() {
       <section className="cta-section">
         <div className="cta-card reveal">
           <h2>Tu próximo audiolibro te está<br /><span className="gradient-text">esperando</span></h2>
-          <p>Sube tu primer PDF ahora mismo. No necesitas tarjeta de crédito ni cuenta. Solo entra y disfruta.</p>
+          <p>Entra a la biblioteca, elige tu próximo título y deja que la IA te lea mientras conduces, haces ejercicio o te relajas.</p>
           <button className="btn-primary" onClick={goToApp}>
-            ▶ Entrar a LibrisAudio — Es gratis
+            ▶ Entrar a LibrisAudio
           </button>
         </div>
       </section>
+
+      {/* FLOATING BUTTON */}
+      <a href="mailto:admin@librisaudio.com?subject=Solicitud de Libro Nuevo" className="landing-floating-btn" aria-label="Solicitar Libro">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        <div className="landing-floating-tooltip">¿Falta un libro? ¡Solicítalo!</div>
+      </a>
 
       {/* FOOTER */}
       <footer className="l-footer">
