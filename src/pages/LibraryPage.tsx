@@ -10,7 +10,7 @@ import { Book } from '@/types/book';
 export default function LibraryPage() {
   const { books: personalBooks } = usePlayer();
   const [globalBooks, setGlobalBooks] = useState<Book[]>([]);
-  const [activeTab, setActiveTab] = useState<'explorar' | 'personal'>('personal');
+  const [activeTab, setActiveTab] = useState<'explorar' | 'personal'>('explorar');
   const [activeCategory, setActiveCategory] = useState("Todas");
   const [loadingGlobal, setLoadingGlobal] = useState(false);
 

@@ -187,9 +187,9 @@ export default function LandingPage() {
 
       {/* HERO */}
       <section className="hero">
-        <div className="hero-badge"><span className="dot" /> Biblioteca de audiolibros en constante crecimiento</div>
-        <h1>Un <span className="gradient-text">catálogo curado</span> que te acompaña a todas partes</h1>
-        <p>Escucha una selección creciente de libros narrados por IA neural. Crea tu cuenta gratuita para guardar tu progreso en la nube y retoma tus lecturas exactamente donde las dejaste.</p>
+        <div className="hero-badge"><span className="dot" /> Biblioteca comunitaria de audiolibros generados por IA</div>
+        <h1><span className="gradient-text">Convierte y Comparte</span> tus PDFs en Audiolibros</h1>
+        <p>Aporta a nuestra comunidad subiendo tus libros favoritos en PDF, o explora los que otros ya han compartido. Crea tu cuenta gratis para guardar tu progreso en la nube y retoma tus lecturas exactamente donde las dejaste.</p>
         <div className="hero-buttons">
           <button className="btn-primary" onClick={goToApp}>
             ▶ Explorar la Biblioteca
@@ -238,9 +238,9 @@ export default function LandingPage() {
         </div>
         <div className="steps">
           {[
-            { title: 'Explora el Catálogo', desc: 'Nuestra biblioteca principal crece día a día. Navega por categorías, autores o descubrimientos recientes. Escucha un par de minutos para encontrar el tono ideal.' },
+            { title: 'Explora o Sube tu Libro', desc: 'Revisa nuestra biblioteca para ver si alguien ya subió el libro que buscas. Si no está, súbelo tú mismo (máx 10 MB) para alimentar a la comunidad.' },
             { title: 'Crea una cuenta para guardar progreso', desc: 'Al registrarte, la app sincroniza exactamente en qué segundo dejaste tu lectura para que continúes sin importar el dispositivo.' },
-            { title: '¿Falta algo? ¡Súbelo o solicítalo!', desc: 'Puedes subir PDFs pequeños (máx 10 MB) para sumar a la comunidad, o solicitar títulos pesados para que los procesemos.' },
+            { title: '¿Libro muy pesado? ¡Solicítalo!', desc: 'Para libros grandes e intensos que superen los 10 MB, usa el botón de "Solicitar", y nuestro equipo se encargará de procesarlos.' },
           ].map((s, i) => (
             <div key={i} className="step reveal">
               <div className="step-num">{i + 1}</div>
