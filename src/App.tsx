@@ -64,35 +64,3 @@ const App = () => (
 export default App;
 
 
-const queryClient = new QueryClient();
-
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          {/* Landing page — no sidebar */}
-          <Route path="/" element={<LandingPage />} />
-
-          {/* App routes — with sidebar layout */}
-          <Route path="/*" element={
-            <MainLayout>
-              <Routes>
-                <Route path="home" element={<Home />} />
-                <Route path="library" element={<LibraryPage />} />
-                <Route path="upload" element={<UploadPage />} />
-                <Route path="history" element={<HistoryPage />} />
-                <Route path="settings" element={<SettingsPage />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </MainLayout>
-          } />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
-
-export default App;

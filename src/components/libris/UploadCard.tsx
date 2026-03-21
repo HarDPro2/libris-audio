@@ -92,7 +92,12 @@ export function UploadCard() {
     }
     if (!isProcessing) {
       setError(null);
-      fileRef.current?.click();
+      const confirmUpload = window.confirm(
+        "¿Ya revisaste en la pestaña 'Explorar' que el libro no exista?\n\nPor favor, ayúdanos a evitar audiolibros duplicados en la plataforma."
+      );
+      if (confirmUpload) {
+        fileRef.current?.click();
+      }
     }
   };
 
