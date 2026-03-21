@@ -1,0 +1,105 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 230 25% 14%;
+    --foreground: 210 40% 98%;
+
+    --card: 231 24% 21%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 231 24% 21%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 174 83% 49%;
+    --primary-foreground: 230 25% 14%;
+
+    --secondary: 231 24% 26%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 231 24% 26%;
+    --muted-foreground: 230 15% 60%;
+
+    --accent: 174 83% 49%;
+    --accent-foreground: 230 25% 14%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 231 20% 28%;
+    --input: 231 20% 28%;
+    --ring: 174 83% 49%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 231 24% 16%;
+    --sidebar-foreground: 230 15% 60%;
+    --sidebar-primary: 174 83% 49%;
+    --sidebar-primary-foreground: 230 25% 14%;
+    --sidebar-accent: 231 24% 22%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 231 20% 24%;
+    --sidebar-ring: 174 83% 49%;
+
+    --player-background: 230 25% 11%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  .book-card {
+    @apply bg-card rounded-xl border border-border p-4 transition-all duration-300;
+  }
+
+  .book-card:hover {
+    @apply border-primary/40 -translate-y-1;
+    box-shadow: 0 8px 30px -10px hsl(174 83% 49% / 0.15);
+  }
+
+  .upload-card {
+    @apply rounded-xl border-2 border-dashed border-border p-4 transition-all duration-300 cursor-pointer flex flex-col items-center justify-center gap-3;
+  }
+
+  .upload-card:hover {
+    @apply border-primary/60 bg-primary/5;
+  }
+}
+
+@layer utilities {
+  .animate-fade-in {
+    animation: fade-in 0.3s ease-out;
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .animate-pulse-subtle {
+    animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  @keyframes pulse-subtle {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+}

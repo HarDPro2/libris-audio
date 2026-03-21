@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+dist/
+dev-dist/
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+*.egg-info/
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Generated audio & data
+backend/static/audio/*.mp3
+backend/static/audio/*.wav
+.libris-data/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.log
