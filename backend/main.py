@@ -339,6 +339,9 @@ async def get_book_audio(book_id: str, part_index: int, voice: str = "es-MX-Jorg
     try:
         await text_to_mp3(text, local_mp3, voice=voice)
     except Exception as exc:
+        import traceback
+        print(f"!!! CRASH IN EDGE-TTS !!!")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error al generar audio: {exc}")
         
     # 3. Upload the generated MP3 to Cloud Storage
