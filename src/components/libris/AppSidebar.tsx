@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, BookOpen, Upload, Clock, Settings, AudioLines, Download } from 'lucide-react';
+import { Home, BookOpen, Upload, Clock, Settings, AudioLines, Download, LogOut, User as UserIcon } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 import {
   Sidebar,
   SidebarContent,
@@ -10,8 +11,10 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarFooter,
 } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 const navItems = [
   { title: 'Home', url: '/', icon: Home },
@@ -24,6 +27,7 @@ const navItems = [
 export function AppSidebar() {
   const location = useLocation();
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const { user, signOut } = useAuth();
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: any) => {
@@ -44,7 +48,7 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar className="border-r border-sidebar-border bg-sidebar">
+    <Sidebar className="border-r border-sidebar-border bg-sidebar flex flex-col h-full">
       <SidebarHeader className="p-6">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15">
@@ -57,7 +61,7 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="px-3">
+      <SidebarContent className="px-3 flex-1">
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -99,6 +103,35 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
+      {user && (
+        <SidebarFooter className="p-4 border-t border-sidebar-border mt-auto">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-3 px-2">
+              <div className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center shrink-0">
+                <UserIcon className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="text-sm font-medium text-foreground truncate">
+                  {user.email?.split('@')[0]}
+                </span>
+                <span className="text-xs text-muted-foreground truncate">
+                  {user.email}
+                </span>
+              </div>
+            </div>
+            
+            <Button 
+              variant="outline" 
+              className="w-full justify-start text-muted-foreground hover:text-foreground bg-transparent border-sidebar-border"
+              onClick={() => signOut()}
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              Cerrar Sesión
+            </Button>
+          </div>
+        </SidebarFooter>
+      )}
     </Sidebar>
   );
 }

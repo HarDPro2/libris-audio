@@ -15,4 +15,5 @@ export interface Book {
   currentPartIndex?: number;
   voice?: string;
   category?: string;
+  fileHash?: string; // SHA-256 of the uploaded PDF for duplicate detection
 }

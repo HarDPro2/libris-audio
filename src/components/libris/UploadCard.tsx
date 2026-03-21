@@ -1,6 +1,8 @@
 import { Plus, Loader2, AlertCircle, Volume2 } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { usePlayer } from '@/context/PlayerContext';
+import { checkDuplicateHash, addGlobalBook } from '@/hooks/useBooks';
+import { useToast } from '@/components/ui/use-toast';
 import {
   Select,
   SelectContent,
@@ -67,7 +69,8 @@ export function UploadCard() {
   const [error, setError] = useState<string | null>(null);
   const [selectedVoice, setSelectedVoice] = useState(VOICES[0].id);
   const [isPlayingSample, setIsPlayingSample] = useState(false);
-  const { addBook } = usePlayer();
+  const { refreshBooks } = usePlayer();
+  const { toast } = useToast();
 
   const playSample = () => {
     if (isPlayingSample) return;
@@ -85,6 +88,14 @@ export function UploadCard() {
     }
   };
 
+  // Very basic SHA-256 calculator from file blob
+  const calculateHash = async (file: File) => {
+    const buffer = await file.arrayBuffer();
+    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  };
+
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -93,6 +104,19 @@ export function UploadCard() {
     setError(null);
 
     try {
+      const hash = await calculateHash(file);
+      const isDuplicate = await checkDuplicateHash(hash);
+      
+      if (isDuplicate) {
+        toast({
+          title: "Libro duplicado",
+          description: "Este PDF ya se encuentra en la biblioteca global.",
+          variant: "default",
+        });
+        // You could also forcefully refresh books or fetch global books here
+        return;
+      }
+
       const formData = new FormData();
       formData.append('file', file);
       formData.append('voice', selectedVoice);
@@ -108,7 +132,36 @@ export function UploadCard() {
       }
 
       const data: { title: string; bookId: string; partsCount: number; voice: string; coverUrl?: string } = await response.json();
-      addBook(data.title, undefined, data.bookId, data.partsCount, data.voice, data.coverUrl);
+      
+      // Push to global library via Supabase
+      await addGlobalBook({
+        id: crypto.randomUUID(), // Will be overridden or used by Supabase
+        title: data.title,
+        author: 'Documento PDF',
+        coverUrl: data.coverUrl || 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=300&h=400&fit=crop',
+        progress: 0,
+        duration: data.partsCount ? `~${data.partsCount * 4}min` : '~15min',
+        currentTime: 0,
+        totalTime: data.partsCount ? 0 : 900,
+        addedAt: new Date(),
+        bookId: data.bookId,
+        partsCount: data.partsCount,
+        currentPartIndex: 0,
+        voice: data.voice,
+        fileHash: hash,
+        category: 'Nuevos'
+      });
+
+      // We added it directly to global. The Library "Explorar" tab will fetch it.
+      // But we should refresh context just in case.
+      await refreshBooks();
+
+      toast({
+        title: "¡Libro procesado!",
+        description: "El libro se ha añadido a la Biblioteca Principal.",
+        style: { background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', border: 'none' }
+      });
+
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error desconocido';
       setError(message);
@@ -182,3 +235,4 @@ export function UploadCard() {
     </div>
   );
 }
+
