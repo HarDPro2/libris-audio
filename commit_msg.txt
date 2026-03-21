@@ -1,1 +1,1 @@
-feat: LibrisAudio complete - PWA audiobook player with AI TTS, history, categories and part selector
+fix: add landing page as route and move app layout to sub-routes
