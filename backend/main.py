@@ -36,15 +36,11 @@ app = FastAPI(title="LibrisAudio API")
 # Allow the Vite dev server (port 8080) to call us
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8080", "http://127.0.0.1:8080"],
+    allow_origins=["*"], # More permissive for Vercel CORS
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Serve generated audio files as static assets
-app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
-
 
 # ---------------------------------------------------------------------------
 # Helpers
