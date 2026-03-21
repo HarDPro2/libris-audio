@@ -14,6 +14,51 @@ function formatTime(seconds: number) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+const VOICES = [
+  { id: 'es-MX-JorgeNeural', name: '🇲🇽 Jorge (México) - Hombre' },
+  { id: 'es-MX-DaliaNeural', name: '🇲🇽 Dalia (México) - Mujer' },
+  { id: 'es-ES-AlvaroNeural', name: '🇪🇸 Álvaro (España) - Hombre' },
+  { id: 'es-ES-ElviraNeural', name: '🇪🇸 Elvira (España) - Mujer' },
+  { id: 'es-US-AlonsoNeural', name: '🇺🇸 Alonso (EEUU) - Hombre' },
+  { id: 'es-US-PalomaNeural', name: '🇺🇸 Paloma (EEUU) - Mujer' },
+  { id: 'es-AR-TomasNeural', name: '🇦🇷 Tomás (Argentina) - Hombre' },
+  { id: 'es-AR-ElenaNeural', name: '🇦🇷 Elena (Argentina) - Mujer' },
+  { id: 'es-BO-MarceloNeural', name: '🇧🇴 Marcelo (Bolivia) - Hombre' },
+  { id: 'es-BO-SofiaNeural', name: '🇧🇴 Sofía (Bolivia) - Mujer' },
+  { id: 'es-CL-LorenzoNeural', name: '🇨🇱 Lorenzo (Chile) - Hombre' },
+  { id: 'es-CL-CatalinaNeural', name: '🇨🇱 Catalina (Chile) - Mujer' },
+  { id: 'es-CO-GonzaloNeural', name: '🇨🇴 Gonzalo (Colombia) - Hombre' },
+  { id: 'es-CO-SalomeNeural', name: '🇨🇴 Salomé (Colombia) - Mujer' },
+  { id: 'es-EC-LuisNeural', name: '🇪🇨 Luis (Ecuador) - Hombre' },
+  { id: 'es-EC-AndreaNeural', name: '🇪🇨 Andrea (Ecuador) - Mujer' },
+  { id: 'es-PE-AlexNeural', name: '🇵🇪 Alex (Perú) - Hombre' },
+  { id: 'es-PE-CamilaNeural', name: '🇵🇪 Camila (Perú) - Mujer' },
+  { id: 'es-PY-MarioNeural', name: '🇵🇾 Mario (Paraguay) - Hombre' },
+  { id: 'es-PY-TaniaNeural', name: '🇵🇾 Tania (Paraguay) - Mujer' },
+  { id: 'es-UY-MateoNeural', name: '🇺🇾 Mateo (Uruguay) - Hombre' },
+  { id: 'es-UY-ValentinaNeural', name: '🇺🇾 Valentina (Uruguay) - Mujer' },
+  { id: 'es-VE-SebastianNeural', name: '🇻🇪 Sebastián (Venezuela) - Hombre' },
+  { id: 'es-VE-PaolaNeural', name: '🇻🇪 Paola (Venezuela) - Mujer' },
+  { id: 'es-CR-JuanNeural', name: '🇨🇷 Juan (Costa Rica) - Hombre' },
+  { id: 'es-CR-MariaNeural', name: '🇨🇷 María (Costa Rica) - Mujer' },
+  { id: 'es-CU-ManuelNeural', name: '🇨🇺 Manuel (Cuba) - Hombre' },
+  { id: 'es-CU-BelkysNeural', name: '🇨🇺 Belkys (Cuba) - Mujer' },
+  { id: 'es-DO-EmilioNeural', name: '🇩🇴 Emilio (R. Dominicana) - Hombre' },
+  { id: 'es-DO-RamonaNeural', name: '🇩🇴 Ramona (R. Dominicana) - Mujer' },
+  { id: 'es-GT-AndresNeural', name: '🇬🇹 Andrés (Guatemala) - Hombre' },
+  { id: 'es-GT-MartaNeural', name: '🇬🇹 Marta (Guatemala) - Mujer' },
+  { id: 'es-HN-CarlosNeural', name: '🇭🇳 Carlos (Honduras) - Hombre' },
+  { id: 'es-HN-KarlaNeural', name: '🇭🇳 Karla (Honduras) - Mujer' },
+  { id: 'es-NI-FedericoNeural', name: '🇳🇮 Federico (Nicaragua) - Hombre' },
+  { id: 'es-NI-YolandaNeural', name: '🇳🇮 Yolanda (Nicaragua) - Mujer' },
+  { id: 'es-PA-RobertoNeural', name: '🇵🇦 Roberto (Panamá) - Hombre' },
+  { id: 'es-PA-MargaritaNeural', name: '🇵🇦 Margarita (Panamá) - Mujer' },
+  { id: 'es-PR-VictorNeural', name: '🇵🇷 Víctor (Puerto Rico) - Hombre' },
+  { id: 'es-PR-KarinaNeural', name: '🇵🇷 Karina (Puerto Rico) - Mujer' },
+  { id: 'es-SV-RodrigoNeural', name: '🇸🇻 Rodrigo (El Salvador) - Hombre' },
+  { id: 'es-SV-LorenaNeural', name: '🇸🇻 Lorena (El Salvador) - Mujer' },
+];
+
 export function AudioPlayer() {
   const {
     currentBook,
@@ -26,6 +71,8 @@ export function AudioPlayer() {
     elapsed,
     audioRef,
     seekToPart,
+    voice,
+    setVoice,
   } = usePlayer();
 
   if (!currentBook) return null;
@@ -112,9 +159,19 @@ export function AudioPlayer() {
         </div>
 
         {/* Right controls */}
-        <div className="hidden md:flex items-center gap-3 w-48 justify-end shrink-0">
+        <div className="hidden xl:flex items-center gap-3 w-80 justify-end shrink-0">
+          <Select value={voice} onValueChange={setVoice}>
+            <SelectTrigger className="h-8 text-xs bg-transparent border-muted-foreground/30 hover:bg-muted w-36 overflow-hidden">
+              <SelectValue placeholder="Voz" />
+            </SelectTrigger>
+            <SelectContent align="end" className="max-h-[300px]">
+              {VOICES.map(v => (
+                <SelectItem key={v.id} value={v.id} className="text-xs">{v.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <SpeedMenu />
-          <Volume2 className="h-4 w-4 text-muted-foreground" />
+          <Volume2 className="h-4 w-4 text-muted-foreground shrink-0" />
           <Slider
             value={[volume * 100]}
             onValueChange={([v]) => setVolume(v / 100)}

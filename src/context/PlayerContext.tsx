@@ -9,6 +9,7 @@ interface PlayerState {
   speed: number;
   volume: number;
   elapsed: number;
+  voice: string;
 }
 
 interface PlayerContextValue extends PlayerState {
@@ -25,6 +26,7 @@ interface PlayerContextValue extends PlayerState {
   removeBook: (bookId: string) => void;
   restartBook: (bookId: string) => void;
   seekToPart: (partIndex: number) => void;
+  setVoice: (voice: string) => void;
 }
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
@@ -38,6 +40,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     speed: 1,
     volume: 0.8,
     elapsed: 0,
+    voice: 'es-MX-JorgeNeural',
   });
 
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -69,7 +72,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const bk = state.currentBook;
     
     if (bk?.bookId) {
-      audio.src = `http://localhost:8000/api/audio/${bk.bookId}/${bk.currentPartIndex || 0}`;
+      audio.src = `http://localhost:8000/api/audio/${bk.bookId}/${bk.currentPartIndex || 0}?voice=${state.voice}`;
     } else if (bk?.audioUrl) {
       audio.src = bk.audioUrl;
     } else {
@@ -96,12 +99,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const bk = state.currentBook;
     if (bk && bk.bookId && bk.partsCount && (bk.currentPartIndex || 0) < bk.partsCount - 1) {
       const nextIndex = (bk.currentPartIndex || 0) + 1;
-      const nextUrl = `http://localhost:8000/api/audio/${bk.bookId}/${nextIndex}`;
+      const nextUrl = `http://localhost:8000/api/audio/${bk.bookId}/${nextIndex}?voice=${state.voice}`;
       const prefetcher = new Audio();
       prefetcher.preload = 'auto';
       prefetcher.src = nextUrl;
     }
-  }, [state.currentBook?.bookId, state.currentBook?.currentPartIndex]);
+  }, [state.currentBook?.bookId, state.currentBook?.currentPartIndex, state.voice]);
 
   // ── Play / pause ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -299,6 +302,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const setVoice = useCallback((voice: string) => {
+    setState(prev => ({ ...prev, voice }));
+  }, []);
+
   return (
     <PlayerContext.Provider value={{
       ...state,
@@ -315,6 +322,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       removeBook,
       restartBook,
       seekToPart,
+      setVoice,
     }}>
       <audio ref={audioRef} preload="metadata" />
       {children}

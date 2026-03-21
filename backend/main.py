@@ -214,7 +214,7 @@ async def get_tts_sample(voice: str = "es-MX-JorgeNeural"):
 
 
 @app.post("/api/upload-pdf")
-async def upload_pdf(file: UploadFile = File(...), voice: str = Form("es-MX-JorgeNeural")):
+async def upload_pdf(file: UploadFile = File(...)):
     # ── Validate ──────────────────────────────────────────────────────────
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Solo se aceptan archivos PDF.")
@@ -267,7 +267,6 @@ async def upload_pdf(file: UploadFile = File(...), voice: str = Form("es-MX-Jorg
         
     (book_dir / "metadata.json").write_text(json.dumps({
         "title": title,
-        "voice": voice,
         "parts_count": len(chunks),
         "cover_url": cover_url
     }), encoding="utf-8")
@@ -276,19 +275,19 @@ async def upload_pdf(file: UploadFile = File(...), voice: str = Form("es-MX-Jorg
         "title": title,
         "bookId": book_id,
         "partsCount": len(chunks),
-        "voice": voice,
         "coverUrl": cover_url
     })
 
 
 @app.get("/api/audio/{book_id}/{part_index}")
-async def get_book_audio(book_id: str, part_index: int):
+async def get_book_audio(book_id: str, part_index: int, voice: str = "es-MX-JorgeNeural"):
     """JIT Engine: Delivers audio for a specific part. Generates it if missing."""
     book_dir = BOOKS_DIR / book_id
     if not book_dir.exists():
         raise HTTPException(status_code=404, detail="Libro no encontrado")
         
-    mp3_path = book_dir / f"part_{part_index}.mp3"
+    safe_voice = sanitize_filename(voice)
+    mp3_path = book_dir / f"part_{part_index}_{safe_voice}.mp3"
     txt_path = book_dir / f"part_{part_index}.txt"
     metadata_path = book_dir / "metadata.json"
     
@@ -296,8 +295,6 @@ async def get_book_audio(book_id: str, part_index: int):
         raise HTTPException(status_code=404, detail="Parte no encontrada")
         
     if not mp3_path.exists():
-        meta = json.loads(metadata_path.read_text(encoding="utf-8"))
-        voice = meta.get("voice", "es-MX-JorgeNeural")
         text = txt_path.read_text(encoding="utf-8")
         try:
             await text_to_mp3(text, mp3_path, voice=voice)
