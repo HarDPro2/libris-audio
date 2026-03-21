@@ -9,6 +9,7 @@ import edge_tts
 import fitz  # PyMuPDF
 import uvicorn
 import httpx
+from gtts import gTTS
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
@@ -192,10 +193,17 @@ def sanitize_filename(name: str) -> str:
     return slug[:80] or "libro"
 
 
-async def text_to_mp3(text: str, output_path: Path, voice: str = "es-MX-JorgeNeural") -> None:
-    """Convert text to speech and save as MP3 using edge-tts."""
-    communicate = edge_tts.Communicate(text, voice)
-    await communicate.save(str(output_path))
+async def text_to_mp3(text: str, output_path: Path, voice: str = "es-MX-JorgeNeural"):
+    """Uses edge-tts to generate an MP3 file with a fallback to Google TTS."""
+    try:
+        communicate = edge_tts.Communicate(text, voice)
+        await communicate.save(str(output_path))
+    except Exception as e:
+        print(f"[TTS] Microsoft Edge-TTS connection failed: {e}. Falling back to gTTS...")
+        def generate_gtts():
+            tts = gTTS(text=text, lang="es", tld="com.mx")
+            tts.save(str(output_path))
+        await asyncio.to_thread(generate_gtts)
 
 
 # ---------------------------------------------------------------------------
