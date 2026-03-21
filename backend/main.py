@@ -220,77 +220,87 @@ async def get_tts_sample(voice: str = "es-MX-JorgeNeural"):
 
 @app.post("/api/upload-pdf")
 async def upload_pdf(file: UploadFile = File(...)):
-    # ── Validate ──────────────────────────────────────────────────────────
-    if not supabase:
-        raise HTTPException(status_code=500, detail="Supabase no configurado en el backend")
-        
-    if not file.filename or not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Solo se aceptan archivos PDF.")
-
-    pdf_bytes = await file.read()
-    if len(pdf_bytes) == 0:
-        raise HTTPException(status_code=400, detail="El archivo PDF está vacío.")
-
-    # ── Extract text ───────────────────────────────────────────────────────
+    print(f"Recibiendo solicitud de subida: {file.filename}")
     try:
-        # Extraemos todo el texto posible (límite subido a 1000 páginas)
-        text = extract_text_from_pdf(pdf_bytes, max_pages=1000)
-    except Exception as exc:
-        raise HTTPException(status_code=422, detail=f"No se pudo leer el PDF: {exc}")
-
-    if not text:
-        raise HTTPException(
-            status_code=422,
-            detail="Las primeras páginas del PDF no contienen texto extraíble (puede ser un PDF escaneado).",
-        )
-
-    # ── Derive title ────────────────────────────────────────────────────────
-    raw_title = file.filename.rsplit(".", 1)[0]  # strip ".pdf"
-    title = raw_title.replace("_", " ").replace("-", " ").strip() or "Libro sin título"
-
-    # ── Chunking & Metadata ──────────────────────────────────────────────────
-    chunks = chunk_text(text, max_chars=3800)
-    if not chunks:
-         raise HTTPException(status_code=422, detail="No se pudo extraer texto suficiente.")
-
-    book_id = uuid.uuid4().hex[:12]
-
-    # ── Extract Cover ────────────────────────────────────────────────────────
-    cover_url = None
-    try:
-        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-        if len(doc) > 0:
-            page = doc.load_page(0)
-            pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5))
-            cover_bytes = pix.tobytes("png")
+        # ── Validate ──────────────────────────────────────────────────────────
+        if not supabase:
+            raise HTTPException(status_code=500, detail="Supabase no configurado en el backend")
             
-            cover_path = f"{book_id}/cover.png"
-            supabase.storage.from_("books").upload(
-                cover_path,
-                cover_bytes,
-                {"content-type": "image/png"}
+        if not file.filename or not file.filename.lower().endswith(".pdf"):
+            raise HTTPException(status_code=400, detail="Solo se aceptan archivos PDF.")
+
+        pdf_bytes = await file.read()
+        if len(pdf_bytes) == 0:
+            raise HTTPException(status_code=400, detail="El archivo PDF está vacío.")
+
+        # ── Extract text ───────────────────────────────────────────────────────
+        try:
+            # Extraemos todo el texto posible (límite subido a 1000 páginas)
+            text = extract_text_from_pdf(pdf_bytes, max_pages=1000)
+        except Exception as exc:
+            raise HTTPException(status_code=422, detail=f"No se pudo leer el PDF: {exc}")
+
+        if not text:
+            raise HTTPException(
+                status_code=422,
+                detail="Las primeras páginas del PDF no contienen texto extraíble (puede ser un PDF escaneado).",
             )
-            cover_url = supabase.storage.from_("books").get_public_url(cover_path)
-            
-        doc.close()
-    except Exception as e:
-        print(f"[PDF] Error extracting cover: {e}")
 
-    # ── Upload Chunks ────────────────────────────────────────────────────────
-    for i, chunk in enumerate(chunks):
-        txt_path = f"{book_id}/text/part_{i}.txt"
-        supabase.storage.from_("books").upload(
-            txt_path,
-            chunk.encode("utf-8"),
-            {"content-type": "text/plain"}
-        )
+        # ── Derive title ────────────────────────────────────────────────────────
+        raw_title = file.filename.rsplit(".", 1)[0]  # strip ".pdf"
+        title = raw_title.replace("_", " ").replace("-", " ").strip() or "Libro sin título"
 
-    return JSONResponse({
-        "title": title,
-        "bookId": book_id,
-        "partsCount": len(chunks),
-        "coverUrl": cover_url
-    })
+        # ── Chunking & Metadata ──────────────────────────────────────────────────
+        chunks = chunk_text(text, max_chars=3800)
+        if not chunks:
+             raise HTTPException(status_code=422, detail="No se pudo extraer texto suficiente.")
+
+        book_id = uuid.uuid4().hex[:12]
+
+        # ── Extract Cover ────────────────────────────────────────────────────────
+        cover_url = None
+        try:
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            if len(doc) > 0:
+                page = doc.load_page(0)
+                pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5))
+                cover_bytes = pix.tobytes("png")
+                
+                cover_path = f"{book_id}/cover.png"
+                supabase.storage.from_("books").upload(
+                    cover_path,
+                    cover_bytes,
+                    {"content-type": "image/png"}
+                )
+                cover_url = supabase.storage.from_("books").get_public_url(cover_path)
+                
+            doc.close()
+        except Exception as e:
+            print(f"[PDF] Error extracting cover: {e}")
+
+        # ── Upload Chunks ────────────────────────────────────────────────────────
+        for i, chunk in enumerate(chunks):
+            txt_path = f"{book_id}/text/part_{i}.txt"
+            supabase.storage.from_("books").upload(
+                txt_path,
+                chunk.encode("utf-8"),
+                {"content-type": "text/plain"}
+            )
+
+        print(f"Subida completada con éxito: {book_id}")
+        return JSONResponse({
+            "title": title,
+            "bookId": book_id,
+            "partsCount": len(chunks),
+            "coverUrl": cover_url
+        })
+    except HTTPException as http_exc:
+        # Re-raise HTTPExceptions directly so FastAPI handles them
+        raise http_exc
+    except Exception as exc:
+        print(f"[Upload Error] {type(exc).__name__}: {exc}")
+        # Explicit JSON Response to preserve CORS headers on 500
+        return JSONResponse(status_code=500, content={"detail": f"Error interno en el servidor: {str(exc)}"})
 
 
 @app.get("/api/audio/{book_id}/{part_index}")
