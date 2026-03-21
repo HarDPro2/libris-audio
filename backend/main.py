@@ -37,7 +37,7 @@ app = FastAPI(title="LibrisAudio API")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], # More permissive for Vercel CORS
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
