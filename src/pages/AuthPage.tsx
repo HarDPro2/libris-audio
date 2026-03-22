@@ -6,6 +6,7 @@ export default function AuthPage() {
   const { signIn, signUp } = useAuth();
   const navigate = useNavigate();
   const [tab, setTab] = useState<'login' | 'register'>('login');
+  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +22,7 @@ export default function AuthPage() {
       if (error) { setError(error); setLoading(false); return; }
       navigate('/library');
     } else {
-      const { error } = await signUp(email, password);
+      const { error } = await signUp(email, password, fullName);
       if (error) { setError(error); setLoading(false); return; }
       setSuccess(true);
     }
@@ -80,6 +81,20 @@ export default function AuthPage() {
           </div>
         ) : (
           <form onSubmit={handleSubmit} style={{ display:'flex', flexDirection:'column', gap:'1rem' }}>
+            {tab === 'register' && (
+              <div>
+                <label style={{ color:'#94A3B8', fontSize:'0.8rem', fontWeight:600, display:'block', marginBottom:'0.4rem' }}>Nombre de Usuario (Opcional)</label>
+                <input
+                  type="text" value={fullName} onChange={e => setFullName(e.target.value)}
+                  placeholder="Ej. Juan Pérez"
+                  style={{
+                    width:'100%', padding:'0.75rem 1rem', background:'rgba(255,255,255,0.06)',
+                    border:'1px solid rgba(255,255,255,0.1)', borderRadius:10, color:'#F8FAFC',
+                    fontSize:'0.95rem', outline:'none', boxSizing:'border-box',
+                  }}
+                />
+              </div>
+            )}
             <div>
               <label style={{ color:'#94A3B8', fontSize:'0.8rem', fontWeight:600, display:'block', marginBottom:'0.4rem' }}>Correo electrónico</label>
               <input

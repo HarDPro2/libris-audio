@@ -113,7 +113,7 @@ export function AppSidebar() {
               </div>
               <div className="flex flex-col min-w-0">
                 <span className="text-sm font-medium text-foreground truncate">
-                  {user.email?.split('@')[0]}
+                  {user.user_metadata?.full_name || user.email?.split('@')[0]}
                 </span>
                 <span className="text-xs text-muted-foreground truncate">
                   {user.email}
