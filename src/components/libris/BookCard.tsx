@@ -82,7 +82,7 @@ export function BookCard({ book, variant = 'carousel' }: BookCardProps) {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem className="text-destructive focus:bg-destructive/10 cursor-pointer" onClick={(e) => { e.stopPropagation(); removeBook(book.id); }}>
                   <Trash2 className="mr-2 h-4 w-4" />
-                  <span>Eliminar libro</span>
+                  <span>Quitar de Mi Biblioteca</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
