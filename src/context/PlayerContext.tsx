@@ -10,6 +10,7 @@ interface PlayerState {
   volume: number;
   elapsed: number;
   voice: string;
+  searchQuery: string;
 }
 
 interface PlayerContextValue extends PlayerState {
@@ -27,6 +28,7 @@ interface PlayerContextValue extends PlayerState {
   restartBook: (bookId: string) => void;
   seekToPart: (partIndex: number) => void;
   setVoice: (voice: string) => void;
+  setSearchQuery: (query: string) => void;
 }
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
@@ -43,6 +45,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     volume: 0.8,
     elapsed: 0,
     voice: 'es-MX-JorgeNeural',
+    searchQuery: '',
   });
 
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -308,6 +311,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setState(prev => ({ ...prev, voice }));
   }, []);
 
+  const setSearchQuery = useCallback((searchQuery: string) => {
+    setState(prev => ({ ...prev, searchQuery }));
+  }, []);
+
   return (
     <PlayerContext.Provider value={{
       ...state,
@@ -325,6 +332,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       restartBook,
       seekToPart,
       setVoice,
+      setSearchQuery,
     }}>
       <audio ref={audioRef} preload="metadata" />
       {children}

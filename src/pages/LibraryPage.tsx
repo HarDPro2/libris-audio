@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import { Book } from '@/types/book';
 
 export default function LibraryPage() {
-  const { books: personalBooks } = usePlayer();
+  const { books: personalBooks, searchQuery } = usePlayer();
   const [globalBooks, setGlobalBooks] = useState<Book[]>([]);
   const [activeTab, setActiveTab] = useState<'explorar' | 'personal'>('explorar');
   const [activeCategory, setActiveCategory] = useState("Todas");
@@ -25,9 +25,18 @@ export default function LibraryPage() {
 
   const sourceBooks = activeTab === 'personal' ? personalBooks : globalBooks;
 
-  const filteredBooks = activeCategory === "Todas" 
+  let filteredBooks = activeCategory === "Todas" 
     ? sourceBooks 
     : sourceBooks.filter(b => (b.category || "Sin Clasificar") === activeCategory);
+
+  if (searchQuery && searchQuery.trim() !== "") {
+    const q = searchQuery.toLowerCase().trim();
+    filteredBooks = filteredBooks.filter(b => 
+      b.title.toLowerCase().includes(q) || 
+      (b.author && b.author.toLowerCase().includes(q)) || 
+      (b.category && b.category.toLowerCase().includes(q))
+    );
+  }
 
   const usedCategories = new Set(sourceBooks.map(b => b.category || "Sin Clasificar"));
   const availableCategories = ["Todas", ...BOOK_CATEGORIES.filter(c => c !== "Todas" && usedCategories.has(c))];
@@ -98,13 +107,21 @@ export default function LibraryPage() {
             Explorar catálogo
           </button>
         </div>
+      ) : filteredBooks.length === 0 && searchQuery ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="text-4xl mb-4">🔍</div>
+          <h2 className="text-lg font-semibold mb-2">Sin resultados</h2>
+          <p className="text-muted-foreground text-sm max-w-sm mb-6">
+            No encontramos audiolibros que coincidan con "{searchQuery}".
+          </p>
+        </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
           {filteredBooks.map(book => (
             <BookCard key={book.id} book={book} variant="grid" />
           ))}
           {/* Al subir siempre va al global, y al usar la app, es util tener la opcion a mano */}
-          {(activeCategory === "Todas" || activeCategory === "Nuevos") && <UploadCard />}
+          {(activeCategory === "Todas" || activeCategory === "Nuevos") && !searchQuery && <UploadCard />}
         </div>
       )}
     </div>

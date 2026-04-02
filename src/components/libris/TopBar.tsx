@@ -3,9 +3,11 @@ import { Search, User } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Menu } from 'lucide-react';
+import { usePlayer } from '@/context/PlayerContext';
 
 export function TopBar() {
   const [userName, setUserName] = useState("Usuario");
+  const { searchQuery, setSearchQuery } = usePlayer();
 
   useEffect(() => {
     const saved = localStorage.getItem('libris_username');
@@ -44,6 +46,8 @@ export function TopBar() {
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           placeholder="Buscar libros..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-9 bg-secondary border-border text-sm h-9"
         />
       </div>
