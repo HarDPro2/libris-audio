@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
+import AuthorSignature from '@/components/common/Signature/AuthorSignature';
 
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -304,7 +305,11 @@ export default function LandingPage() {
       <footer className="l-footer">
         <span className="l-footer-logo">📚 LibrisAudio</span>
         <p>Hecho con ❤️ · Potenciado por Microsoft Edge TTS</p>
-        <p style={{ fontSize: '0.75rem' }}>© 2025 LibrisAudio. Todos los derechos reservados.</p>
+        <p style={{ fontSize: '0.75rem', marginBottom: '2rem' }}>© 2025 LibrisAudio. Todos los derechos reservados.</p>
+        
+        <div className="flex justify-center w-full mt-4">
+          <AuthorSignature adaptive={true} />
+        </div>
       </footer>
     </div>
   );
