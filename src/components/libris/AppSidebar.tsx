@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Home, BookOpen, Upload, Clock, Settings, AudioLines, Download, LogOut, User as UserIcon } from 'lucide-react';
+import AuthorSignature from '@/components/common/Signature/AuthorSignature';
 import { useAuth } from '@/context/AuthContext';
 import {
   Sidebar,
@@ -129,6 +130,10 @@ export function AppSidebar() {
               <LogOut className="mr-2 h-4 w-4" />
               Cerrar Sesión
             </Button>
+
+            <div className="mt-2 w-full flex justify-center">
+              <AuthorSignature adaptive={true} />
+            </div>
           </div>
         </SidebarFooter>
       )}
