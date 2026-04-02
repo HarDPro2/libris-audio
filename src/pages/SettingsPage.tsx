@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { User, Save, LogOut } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import AuthorSignature from '@/components/common/Signature/AuthorSignature';
 
 export default function SettingsPage() {
   const { user, updateProfile, signOut } = useAuth();
@@ -85,6 +86,10 @@ export default function SettingsPage() {
           <LogOut className="h-4 w-4" />
           Cerrar Sesión
         </button>
+      </div>
+
+      <div className="mt-8 mb-4 w-full flex justify-center md:hidden">
+        <AuthorSignature adaptive={true} />
       </div>
 
     </div>
