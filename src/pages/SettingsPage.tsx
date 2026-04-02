@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { User, Save } from 'lucide-react';
+import { User, Save, LogOut } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 export default function SettingsPage() {
-  const { user, updateProfile } = useAuth();
+  const { user, updateProfile, signOut } = useAuth();
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
@@ -75,6 +75,16 @@ export default function SettingsPage() {
             </button>
           </div>
         </form>
+      </div>
+      <div className="mt-6 p-6 rounded-2xl bg-card border border-border shadow-sm">
+        <h2 className="text-lg font-semibold text-foreground mb-4">Sesión</h2>
+        <button
+          onClick={() => signOut()}
+          className="flex items-center gap-2 w-full justify-center bg-destructive/10 text-destructive hover:bg-destructive/20 border border-destructive/20 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors"
+        >
+          <LogOut className="h-4 w-4" />
+          Cerrar Sesión
+        </button>
       </div>
 
     </div>

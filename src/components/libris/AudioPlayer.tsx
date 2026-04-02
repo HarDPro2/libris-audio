@@ -88,7 +88,7 @@ export function AudioPlayer() {
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-[hsl(var(--player-background))]/95 backdrop-blur-xl">
+    <div className="fixed bottom-[60px] md:bottom-0 left-0 right-0 z-50 border-t border-border bg-[hsl(var(--player-background))]/95 backdrop-blur-xl shadow-[0_-4px_10px_rgba(0,0,0,0.1)]">
       <div className="flex flex-col md:flex-row items-center gap-2 md:gap-4 px-3 md:px-6 py-2 md:py-0 md:h-20">
         
         {/* Book info & Mobile Menus */}
