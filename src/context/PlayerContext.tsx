@@ -137,13 +137,28 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const audio = audioRef.current;
     if (!audio) return;
     if (state.isPlaying && (state.currentBook?.audioUrl || state.currentBook?.bookId)) {
-      audio.play().catch(() => {
+      // Intenta reproducir, si es bloqueado no falla silenciosamente y avisa en consola
+      audio.play().catch((e) => {
+        console.warn('Autoplay prevented or interrupted:', e);
         setState(prev => ({ ...prev, isPlaying: false }));
       });
     } else {
       audio.pause();
     }
   }, [state.isPlaying]);
+
+  // ── Media Session API (Integración en OS y Pantalla de Bloqueo) ─────────
+  useEffect(() => {
+    if ('mediaSession' in navigator && state.currentBook) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: state.currentBook.title,
+        artist: state.currentBook.author || 'Libris Audio',
+        artwork: [
+          { src: state.currentBook.coverUrl || '', sizes: '512x512', type: 'image/png' },
+        ]
+      });
+    }
+  }, [state.currentBook]);
 
   // ── Playback speed & Volume ──────────────────────────────────────────────
   useEffect(() => {
@@ -240,6 +255,22 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   // ── Actions ─────────────────────────────────────────────────────────────
   const playBook = useCallback(async (book: Book) => {
+    // 🔥 MOBILE BROWSER FIX (Brave/Safari/Opera) 🔥
+    // Set src and call play() SYNCHRONOUSLY inside the user gesture event handler
+    // This unlocks the audio context and lifts autoplay restrictions for the session.
+    if (audioRef.current) {
+        const url = book.bookId 
+           ? `${API_URL}/api/audio/${book.bookId}/${book.currentPartIndex || 0}?voice=${voiceRef.current}` 
+           : book.audioUrl || '';
+        
+        if (url && audioRef.current.src !== url) {
+            audioRef.current.src = url;
+            audioRef.current.load();
+        }
+        
+        audioRef.current.play().catch(e => console.warn("Autoplay blocked during user gesture:", e));
+    }
+
     // If we're playing a book that isn't in our personal library, add it
     let finalBook = book;
     setBooks(prev => {
@@ -266,7 +297,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const togglePlay = useCallback(() => {
-    setState(prev => ({ ...prev, isPlaying: !prev.isPlaying }));
+    const currentlyPlaying = isPlayingRef.current;
+    if (audioRef.current) {
+      if (!currentlyPlaying) {
+        audioRef.current.play().catch(console.warn);
+      } else {
+        audioRef.current.pause();
+      }
+    }
+    setState(prev => ({ ...prev, isPlaying: !currentlyPlaying }));
   }, []);
 
   const setSpeed = useCallback((speed: number) => {
@@ -279,25 +318,29 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const seekForward = useCallback(() => {
     const audio = audioRef.current;
-    if (audio && state.currentBook?.audioUrl) {
+    if (audio) {
       audio.currentTime = Math.min(audio.currentTime + 15, audio.duration || 0);
+      setState(prev => ({ ...prev, elapsed: audio.currentTime }));
     }
-    setState(prev => ({
-      ...prev,
-      elapsed: Math.min(prev.elapsed + 15, prev.currentBook?.totalTime || 0),
-    }));
-  }, [state.currentBook?.audioUrl]);
+  }, []);
 
   const seekBackward = useCallback(() => {
     const audio = audioRef.current;
-    if (audio && state.currentBook?.audioUrl) {
+    if (audio) {
       audio.currentTime = Math.max(audio.currentTime - 15, 0);
+      setState(prev => ({ ...prev, elapsed: audio.currentTime }));
     }
-    setState(prev => ({
-      ...prev,
-      elapsed: Math.max(prev.elapsed - 15, 0),
-    }));
-  }, [state.currentBook?.audioUrl]);
+  }, []);
+
+  // Set Media Session Actions
+  useEffect(() => {
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.setActionHandler('play', togglePlay);
+      navigator.mediaSession.setActionHandler('pause', togglePlay);
+      navigator.mediaSession.setActionHandler('seekforward', seekForward);
+      navigator.mediaSession.setActionHandler('seekbackward', seekBackward);
+    }
+  }, [togglePlay, seekForward, seekBackward]);
 
   const updateBookCategory = useCallback(async (id: string, category: string) => {
     // Note: Since category is now a global property in the new schema, this would theoretically update global_books.
