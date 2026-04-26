@@ -2,7 +2,7 @@ import { Clock } from 'lucide-react';
 import { usePlayer } from '@/context/PlayerContext';
 
 export default function HistoryPage() {
-  const { books } = usePlayer();
+  const { books, playBook } = usePlayer();
   const listened = books.filter(b => b.progress > 0).sort((a, b) => b.addedAt.getTime() - a.addedAt.getTime());
 
   return (
@@ -16,7 +16,11 @@ export default function HistoryPage() {
       ) : (
         <div className="space-y-3">
           {listened.map(book => (
-            <div key={book.id} className="flex items-center gap-4 p-4 rounded-xl bg-card border border-border">
+            <div 
+              key={book.id} 
+              onClick={() => playBook(book)}
+              className="flex items-center gap-4 p-4 rounded-xl bg-card border border-border cursor-pointer hover:bg-card/80 transition-colors"
+            >
               <div className="w-12 h-16 rounded-lg overflow-hidden shrink-0">
                 <img src={book.coverUrl} alt={book.title} className="w-full h-full object-cover" />
               </div>

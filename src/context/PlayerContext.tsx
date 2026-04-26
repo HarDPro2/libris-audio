@@ -49,7 +49,18 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   });
 
   const audioRef = useRef<HTMLAudioElement>(null);
+  const prefetchRef = useRef<HTMLAudioElement>(null);
   const currentBookRef = useRef<Book | null>(null);
+  const isPlayingRef = useRef<boolean>(state.isPlaying);
+  const voiceRef = useRef<string>(state.voice);
+
+  useEffect(() => {
+    isPlayingRef.current = state.isPlaying;
+  }, [state.isPlaying]);
+
+  useEffect(() => {
+    voiceRef.current = state.voice;
+  }, [state.voice]);
 
   // Keep a ref to the current book so the audio event listeners don't use stale closures
   useEffect(() => {
@@ -76,28 +87,32 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (!audio) return;
     const bk = state.currentBook;
     
+    let expectedSrc = '';
     if (bk?.bookId) {
-      audio.src = `${API_URL}/api/audio/${bk.bookId}/${bk.currentPartIndex || 0}?voice=${state.voice}`;
+      expectedSrc = `${API_URL}/api/audio/${bk.bookId}/${bk.currentPartIndex || 0}?voice=${state.voice}`;
     } else if (bk?.audioUrl) {
-      audio.src = bk.audioUrl;
-    } else {
+      expectedSrc = bk.audioUrl;
+    }
+
+    if (expectedSrc && audio.src !== expectedSrc) {
+      audio.src = expectedSrc;
+      audio.load();
+    } else if (!expectedSrc) {
       audio.src = '';
     }
-    
-    audio.load();
 
     const handleCanPlay = () => {
       if (bk?.currentTime && audio.currentTime < 1) {
         audio.currentTime = bk.currentTime;
       }
-      if (state.isPlaying) {
+      if (isPlayingRef.current) {
         audio.play().catch(() => setState(prev => ({ ...prev, isPlaying: false })));
       }
     };
 
     audio.addEventListener('canplay', handleCanPlay);
     return () => audio.removeEventListener('canplay', handleCanPlay);
-  }, [state.currentBook?.id, state.currentBook?.audioUrl, state.currentBook?.bookId, state.currentBook?.currentPartIndex, state.isPlaying]);
+  }, [state.currentBook?.id, state.currentBook?.audioUrl, state.currentBook?.bookId, state.currentBook?.currentPartIndex, state.voice]);
 
   // ── Prefetch next part ──────────────────────────────────────────────────
   useEffect(() => {
@@ -105,9 +120,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (bk && bk.bookId && bk.partsCount && (bk.currentPartIndex || 0) < bk.partsCount - 1) {
       const nextIndex = (bk.currentPartIndex || 0) + 1;
       const nextUrl = `${API_URL}/api/audio/${bk.bookId}/${nextIndex}?voice=${state.voice}`;
-      const prefetcher = new Audio();
-      prefetcher.preload = 'auto';
-      prefetcher.src = nextUrl;
+      
+      // Use standard fetch to reliably cache the next part in the browser
+      fetch(nextUrl).catch(console.error);
+
+      // And also preload it in a hidden audio element to give hints to mobile browsers
+      if (prefetchRef.current && prefetchRef.current.src !== nextUrl) {
+        prefetchRef.current.src = nextUrl;
+        prefetchRef.current.load();
+      }
     }
   }, [state.currentBook?.bookId, state.currentBook?.currentPartIndex, state.voice]);
 
@@ -184,6 +205,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       const bk = currentBookRef.current;
       if (bk && bk.bookId && bk.partsCount && (bk.currentPartIndex || 0) < bk.partsCount - 1) {
         const nextIndex = (bk.currentPartIndex || 0) + 1;
+        const nextUrl = `${API_URL}/api/audio/${bk.bookId}/${nextIndex}?voice=${voiceRef.current}`;
+        
+        // Synchronous load and play to appease mobile browsers
+        if (audio) {
+          audio.src = nextUrl;
+          audio.load();
+          audio.play().catch(console.error);
+        }
+
         const updatedBook = { ...bk, currentPartIndex: nextIndex, currentTime: 0, totalTime: 0 };
         
         setBooks(bks => bks.map(b => b.id === updatedBook.id ? updatedBook : b));
@@ -335,6 +365,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setSearchQuery,
     }}>
       <audio ref={audioRef} preload="metadata" />
+      <audio ref={prefetchRef} preload="auto" style={{ display: 'none' }} />
       {children}
     </PlayerContext.Provider>
   );
