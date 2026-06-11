@@ -338,7 +338,7 @@ async def clean_audio(token: str = None):
         # 2. Listar los archivos en su carpeta de audio de forma concurrente
         async def process_book(book_id):
             def list_audio_files(bid):
-                return supabase.storage.from_("books").list(f"{bid}/audio")
+                return supabase.storage.from_("books").list(f"{bid}/audio", {"limit": 1000})
             try:
                 files = await asyncio.to_thread(list_audio_files, book_id)
                 paths = []
