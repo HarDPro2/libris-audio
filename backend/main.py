@@ -311,6 +311,75 @@ async def upload_pdf(file: UploadFile = File(...)):
         return JSONResponse(status_code=500, content={"detail": f"Error interno en el servidor: {str(exc)}"})
 
 
+@app.get("/api/clean-audio")
+async def clean_audio(token: str = None):
+    """
+    Cleans up all generated MP3 audio files in the 'books' storage bucket.
+    This frees up space while maintaining book texts and user progress.
+    """
+    expected_token = os.environ.get("CLEANUP_TOKEN") or "libris_cleanup_default_secret_2026"
+    if token != expected_token:
+        raise HTTPException(status_code=403, detail="No autorizado")
+
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase no configurado")
+
+    try:
+        # 1. Obtener la lista de todos los libros para saber sus IDs
+        def get_books():
+            return supabase.table("global_books").select("book_id").execute()
+        
+        response = await asyncio.to_thread(get_books)
+        book_ids = [row["book_id"] for row in response.data]
+        
+        cleaned_count = 0
+        all_paths_to_delete = []
+
+        # 2. Listar los archivos en su carpeta de audio de forma concurrente
+        async def process_book(book_id):
+            def list_audio_files(bid):
+                return supabase.storage.from_("books").list(f"{bid}/audio")
+            try:
+                files = await asyncio.to_thread(list_audio_files, book_id)
+                paths = []
+                for f in files:
+                    if f.get("name") and f["name"].endswith(".mp3"):
+                        paths.append(f"{book_id}/audio/{f['name']}")
+                return paths
+            except Exception as e:
+                print(f"[Cleanup] Error al listar audios para libro {book_id}: {e}")
+                return []
+
+        tasks = [process_book(bid) for bid in book_ids]
+        results = await asyncio.gather(*tasks)
+        
+        for res in results:
+            all_paths_to_delete.extend(res)
+
+        # 3. Eliminar los archivos en lotes de 100 de forma concurrente
+        if all_paths_to_delete:
+            def delete_batch(batch):
+                return supabase.storage.from_("books").remove(batch)
+                
+            delete_tasks = []
+            for i in range(0, len(all_paths_to_delete), 100):
+                chunk = all_paths_to_delete[i:i+100]
+                delete_tasks.append(asyncio.to_thread(delete_batch, chunk))
+                cleaned_count += len(chunk)
+                
+            await asyncio.gather(*delete_tasks)
+
+        return JSONResponse({
+            "status": "success",
+            "message": f"Se eliminaron {cleaned_count} archivos de audio (.mp3)",
+            "files_deleted": all_paths_to_delete
+        })
+
+    except Exception as e:
+        print(f"[Cleanup Error] {e}")
+        raise HTTPException(status_code=500, detail=f"Error al limpiar audios: {str(e)}")
+
+
 @app.get("/api/audio/{book_id}/{part_index}")
 async def get_book_audio(book_id: str, part_index: int, voice: str = "es-MX-JorgeNeural"):
     """JIT Engine: Delivers audio for a specific part. Generates it if missing."""
