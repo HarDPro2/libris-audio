@@ -175,6 +175,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (!audio) return;
 
     let lastSaveTime = 0;
+    let lastDbSaveTime = 0;
 
     const onTimeUpdate = () => {
       const currentElapsed = audio.currentTime;
@@ -193,14 +194,17 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
            overallProgress = Math.round(partBaseProgress + withinPartProgress);
         }
 
-        // 1. Update React state immediately
+        // 1. Update React state immediately every 3 seconds for UI responsiveness
         setBooks(prev => prev.map(b => b.id === bk.id ? { ...b, currentTime: currentElapsed, progress: overallProgress } : b));
         
-        // 2. Persist to Supabase silently in background
-        updateBookProgressInDb(bk.id, {
-          current_time: currentElapsed,
-          progress: overallProgress
-        }).catch(console.error);
+        // 2. Persist to Supabase only every 15 seconds to avoid network starvation/lag on mobile
+        if (now - lastDbSaveTime > 15000) {
+          lastDbSaveTime = now;
+          updateBookProgressInDb(bk.id, {
+            current_time: currentElapsed,
+            progress: overallProgress
+          }).catch(console.error);
+        }
       }
     };
 

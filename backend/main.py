@@ -140,9 +140,8 @@ def extract_text_from_pdf(pdf_bytes: bytes, max_pages: int = 1000) -> str:
                     size = round(s.get("size", 0), 1)
                     text = s.get("text", "")
                     
-                    # Conservamos si el tamaño es igual o mayor al main size
-                    # Permitimos hasta 0.6pt menos por variaciones de renderizado
-                    if size >= main_font_size - 0.6:
+                    # Conservamos si el tamaño es razonable para ser texto del cuerpo/citas (al menos 70% del tamaño principal)
+                    if size >= main_font_size * 0.7:
                         line_text += text
                 
                 line_text = line_text.strip()
