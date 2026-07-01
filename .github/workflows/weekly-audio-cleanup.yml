@@ -1,0 +1,63 @@
+name: 🧹 Limpieza semanal de audios
+
+# Ejecuta cada lunes a las 3:00 AM UTC (11:00 PM hora Venezuela del domingo)
+# También se puede disparar manualmente desde GitHub → Actions → Run workflow
+on:
+  schedule:
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (solo reportar, no borrar)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+jobs:
+  clean-audio:
+    name: Limpiar MP3 de Supabase Storage
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 🧹 Llamar endpoint de limpieza
+        id: cleanup
+        run: |
+          echo "Iniciando limpieza semanal de audios..."
+          echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            --max-time 300 \
+            "${{ secrets.BACKEND_URL }}/api/clean-audio?token=${{ secrets.CLEANUP_TOKEN }}")
+
+          HTTP_STATUS=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+
+          echo "HTTP Status: $HTTP_STATUS"
+          echo "Response body: $BODY"
+
+          if [ "$HTTP_STATUS" = "200" ]; then
+            FILES_DELETED=$(echo "$BODY" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('files_deleted', 0) if isinstance(d.get('files_deleted'), int) else len(d.get('files_deleted', [])))" 2>/dev/null || echo "N/A")
+            echo "✅ Limpieza completada. Archivos eliminados: $FILES_DELETED"
+            echo "files_deleted=$FILES_DELETED" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Error en la limpieza. HTTP $HTTP_STATUS"
+            echo "Body: $BODY"
+            exit 1
+          fi
+
+      - name: 📊 Resumen
+        if: always()
+        run: |
+          echo "### 🧹 Limpieza Semanal de Audios" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Campo | Valor |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Fecha | $(date -u '+%Y-%m-%d %H:%M UTC') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Estado | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Archivos MP3 eliminados | ${{ steps.cleanup.outputs.files_deleted }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> Los archivos de texto y portadas NO se eliminan. Solo los MP3 generados por TTS." >> $GITHUB_STEP_SUMMARY
