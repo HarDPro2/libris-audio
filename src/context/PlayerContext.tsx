@@ -55,9 +55,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const currentBookRef = useRef<Book | null>(null);
   const isPlayingRef = useRef<boolean>(state.isPlaying);
   const voiceRef = useRef<string>(state.voice);
-  // Flag to prevent the src-sync useEffect from interfering when onEnded
-  // is already handling the part transition directly.
-  const isTransitioningRef = useRef<boolean>(false);
+  // Counter-based guard (not boolean) so it survives React 18's batched
+  // double-renders: onEnded sets it to 2, each effect run decrements by 1
+  // and skips if still > 0. This guarantees both re-render passes are blocked.
+  const isTransitioningRef = useRef<number>(0);
 
   useEffect(() => {
     isPlayingRef.current = state.isPlaying;
@@ -93,9 +94,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // this effect from fighting with onEnded's direct audio manipulation,
   // which was the root cause of paragraph-skipping bugs.
   useEffect(() => {
-    // If onEnded is already managing the transition, skip this effect entirely.
-    if (isTransitioningRef.current) {
-      isTransitioningRef.current = false;
+    // If onEnded is already managing the transition, consume one guard token
+    // and skip. Using a counter (not boolean) handles React 18 batched double-renders.
+    if (isTransitioningRef.current > 0) {
+      isTransitioningRef.current -= 1;
       return;
     }
 
@@ -152,11 +154,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, [state.currentBook?.bookId, state.currentBook?.currentPartIndex, state.voice]);
 
   // ── Play / pause ────────────────────────────────────────────────────────
+  // GUARD: Never call play() here if onEnded is handling a part transition.
+  // onEnded sets isTransitioningRef > 0, so we check it before acting.
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
+    // Skip if a transition is in progress — onEnded manages play() directly
+    if (isTransitioningRef.current > 0) return;
     if (state.isPlaying && (state.currentBook?.audioUrl || state.currentBook?.bookId)) {
-      // Intenta reproducir, si es bloqueado no falla silenciosamente y avisa en consola
       audio.play().catch((e) => {
         console.warn('Autoplay prevented or interrupted:', e);
         setState(prev => ({ ...prev, isPlaying: false }));
@@ -233,9 +238,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       if (!bk) return;
 
       const dur = Math.round(audio.duration);
+      // Avoid duplicate DB writes: only persist if duration actually changed
+      if (bk.totalTime === dur) return;
+
       setBooks(bks => bks.map(b => b.id === bk.id ? { ...b, totalTime: dur } : b));
       setState(prev => prev.currentBook?.id === bk.id ? { ...prev, currentBook: { ...prev.currentBook!, totalTime: dur } } : prev);
-      
+      // Update currentBookRef immediately so the guard above works on next fire
+      currentBookRef.current = { ...bk, totalTime: dur };
+
       updateBookProgressInDb(bk.id, { total_time: dur }).catch(console.error);
     };
 
@@ -269,9 +279,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         const updatedBook = { ...bk, currentPartIndex: nextIndex, currentTime: 0, totalTime: 0 };
         currentBookRef.current = updatedBook;
 
-        // Step 2: Signal the src-sync useEffect to SKIP its next run,
-        // since we've already handled the audio transition above.
-        isTransitioningRef.current = true;
+        // Set guard to 2 tokens: enough to absorb React 18 batched double-renders
+        // from the two setState calls below (setBooks + setState).
+        isTransitioningRef.current = 2;
 
         // Step 3: Update React state so the UI reflects the new part.
         setBooks(bks => bks.map(b => b.id === updatedBook.id ? updatedBook : b));
@@ -306,44 +316,48 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // ── Actions ─────────────────────────────────────────────────────────────
   const playBook = useCallback(async (book: Book) => {
     // 🔥 MOBILE BROWSER FIX (Brave/Safari/Opera) 🔥
-    // Set src and call play() SYNCHRONOUSLY inside the user gesture event handler
-    // This unlocks the audio context and lifts autoplay restrictions for the session.
+    // Set src and call play() SYNCHRONOUSLY inside the user gesture event handler.
     if (audioRef.current) {
-        const url = book.bookId 
-           ? `${API_URL}/api/audio/${book.bookId}/${book.currentPartIndex || 0}?voice=${voiceRef.current}` 
-           : book.audioUrl || '';
-        
-        if (url && audioRef.current.src !== url) {
-            audioRef.current.src = url;
-            audioRef.current.load();
-        }
-        
-        audioRef.current.play().catch(e => console.warn("Autoplay blocked during user gesture:", e));
+      const url = book.bookId
+        ? `${API_URL}/api/audio/${book.bookId}/${book.currentPartIndex || 0}?voice=${voiceRef.current}`
+        : book.audioUrl || '';
+      if (url && audioRef.current.src !== url) {
+        audioRef.current.src = url;
+        audioRef.current.load();
+      }
+      audioRef.current.play().catch(e => console.warn('Autoplay blocked during user gesture:', e));
     }
 
-    // If we're playing a book that isn't in our personal library, add it
-    let finalBook = book;
+    // Determine the correct book object to use (with saved progress if in library)
+    // IMPORTANT: We read from the books array via a ref-captured snapshot OUTSIDE
+    // the setState setter to avoid the antipattern of mutating variables inside setters.
     setBooks(prev => {
       const isPersonal = prev.some(b => b.id === book.id);
       if (!isPersonal) {
-        // Optimistic UI insert
         addToPersonalLibrary(book.id).catch(console.error);
+        // Schedule state update with the new book after this setter returns
+        setTimeout(() => {
+          setState(prevState => ({
+            ...prevState,
+            currentBook: book,
+            isPlaying: true,
+            elapsed: book.currentTime || 0,
+          }));
+        }, 0);
         return [book, ...prev];
       }
-      // If it exists in personal library, use the version with the correct saved progress
-      finalBook = prev.find(b => b.id === book.id) || book;
+      // Use the library version (has correct saved progress)
+      const savedBook = prev.find(b => b.id === book.id) || book;
+      setTimeout(() => {
+        setState(prevState => ({
+          ...prevState,
+          currentBook: savedBook,
+          isPlaying: true,
+          elapsed: savedBook.currentTime || 0,
+        }));
+      }, 0);
       return prev;
     });
-
-    // Short timeout to let state settle
-    setTimeout(() => {
-      setState(prev => ({
-        ...prev,
-        currentBook: finalBook,
-        isPlaying: true,
-        elapsed: finalBook.currentTime,
-      }));
-    }, 0);
   }, []);
 
   const togglePlay = useCallback(() => {
