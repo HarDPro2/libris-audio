@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { Book } from '@/types/book';
 import { useAuth } from './AuthContext';
-import { fetchUserBooks, updateBookProgressInDb, addToPersonalLibrary, removeFromPersonalLibrary } from '@/hooks/useBooks';
+import { fetchUserBooks, updateBookProgressInDb, addToPersonalLibrary, removeFromPersonalLibrary, deleteGlobalBook as deleteGlobalBookApi, updateGlobalBook as updateGlobalBookApi } from '@/hooks/useBooks';
 
 interface PlayerState {
   currentBook: Book | null;
@@ -29,6 +29,8 @@ interface PlayerContextValue extends PlayerState {
   seekToPart: (partIndex: number) => void;
   setVoice: (voice: string) => void;
   setSearchQuery: (query: string) => void;
+  deleteGlobalBook: (book: Book) => Promise<void>;
+  updateGlobalBookMeta: (book: Book, patch: { title?: string; category?: string }) => Promise<void>;
 }
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
@@ -436,6 +438,37 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setState(prev => ({ ...prev, searchQuery }));
   }, []);
 
+  // ── Owner-only: delete a book from the global catalog ────────────────────
+  const deleteGlobalBook = useCallback(async (book: Book) => {
+    if (!book.bookId) return;
+    await deleteGlobalBookApi(book.bookId);
+    // Remove from local state immediately for snappy UX
+    setBooks(prev => prev.filter(b => b.id !== book.id));
+    setState(prev =>
+      prev.currentBook?.id === book.id
+        ? { ...prev, currentBook: null, isPlaying: false, elapsed: 0 }
+        : prev
+    );
+  }, []);
+
+  // ── Owner-only: update title/category of a global book ───────────────────
+  const updateGlobalBookMeta = useCallback(async (
+    book: Book,
+    patch: { title?: string; category?: string }
+  ) => {
+    if (!book.bookId) return;
+    await updateGlobalBookApi(book.bookId, patch);
+    // Optimistic local update
+    setBooks(prev => prev.map(b =>
+      b.id === book.id ? { ...b, ...patch } : b
+    ));
+    setState(prev =>
+      prev.currentBook?.id === book.id
+        ? { ...prev, currentBook: { ...prev.currentBook!, ...patch } }
+        : prev
+    );
+  }, []);
+
   return (
     <PlayerContext.Provider value={{
       ...state,
@@ -454,6 +487,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       seekToPart,
       setVoice,
       setSearchQuery,
+      deleteGlobalBook,
+      updateGlobalBookMeta,
     }}>
       <audio ref={audioRef} preload="metadata" />
       <audio ref={prefetchRef} preload="auto" style={{ display: 'none' }} />

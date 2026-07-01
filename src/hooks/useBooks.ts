@@ -5,7 +5,7 @@ import { Book } from '@/types/book';
 function rowToBook(row: any): Book {
   const gb = row.global_books;
   return {
-    id: gb.id, // We use the global book ID as the main identifier
+    id: gb.id,
     title: gb.title,
     author: gb.author ?? '',
     coverUrl: gb.cover_url ?? '',
@@ -20,6 +20,7 @@ function rowToBook(row: any): Book {
     voice: gb.voice,
     category: gb.category,
     fileHash: gb.file_hash,
+    uploadedBy: gb.added_by,
   };
 }
 
@@ -41,6 +42,7 @@ function globalRowToBook(gb: any): Book {
     voice: gb.voice,
     category: gb.category,
     fileHash: gb.file_hash,
+    uploadedBy: gb.added_by,
   };
 }
 
@@ -149,4 +151,43 @@ export async function checkDuplicateHash(hash: string): Promise<boolean> {
     .eq('file_hash', hash)
     .limit(1);
   return (data?.length ?? 0) > 0;
+}
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+// 8. Permanently delete a book from the global catalog (uploader only)
+export async function deleteGlobalBook(bookIdHex: string): Promise<void> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) throw new Error('No autenticado');
+
+  const res = await fetch(`${API_URL}/api/books/${bookIdHex}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${session.access_token}` },
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail || `Error ${res.status}`);
+  }
+}
+
+// 9. Update a book's title and/or category in the global catalog (uploader only)
+export async function updateGlobalBook(
+  bookIdHex: string,
+  patch: { title?: string; category?: string }
+): Promise<void> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) throw new Error('No autenticado');
+
+  const res = await fetch(`${API_URL}/api/books/${bookIdHex}`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail || `Error ${res.status}`);
+  }
 }

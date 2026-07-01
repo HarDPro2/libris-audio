@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { BookCard } from '@/components/libris/BookCard';
 import { UploadCard } from '@/components/libris/UploadCard';
 import { usePlayer } from '@/context/PlayerContext';
+import { useAuth } from '@/context/AuthContext';
 import { fetchGlobalBooks } from '@/hooks/useBooks';
 import { BOOK_CATEGORIES } from '@/data/categories';
 import { cn } from '@/lib/utils';
@@ -9,6 +10,8 @@ import { Book } from '@/types/book';
 
 export default function LibraryPage() {
   const { books: personalBooks, searchQuery } = usePlayer();
+  const { user } = useAuth();
+  const currentUserId = user?.id;
   const [globalBooks, setGlobalBooks] = useState<Book[]>([]);
   const [activeTab, setActiveTab] = useState<'explorar' | 'personal'>('explorar');
   const [activeCategory, setActiveCategory] = useState("Todas");
@@ -118,7 +121,7 @@ export default function LibraryPage() {
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
           {filteredBooks.map(book => (
-            <BookCard key={book.id} book={book} variant="grid" />
+            <BookCard key={book.id} book={book} variant="grid" currentUserId={currentUserId} />
           ))}
           {/* Al subir siempre va al global, y al usar la app, es util tener la opcion a mano */}
           {(activeCategory === "Todas" || activeCategory === "Nuevos") && !searchQuery && <UploadCard />}

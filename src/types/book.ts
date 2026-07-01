@@ -16,4 +16,5 @@ export interface Book {
   voice?: string;
   category?: string;
   fileHash?: string; // SHA-256 of the uploaded PDF for duplicate detection
+  uploadedBy?: string; // user_id of whoever uploaded this book to the global catalog
 }
