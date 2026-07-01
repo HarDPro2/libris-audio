@@ -121,7 +121,13 @@ export default function LibraryPage() {
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
           {filteredBooks.map(book => (
-            <BookCard key={book.id} book={book} variant="grid" currentUserId={currentUserId} />
+            <BookCard
+              key={book.id}
+              book={book}
+              variant="grid"
+              currentUserId={currentUserId}
+              onDeleted={(deletedId) => setGlobalBooks(prev => prev.filter(b => b.id !== deletedId))}
+            />
           ))}
           {/* Al subir siempre va al global, y al usar la app, es util tener la opcion a mano */}
           {(activeCategory === "Todas" || activeCategory === "Nuevos") && !searchQuery && <UploadCard />}

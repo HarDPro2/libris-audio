@@ -24,6 +24,7 @@ interface BookCardProps {
   book: Book;
   variant?: 'carousel' | 'grid';
   currentUserId?: string;
+  onDeleted?: (bookId: string) => void; // called after successful global delete
 }
 
 // ── Inline delete-confirmation dialog ──────────────────────────────────────
@@ -95,18 +96,19 @@ function DeleteConfirmDialog({
 }
 
 // ── Main BookCard component ─────────────────────────────────────────────────
-export function BookCard({ book, variant = 'carousel', currentUserId }: BookCardProps) {
+export function BookCard({ book, variant = 'carousel', currentUserId, onDeleted }: BookCardProps) {
   const { playBook, updateBookCategory, removeBook, restartBook, deleteGlobalBook } = usePlayer();
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [localBook, setLocalBook] = useState(book);
 
-  // Sync if parent updates the book prop (e.g. after refresh)
   const isOwner = !!(currentUserId && localBook.uploadedBy === currentUserId);
 
   const handleDeleteGlobal = async () => {
     await deleteGlobalBook(localBook);
     setShowDeleteDialog(false);
+    // Notify parent (e.g. LibraryPage) to remove this card from its local list immediately
+    onDeleted?.(localBook.id);
   };
 
   if (variant === 'grid') {

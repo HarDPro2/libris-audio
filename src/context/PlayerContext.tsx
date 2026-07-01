@@ -303,13 +303,25 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
+    const onError = (e: Event) => {
+      const audioEl = e.target as HTMLAudioElement;
+      const err = audioEl.error;
+      // MEDIA_ERR_SRC_NOT_SUPPORTED (4) or MEDIA_ERR_NETWORK (2) usually mean 404/deleted
+      if (err && (err.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED || err.code === MediaError.MEDIA_ERR_NETWORK)) {
+        console.warn('[Audio] Unrecoverable source error (book may have been deleted):', err.message);
+        setState(prev => ({ ...prev, isPlaying: false }));
+      }
+    };
+
     audio.addEventListener('timeupdate', onTimeUpdate);
     audio.addEventListener('durationchange', onDurationChange);
     audio.addEventListener('ended', onEnded);
+    audio.addEventListener('error', onError);
     return () => {
       audio.removeEventListener('timeupdate', onTimeUpdate);
       audio.removeEventListener('durationchange', onDurationChange);
       audio.removeEventListener('ended', onEnded);
+      audio.removeEventListener('error', onError);
     };
   }, []);
 
