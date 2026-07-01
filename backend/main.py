@@ -462,6 +462,41 @@ def _verify_book_owner(book_id_hex: str, user_id: str) -> dict:
     return book_row
 
 
+async def _supabase_delete_as_user(table: str, eq_field: str, eq_value: str, token: str):
+    """
+    Calls Supabase REST API DELETE with the user's JWT so that auth.uid() is set
+    and RLS policies like 'auth.uid() = added_by' are satisfied.
+    The supabase-py client uses the ANON key which leaves auth.uid() NULL.
+    """
+    url = f"{SUPABASE_URL}/rest/v1/{table}"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "apikey": SUPABASE_KEY,
+        "Prefer": "return=minimal",
+    }
+    async with httpx.AsyncClient() as client:
+        r = await client.delete(url, params={eq_field: f"eq.{eq_value}"}, headers=headers)
+    if r.status_code not in (200, 204):
+        raise HTTPException(status_code=500, detail=f"Error al eliminar de la base de datos: {r.text}")
+
+
+async def _supabase_patch_as_user(table: str, eq_field: str, eq_value: str, data: dict, token: str):
+    """
+    Calls Supabase REST API PATCH with the user's JWT so that RLS policies are satisfied.
+    """
+    url = f"{SUPABASE_URL}/rest/v1/{table}"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "apikey": SUPABASE_KEY,
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal",
+    }
+    async with httpx.AsyncClient() as client:
+        r = await client.patch(url, params={eq_field: f"eq.{eq_value}"}, json=data, headers=headers)
+    if r.status_code not in (200, 204):
+        raise HTTPException(status_code=500, detail=f"Error al actualizar la base de datos: {r.text}")
+
+
 @app.delete("/api/books/{book_id_hex}")
 async def delete_book(book_id_hex: str, authorization: str = Header(default=None)):
     """
@@ -514,9 +549,9 @@ async def delete_book(book_id_hex: str, authorization: str = Header(default=None
         pass
 
     # ── Delete global_books record (CASCADE removes user_books) ──────────
-    await asyncio.to_thread(
-        lambda: supabase.table("global_books").delete().eq("id", global_book_db_id).execute()
-    )
+    # IMPORTANT: Must use user's JWT directly (not the anon-key supabase client)
+    # so that auth.uid() is set and the RLS DELETE policy is satisfied.
+    await _supabase_delete_as_user("global_books", "id", str(global_book_db_id), token)
 
     print(f"[Delete] Book {book_id_hex} (db id: {global_book_db_id}) permanently deleted by user {user_id}")
     return JSONResponse({"status": "success", "message": "Libro eliminado del catálogo permanentemente"})
@@ -556,9 +591,9 @@ async def update_book_meta(book_id_hex: str, body: dict, authorization: str = He
     if not patch:
         raise HTTPException(status_code=400, detail="Nada que actualizar. Envía 'title' y/o 'category'.")
 
-    await asyncio.to_thread(
-        lambda: supabase.table("global_books").update(patch).eq("id", global_book_db_id).execute()
-    )
+    # IMPORTANT: Must use user's JWT directly (not the anon-key supabase client)
+    # so that auth.uid() is set and the RLS UPDATE policy is satisfied.
+    await _supabase_patch_as_user("global_books", "id", str(global_book_db_id), patch, token)
 
     print(f"[Update] Book {book_id_hex} updated by user {user_id}: {patch}")
     return JSONResponse({"status": "success", "updated": patch})
