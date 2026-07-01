@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { Book } from '@/types/book';
 
 export default function LibraryPage() {
-  const { books: personalBooks, searchQuery } = usePlayer();
+  const { books: personalBooks, searchQuery, refreshBooks } = usePlayer();
   const { user } = useAuth();
   const currentUserId = user?.id;
   const [globalBooks, setGlobalBooks] = useState<Book[]>([]);
@@ -17,6 +17,7 @@ export default function LibraryPage() {
   const [activeCategory, setActiveCategory] = useState("Todas");
   const [loadingGlobal, setLoadingGlobal] = useState(false);
 
+  // Fetch global books when switching to Explorar tab
   useEffect(() => {
     if (activeTab === 'explorar') {
       setLoadingGlobal(true);
@@ -25,6 +26,23 @@ export default function LibraryPage() {
         .finally(() => setLoadingGlobal(false));
     }
   }, [activeTab]);
+
+  // PWA cross-device sync: refetch when the app comes back to foreground.
+  // This ensures books deleted on another device (e.g. PC) disappear on mobile
+  // without requiring a full reload of the PWA.
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        if (activeTab === 'explorar') {
+          fetchGlobalBooks().then(setGlobalBooks).catch(console.error);
+        }
+        refreshBooks().catch(console.error);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [activeTab, refreshBooks]);
+
 
   const sourceBooks = activeTab === 'personal' ? personalBooks : globalBooks;
 
