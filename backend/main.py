@@ -10,7 +10,7 @@ import fitz  # PyMuPDF
 import uvicorn
 import httpx
 from gtts import gTTS
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -441,6 +441,127 @@ async def get_book_audio(book_id: str, part_index: int, voice: str = "es-MX-Jorg
     # 4. Redirect seamlessly to the newly generated public MP3 file!
     return RedirectResponse(public_mp3_url)
 
+
+# ---------------------------------------------------------------------------
+# Book ownership endpoints — DELETE and PATCH (only the uploader can call)
+# ---------------------------------------------------------------------------
+
+def _verify_book_owner(book_id_hex: str, user_id: str) -> dict:
+    """
+    Fetches the global_books record and raises 403 if the caller is not the uploader.
+    Returns the full book row on success.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase no configurado")
+    response = supabase.table("global_books").select("*").eq("book_id", book_id_hex).single().execute()
+    if not response.data:
+        raise HTTPException(status_code=404, detail="Libro no encontrado")
+    book_row = response.data
+    if book_row.get("added_by") != user_id:
+        raise HTTPException(status_code=403, detail="No tienes permisos para modificar este libro")
+    return book_row
+
+
+@app.delete("/api/books/{book_id_hex}")
+async def delete_book(book_id_hex: str, authorization: str = Header(default=None)):
+    """
+    Owner-only: Permanently deletes a book and ALL its associated files from
+    Supabase Storage (texts, audios, cover). The CASCADE FK on user_books
+    ensures all personal library entries are removed automatically.
+    Requires: Authorization: Bearer <supabase_jwt>
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase no configurado")
+
+    # ── Auth: extract user from JWT ───────────────────────────────────────
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Token de autenticación requerido")
+    token = authorization.split(" ", 1)[1]
+    try:
+        user_response = supabase.auth.get_user(token)
+        user_id = user_response.user.id
+    except Exception:
+        raise HTTPException(status_code=401, detail="Token inválido o expirado")
+
+    # ── Verify ownership ──────────────────────────────────────────────────
+    book_row = await asyncio.to_thread(_verify_book_owner, book_id_hex, user_id)
+    global_book_db_id = book_row["id"]
+
+    # ── Delete all Storage files concurrently ─────────────────────────────
+    async def delete_folder(folder: str):
+        """List and remove all files under a storage folder path."""
+        try:
+            files = await asyncio.to_thread(
+                lambda: supabase.storage.from_("books").list(folder, {"limit": 1000})
+            )
+            paths = [f"{folder}/{f['name']}" for f in files if f.get("name")]
+            if paths:
+                await asyncio.to_thread(lambda: supabase.storage.from_("books").remove(paths))
+                print(f"[Delete] Removed {len(paths)} files from {folder}/")
+        except Exception as e:
+            print(f"[Delete] Warning: could not clean folder {folder}: {e}")
+
+    await asyncio.gather(
+        delete_folder(f"{book_id_hex}/audio"),
+        delete_folder(f"{book_id_hex}/text"),
+    )
+    # Cover is a single file, remove directly
+    try:
+        await asyncio.to_thread(
+            lambda: supabase.storage.from_("books").remove([f"{book_id_hex}/cover.png"])
+        )
+    except Exception:
+        pass
+
+    # ── Delete global_books record (CASCADE removes user_books) ──────────
+    await asyncio.to_thread(
+        lambda: supabase.table("global_books").delete().eq("id", global_book_db_id).execute()
+    )
+
+    print(f"[Delete] Book {book_id_hex} (db id: {global_book_db_id}) permanently deleted by user {user_id}")
+    return JSONResponse({"status": "success", "message": "Libro eliminado del catálogo permanentemente"})
+
+
+@app.patch("/api/books/{book_id_hex}")
+async def update_book_meta(book_id_hex: str, body: dict, authorization: str = Header(default=None)):
+    """
+    Owner-only: Update a book's title and/or category in global_books.
+    Body: { "title": "...", "category": "..." }  (both optional)
+    Requires: Authorization: Bearer <supabase_jwt>
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase no configurado")
+
+    # ── Auth ──────────────────────────────────────────────────────────────
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Token de autenticación requerido")
+    token = authorization.split(" ", 1)[1]
+    try:
+        user_response = supabase.auth.get_user(token)
+        user_id = user_response.user.id
+    except Exception:
+        raise HTTPException(status_code=401, detail="Token inválido o expirado")
+
+    # ── Verify ownership ──────────────────────────────────────────────────
+    book_row = await asyncio.to_thread(_verify_book_owner, book_id_hex, user_id)
+    global_book_db_id = book_row["id"]
+
+    # ── Build patch (only allow title and category) ───────────────────────
+    patch: dict = {}
+    if "title" in body and isinstance(body["title"], str) and body["title"].strip():
+        patch["title"] = body["title"].strip()
+    if "category" in body and isinstance(body["category"], str):
+        patch["category"] = body["category"].strip() or None
+
+    if not patch:
+        raise HTTPException(status_code=400, detail="Nada que actualizar. Envía 'title' y/o 'category'.")
+
+    await asyncio.to_thread(
+        lambda: supabase.table("global_books").update(patch).eq("id", global_book_db_id).execute()
+    )
+
+    print(f"[Update] Book {book_id_hex} updated by user {user_id}: {patch}")
+    return JSONResponse({"status": "success", "updated": patch})
 
 
 # ---------------------------------------------------------------------------
