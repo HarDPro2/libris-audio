@@ -53,6 +53,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const currentBookRef = useRef<Book | null>(null);
   const isPlayingRef = useRef<boolean>(state.isPlaying);
   const voiceRef = useRef<string>(state.voice);
+  // Flag to prevent the src-sync useEffect from interfering when onEnded
+  // is already handling the part transition directly.
+  const isTransitioningRef = useRef<boolean>(false);
 
   useEffect(() => {
     isPlayingRef.current = state.isPlaying;
@@ -82,7 +85,18 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, [refreshBooks]);
 
   // ── Sync src when currentBook changes ──────────────────────────────────
+  // IMPORTANT: This effect is GUARDED by isTransitioningRef.
+  // When onEnded() handles an auto-advance between parts, it sets
+  // isTransitioningRef.current = true before calling setState. This prevents
+  // this effect from fighting with onEnded's direct audio manipulation,
+  // which was the root cause of paragraph-skipping bugs.
   useEffect(() => {
+    // If onEnded is already managing the transition, skip this effect entirely.
+    if (isTransitioningRef.current) {
+      isTransitioningRef.current = false;
+      return;
+    }
+
     const audio = audioRef.current;
     if (!audio) return;
     const bk = state.currentBook;
@@ -99,10 +113,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       audio.load();
     } else if (!expectedSrc) {
       audio.src = '';
+      return;
     }
 
     const handleCanPlay = () => {
-      if (bk?.currentTime && audio.currentTime < 1) {
+      // Only seek to saved position for the INITIAL load of a book (currentTime > 1s)
+      // Never seek during auto-advance transitions (handled by onEnded)
+      if (bk?.currentTime && bk.currentTime > 1 && audio.currentTime < 1) {
         audio.currentTime = bk.currentTime;
       }
       if (isPlayingRef.current) {
@@ -226,24 +243,51 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         const nextIndex = (bk.currentPartIndex || 0) + 1;
         const nextUrl = `${API_URL}/api/audio/${bk.bookId}/${nextIndex}?voice=${voiceRef.current}`;
         
-        // Synchronous load and play to appease mobile browsers
+        // Step 1: Directly control the audio element BEFORE React state update.
+        // This is the correct sequence for mobile browsers (Brave, Safari, Opera):
+        // the play() call must be as close as possible to the user's interaction (or the ended event).
         if (audio) {
           audio.src = nextUrl;
           audio.load();
-          audio.play().catch(console.error);
+          // Use canplaythrough for reliability before calling play()
+          const playWhenReady = () => {
+            audio.play().catch(e => {
+              console.warn('[onEnded] play() blocked:', e);
+              setState(prev => ({ ...prev, isPlaying: false }));
+            });
+            audio.removeEventListener('canplay', playWhenReady);
+          };
+          audio.addEventListener('canplay', playWhenReady);
+          // Also attempt immediate play; some browsers can start instantly from cache
+          audio.play().catch(() => {
+            // If immediate play fails, the canplay listener above will retry
+          });
         }
 
         const updatedBook = { ...bk, currentPartIndex: nextIndex, currentTime: 0, totalTime: 0 };
-        
+        currentBookRef.current = updatedBook;
+
+        // Step 2: Signal the src-sync useEffect to SKIP its next run,
+        // since we've already handled the audio transition above.
+        isTransitioningRef.current = true;
+
+        // Step 3: Update React state so the UI reflects the new part.
         setBooks(bks => bks.map(b => b.id === updatedBook.id ? updatedBook : b));
         setState(prev => ({ ...prev, currentBook: updatedBook, elapsed: 0 }));
         
+        // Step 4: Persist to DB
         updateBookProgressInDb(bk.id, {
           current_part_index: nextIndex,
           current_time: 0,
         }).catch(console.error);
       } else {
+        // Book finished
         setState(prev => ({ ...prev, isPlaying: false, elapsed: 0 }));
+        updateBookProgressInDb(bk!.id, {
+          current_part_index: 0,
+          current_time: 0,
+          progress: 100,
+        }).catch(console.error);
       }
     };
 
