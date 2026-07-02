@@ -60,6 +60,16 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // and skips if still > 0. This guarantees both re-render passes are blocked.
   const isTransitioningRef = useRef<number>(0);
 
+  // Background-safe prefetch: stores the NEXT audio part already downloaded
+  // as a Blob URL in RAM. When screen is off on Android, Chrome suspends all
+  // network requests, but Blob URLs are already in memory — zero network needed.
+  const prefetchedBlobRef = useRef<{
+    blobUrl: string;
+    partIndex: number;
+    bookId: string;
+    voice: string;
+  } | null>(null);
+
   useEffect(() => {
     isPlayingRef.current = state.isPlaying;
   }, [state.isPlaying]);
@@ -135,22 +145,34 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     return () => audio.removeEventListener('canplay', handleCanPlay);
   }, [state.currentBook?.id, state.currentBook?.audioUrl, state.currentBook?.bookId, state.currentBook?.currentPartIndex, state.voice]);
 
-  // ── Prefetch next part ──────────────────────────────────────────────────
+  // ── Prefetch next part as Blob (Android screen-off safe) ───────────────
+  // Downloads the next audio part completely into RAM as a Blob URL.
+  // When the screen is off on Android, Chrome throttles/blocks network requests
+  // from background tabs. Blob URLs bypass this — they're already in memory.
   useEffect(() => {
     const bk = state.currentBook;
-    if (bk && bk.bookId && bk.partsCount && (bk.currentPartIndex || 0) < bk.partsCount - 1) {
-      const nextIndex = (bk.currentPartIndex || 0) + 1;
-      const nextUrl = `${API_URL}/api/audio/${bk.bookId}/${nextIndex}?voice=${state.voice}`;
-      
-      // Use standard fetch to reliably cache the next part in the browser
-      fetch(nextUrl).catch(console.error);
+    if (!bk?.bookId || !bk.partsCount || (bk.currentPartIndex || 0) >= bk.partsCount - 1) return;
 
-      // And also preload it in a hidden audio element to give hints to mobile browsers
-      if (prefetchRef.current && prefetchRef.current.src !== nextUrl) {
-        prefetchRef.current.src = nextUrl;
-        prefetchRef.current.load();
-      }
-    }
+    const nextIndex = (bk.currentPartIndex || 0) + 1;
+    const nextVoice = state.voice;
+    const nextUrl = `${API_URL}/api/audio/${bk.bookId}/${nextIndex}?voice=${nextVoice}`;
+
+    // Skip if already have this exact part+voice in memory
+    const cached = prefetchedBlobRef.current;
+    if (cached?.partIndex === nextIndex && cached?.bookId === bk.bookId && cached?.voice === nextVoice) return;
+
+    fetch(nextUrl)
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.blob(); })
+      .then(blob => {
+        // Revoke old blob to free RAM before storing new one
+        if (prefetchedBlobRef.current?.blobUrl) URL.revokeObjectURL(prefetchedBlobRef.current.blobUrl);
+        const blobUrl = URL.createObjectURL(blob);
+        prefetchedBlobRef.current = { blobUrl, partIndex: nextIndex, bookId: bk.bookId!, voice: nextVoice };
+        // Also prime the hidden audio element to warm up the OS audio session
+        if (prefetchRef.current) { prefetchRef.current.src = blobUrl; prefetchRef.current.load(); }
+        console.log(`[Prefetch] Part ${nextIndex} ready in RAM (${Math.round(blob.size / 1024)} KB)`);
+      })
+      .catch(e => console.warn('[Prefetch] Blob prefetch failed:', e));
   }, [state.currentBook?.bookId, state.currentBook?.currentPartIndex, state.voice]);
 
   // ── Play / pause ────────────────────────────────────────────────────────
@@ -253,15 +275,27 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       const bk = currentBookRef.current;
       if (bk && bk.bookId && bk.partsCount && (bk.currentPartIndex || 0) < bk.partsCount - 1) {
         const nextIndex = (bk.currentPartIndex || 0) + 1;
-        const nextUrl = `${API_URL}/api/audio/${bk.bookId}/${nextIndex}?voice=${voiceRef.current}`;
-        
-        // Step 1: Directly control the audio element BEFORE React state update.
-        // This is the correct sequence for mobile browsers (Brave, Safari, Opera):
-        // the play() call must be as close as possible to the user's interaction (or the ended event).
+
+        // ── Use in-memory Blob URL if available (works with screen off) ──
+        // When screen is off, Android Chrome blocks network requests from JS,
+        // so we use the pre-downloaded blob instead of hitting the API again.
+        const cached = prefetchedBlobRef.current;
+        const isCacheHit =
+          cached &&
+          cached.partIndex === nextIndex &&
+          cached.bookId === bk.bookId &&
+          cached.voice === voiceRef.current;
+
+        const nextSrc = isCacheHit
+          ? cached!.blobUrl
+          : `${API_URL}/api/audio/${bk.bookId}/${nextIndex}?voice=${voiceRef.current}`;
+
+        console.log(`[onEnded] → Part ${nextIndex} via ${isCacheHit ? 'Blob (RAM, screen-off safe)' : 'API URL (no prefetch ready)'}`);
+
+        // Step 1: Directly set src and play BEFORE React state updates.
         if (audio) {
-          audio.src = nextUrl;
+          audio.src = nextSrc;
           audio.load();
-          // Use canplaythrough for reliability before calling play()
           const playWhenReady = () => {
             audio.play().catch(e => {
               console.warn('[onEnded] play() blocked:', e);
@@ -270,23 +304,20 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             audio.removeEventListener('canplay', playWhenReady);
           };
           audio.addEventListener('canplay', playWhenReady);
-          // Also attempt immediate play; some browsers can start instantly from cache
-          audio.play().catch(() => {
-            // If immediate play fails, the canplay listener above will retry
-          });
+          // Blob URLs are often ready instantly — attempt immediate play too
+          audio.play().catch(() => { /* canplay listener above will retry */ });
         }
 
         const updatedBook = { ...bk, currentPartIndex: nextIndex, currentTime: 0, totalTime: 0 };
         currentBookRef.current = updatedBook;
 
-        // Set guard to 2 tokens: enough to absorb React 18 batched double-renders
-        // from the two setState calls below (setBooks + setState).
+        // Set guard to 2 tokens: absorbs React 18 batched double-renders.
         isTransitioningRef.current = 2;
 
         // Step 3: Update React state so the UI reflects the new part.
         setBooks(bks => bks.map(b => b.id === updatedBook.id ? updatedBook : b));
         setState(prev => ({ ...prev, currentBook: updatedBook, elapsed: 0 }));
-        
+
         // Step 4: Persist to DB
         updateBookProgressInDb(bk.id, {
           current_part_index: nextIndex,
