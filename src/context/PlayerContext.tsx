@@ -14,7 +14,7 @@ interface PlayerState {
 }
 
 interface PlayerContextValue extends PlayerState {
-  books: Book[]; // The user's personal library
+  books: Book[];
   audioRef: React.RefObject<HTMLAudioElement>;
   playBook: (book: Book) => void;
   togglePlay: () => void;
@@ -55,20 +55,16 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const currentBookRef = useRef<Book | null>(null);
   const isPlayingRef = useRef<boolean>(state.isPlaying);
   const voiceRef = useRef<string>(state.voice);
-  // Counter-based guard (not boolean) so it survives React 18's batched
-  // double-renders: onEnded sets it to 2, each effect run decrements by 1
-  // and skips if still > 0. This guarantees both re-render passes are blocked.
   const isTransitioningRef = useRef<number>(0);
 
-  // Background-safe prefetch: stores the NEXT audio part already downloaded
-  // as a Blob URL in RAM. When screen is off on Android, Chrome suspends all
-  // network requests, but Blob URLs are already in memory — zero network needed.
-  const prefetchedBlobRef = useRef<{
-    blobUrl: string;
-    partIndex: number;
-    bookId: string;
-    voice: string;
-  } | null>(null);
+  // Only ONE part ahead: enough to start the next part instantly at the
+  // track boundary (the blob is already in RAM), while the tab stays
+  // "audible" so it can download the following part in the background
+  // during playback. Keeping just 1 avoids piling up unheard audio in memory.
+  const PREFETCH_AHEAD = 1;
+  const prefetchedBlobsRef = useRef<
+    Map<number, { blobUrl: string; bookId: string; voice: string }>
+  >(new Map());
 
   useEffect(() => {
     isPlayingRef.current = state.isPlaying;
@@ -78,12 +74,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     voiceRef.current = state.voice;
   }, [state.voice]);
 
-  // Keep a ref to the current book so the audio event listeners don't use stale closures
   useEffect(() => {
     currentBookRef.current = state.currentBook;
   }, [state.currentBook]);
 
-  // ── Load Personal Library ───────────────────────────────────────────────
   const refreshBooks = useCallback(async () => {
     if (user) {
       const dbBooks = await fetchUserBooks();
@@ -97,15 +91,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     refreshBooks();
   }, [refreshBooks]);
 
-  // ── Sync src when currentBook changes ──────────────────────────────────
-  // IMPORTANT: This effect is GUARDED by isTransitioningRef.
-  // When onEnded() handles an auto-advance between parts, it sets
-  // isTransitioningRef.current = true before calling setState. This prevents
-  // this effect from fighting with onEnded's direct audio manipulation,
-  // which was the root cause of paragraph-skipping bugs.
   useEffect(() => {
-    // If onEnded is already managing the transition, consume one guard token
-    // and skip. Using a counter (not boolean) handles React 18 batched double-renders.
     if (isTransitioningRef.current > 0) {
       isTransitioningRef.current -= 1;
       return;
@@ -114,7 +100,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const audio = audioRef.current;
     if (!audio) return;
     const bk = state.currentBook;
-    
+
     let expectedSrc = '';
     if (bk?.bookId) {
       expectedSrc = `${API_URL}/api/audio/${bk.bookId}/${bk.currentPartIndex || 0}?voice=${state.voice}`;
@@ -131,8 +117,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
 
     const handleCanPlay = () => {
-      // Only seek to saved position for the INITIAL load of a book (currentTime > 1s)
-      // Never seek during auto-advance transitions (handled by onEnded)
       if (bk?.currentTime && bk.currentTime > 1 && audio.currentTime < 1) {
         audio.currentTime = bk.currentTime;
       }
@@ -145,43 +129,55 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     return () => audio.removeEventListener('canplay', handleCanPlay);
   }, [state.currentBook?.id, state.currentBook?.audioUrl, state.currentBook?.bookId, state.currentBook?.currentPartIndex, state.voice]);
 
-  // ── Prefetch next part as Blob (Android screen-off safe) ───────────────
-  // Downloads the next audio part completely into RAM as a Blob URL.
-  // When the screen is off on Android, Chrome throttles/blocks network requests
-  // from background tabs. Blob URLs bypass this — they're already in memory.
   useEffect(() => {
     const bk = state.currentBook;
-    if (!bk?.bookId || !bk.partsCount || (bk.currentPartIndex || 0) >= bk.partsCount - 1) return;
+    if (!bk?.bookId || !bk.partsCount) return;
 
-    const nextIndex = (bk.currentPartIndex || 0) + 1;
-    const nextVoice = state.voice;
-    const nextUrl = `${API_URL}/api/audio/${bk.bookId}/${nextIndex}?voice=${nextVoice}`;
+    const bookId = bk.bookId;
+    const voice = state.voice;
+    const currentIndex = bk.currentPartIndex || 0;
+    const buffer = prefetchedBlobsRef.current;
 
-    // Skip if already have this exact part+voice in memory
-    const cached = prefetchedBlobRef.current;
-    if (cached?.partIndex === nextIndex && cached?.bookId === bk.bookId && cached?.voice === nextVoice) return;
+    for (const [idx, entry] of buffer) {
+      // Use < (not <=) so we never revoke the blob of the part that is
+      // CURRENTLY playing (idx === currentIndex); it is freed once we move past it.
+      if (idx < currentIndex || entry.bookId !== bookId || entry.voice !== voice) {
+        URL.revokeObjectURL(entry.blobUrl);
+        buffer.delete(idx);
+      }
+    }
 
-    fetch(nextUrl)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.blob(); })
-      .then(blob => {
-        // Revoke old blob to free RAM before storing new one
-        if (prefetchedBlobRef.current?.blobUrl) URL.revokeObjectURL(prefetchedBlobRef.current.blobUrl);
-        const blobUrl = URL.createObjectURL(blob);
-        prefetchedBlobRef.current = { blobUrl, partIndex: nextIndex, bookId: bk.bookId!, voice: nextVoice };
-        // Also prime the hidden audio element to warm up the OS audio session
-        if (prefetchRef.current) { prefetchRef.current.src = blobUrl; prefetchRef.current.load(); }
-        console.log(`[Prefetch] Part ${nextIndex} ready in RAM (${Math.round(blob.size / 1024)} KB)`);
-      })
-      .catch(e => console.warn('[Prefetch] Blob prefetch failed:', e));
+    let cancelled = false;
+    const lastIndex = bk.partsCount - 1;
+    for (let i = 1; i <= PREFETCH_AHEAD; i++) {
+      const target = currentIndex + i;
+      if (target > lastIndex) break;
+      if (buffer.has(target)) continue;
+
+      const url = `${API_URL}/api/audio/${bookId}/${target}?voice=${voice}`;
+      fetch(url)
+        .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.blob(); })
+        .then(blob => {
+          if (cancelled) return;
+          const cur = currentBookRef.current;
+          if (!cur || cur.bookId !== bookId || voiceRef.current !== voice) return;
+          const blobUrl = URL.createObjectURL(blob);
+          buffer.set(target, { blobUrl, bookId, voice });
+          if (target === currentIndex + 1 && prefetchRef.current) {
+            prefetchRef.current.src = blobUrl;
+            prefetchRef.current.load();
+          }
+          console.log(`[Prefetch] Part ${target} ready in RAM (${Math.round(blob.size / 1024)} KB)`);
+        })
+        .catch(e => console.warn(`[Prefetch] Part ${target} failed:`, e));
+    }
+
+    return () => { cancelled = true; };
   }, [state.currentBook?.bookId, state.currentBook?.currentPartIndex, state.voice]);
 
-  // ── Play / pause ────────────────────────────────────────────────────────
-  // GUARD: Never call play() here if onEnded is handling a part transition.
-  // onEnded sets isTransitioningRef > 0, so we check it before acting.
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    // Skip if a transition is in progress — onEnded manages play() directly
     if (isTransitioningRef.current > 0) return;
     if (state.isPlaying && (state.currentBook?.audioUrl || state.currentBook?.bookId)) {
       audio.play().catch((e) => {
@@ -193,7 +189,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state.isPlaying]);
 
-  // ── Media Session API (Integración en OS y Pantalla de Bloqueo) ─────────
   useEffect(() => {
     if ('mediaSession' in navigator && state.currentBook) {
       navigator.mediaSession.metadata = new MediaMetadata({
@@ -206,7 +201,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state.currentBook]);
 
-  // ── Playback speed & Volume ──────────────────────────────────────────────
+  useEffect(() => {
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.playbackState = state.isPlaying ? 'playing' : 'paused';
+    }
+  }, [state.isPlaying]);
+
   useEffect(() => {
     if (audioRef.current) audioRef.current.playbackRate = state.speed;
   }, [state.speed]);
@@ -215,7 +215,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (audioRef.current) audioRef.current.volume = state.volume;
   }, [state.volume]);
 
-  // ── Track elapsed time & Sync Progress to Supabase ──────────────────────
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -226,6 +225,19 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const onTimeUpdate = () => {
       const currentElapsed = audio.currentTime;
       setState(prev => ({ ...prev, elapsed: currentElapsed }));
+
+      if ('mediaSession' in navigator && 'setPositionState' in navigator.mediaSession) {
+        const dur = audio.duration;
+        if (dur && isFinite(dur) && currentElapsed <= dur) {
+          try {
+            navigator.mediaSession.setPositionState({
+              duration: dur,
+              playbackRate: audio.playbackRate || 1,
+              position: currentElapsed,
+            });
+          } catch { /* ignore invalid position states */ }
+        }
+      }
 
       const now = Date.now();
       if (now - lastSaveTime > 3000) {
@@ -240,10 +252,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
            overallProgress = Math.round(partBaseProgress + withinPartProgress);
         }
 
-        // 1. Update React state immediately every 3 seconds for UI responsiveness
         setBooks(prev => prev.map(b => b.id === bk.id ? { ...b, currentTime: currentElapsed, progress: overallProgress } : b));
-        
-        // 2. Persist to Supabase only every 15 seconds to avoid network starvation/lag on mobile
+
         if (now - lastDbSaveTime > 15000) {
           lastDbSaveTime = now;
           updateBookProgressInDb(bk.id, {
@@ -260,12 +270,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       if (!bk) return;
 
       const dur = Math.round(audio.duration);
-      // Avoid duplicate DB writes: only persist if duration actually changed
       if (bk.totalTime === dur) return;
 
       setBooks(bks => bks.map(b => b.id === bk.id ? { ...b, totalTime: dur } : b));
       setState(prev => prev.currentBook?.id === bk.id ? { ...prev, currentBook: { ...prev.currentBook!, totalTime: dur } } : prev);
-      // Update currentBookRef immediately so the guard above works on next fire
       currentBookRef.current = { ...bk, totalTime: dur };
 
       updateBookProgressInDb(bk.id, { total_time: dur }).catch(console.error);
@@ -276,13 +284,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       if (bk && bk.bookId && bk.partsCount && (bk.currentPartIndex || 0) < bk.partsCount - 1) {
         const nextIndex = (bk.currentPartIndex || 0) + 1;
 
-        // ── Use in-memory Blob URL if available (works with screen off) ──
-        // When screen is off, Android Chrome blocks network requests from JS,
-        // so we use the pre-downloaded blob instead of hitting the API again.
-        const cached = prefetchedBlobRef.current;
+        const cached = prefetchedBlobsRef.current.get(nextIndex);
         const isCacheHit =
-          cached &&
-          cached.partIndex === nextIndex &&
+          !!cached &&
           cached.bookId === bk.bookId &&
           cached.voice === voiceRef.current;
 
@@ -292,7 +296,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
         console.log(`[onEnded] → Part ${nextIndex} via ${isCacheHit ? 'Blob (RAM, screen-off safe)' : 'API URL (no prefetch ready)'}`);
 
-        // Step 1: Directly set src and play BEFORE React state updates.
         if (audio) {
           audio.src = nextSrc;
           audio.load();
@@ -304,27 +307,22 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             audio.removeEventListener('canplay', playWhenReady);
           };
           audio.addEventListener('canplay', playWhenReady);
-          // Blob URLs are often ready instantly — attempt immediate play too
           audio.play().catch(() => { /* canplay listener above will retry */ });
         }
 
         const updatedBook = { ...bk, currentPartIndex: nextIndex, currentTime: 0, totalTime: 0 };
         currentBookRef.current = updatedBook;
 
-        // Set guard to 2 tokens: absorbs React 18 batched double-renders.
         isTransitioningRef.current = 2;
 
-        // Step 3: Update React state so the UI reflects the new part.
         setBooks(bks => bks.map(b => b.id === updatedBook.id ? updatedBook : b));
         setState(prev => ({ ...prev, currentBook: updatedBook, elapsed: 0 }));
 
-        // Step 4: Persist to DB
         updateBookProgressInDb(bk.id, {
           current_part_index: nextIndex,
           current_time: 0,
         }).catch(console.error);
       } else {
-        // Book finished
         setState(prev => ({ ...prev, isPlaying: false, elapsed: 0 }));
         updateBookProgressInDb(bk!.id, {
           current_part_index: 0,
@@ -337,7 +335,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const onError = (e: Event) => {
       const audioEl = e.target as HTMLAudioElement;
       const err = audioEl.error;
-      // MEDIA_ERR_SRC_NOT_SUPPORTED (4) or MEDIA_ERR_NETWORK (2) usually mean 404/deleted
       if (err && (err.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED || err.code === MediaError.MEDIA_ERR_NETWORK)) {
         console.warn('[Audio] Unrecoverable source error (book may have been deleted):', err.message);
         setState(prev => ({ ...prev, isPlaying: false }));
@@ -356,10 +353,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // ── Actions ─────────────────────────────────────────────────────────────
   const playBook = useCallback(async (book: Book) => {
-    // 🔥 MOBILE BROWSER FIX (Brave/Safari/Opera) 🔥
-    // Set src and call play() SYNCHRONOUSLY inside the user gesture event handler.
     if (audioRef.current) {
       const url = book.bookId
         ? `${API_URL}/api/audio/${book.bookId}/${book.currentPartIndex || 0}?voice=${voiceRef.current}`
@@ -371,14 +365,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       audioRef.current.play().catch(e => console.warn('Autoplay blocked during user gesture:', e));
     }
 
-    // Determine the correct book object to use (with saved progress if in library)
-    // IMPORTANT: We read from the books array via a ref-captured snapshot OUTSIDE
-    // the setState setter to avoid the antipattern of mutating variables inside setters.
     setBooks(prev => {
       const isPersonal = prev.some(b => b.id === book.id);
       if (!isPersonal) {
         addToPersonalLibrary(book.id).catch(console.error);
-        // Schedule state update with the new book after this setter returns
         setTimeout(() => {
           setState(prevState => ({
             ...prevState,
@@ -389,7 +379,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         }, 0);
         return [book, ...prev];
       }
-      // Use the library version (has correct saved progress)
       const savedBook = prev.find(b => b.id === book.id) || book;
       setTimeout(() => {
         setState(prevState => ({
@@ -439,22 +428,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Set Media Session Actions
-  useEffect(() => {
-    if ('mediaSession' in navigator) {
-      navigator.mediaSession.setActionHandler('play', togglePlay);
-      navigator.mediaSession.setActionHandler('pause', togglePlay);
-      navigator.mediaSession.setActionHandler('seekforward', seekForward);
-      navigator.mediaSession.setActionHandler('seekbackward', seekBackward);
-    }
-  }, [togglePlay, seekForward, seekBackward]);
-
   const updateBookCategory = useCallback(async (id: string, category: string) => {
-    // Note: Since category is now a global property in the new schema, this would theoretically update global_books.
-    // For safety, we only update state locally unless we add a specific global update method if the user is admin.
     setBooks(prev => prev.map(bk => bk.id === id ? { ...bk, category } : bk));
   }, []);
-  
+
   const removeBook = useCallback(async (id: string) => {
     setBooks(prev => prev.filter(bk => bk.id !== id));
     setState(prev => prev.currentBook?.id === id ? { ...prev, currentBook: null, isPlaying: false, elapsed: 0 } : prev);
@@ -478,14 +455,37 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setState(prev => {
       const bk = prev.currentBook;
       if (!bk || !bk.partsCount || partIndex < 0 || partIndex >= bk.partsCount) return prev;
-      
+
       const updatedBook = { ...bk, currentPartIndex: partIndex, currentTime: 0 };
       setBooks(bks => bks.map(b => b.id === updatedBook.id ? updatedBook : b));
       updateBookProgressInDb(bk.id, { current_part_index: partIndex, current_time: 0 }).catch(console.error);
-      
+
       return { ...prev, currentBook: updatedBook, elapsed: 0 };
     });
   }, []);
+
+  useEffect(() => {
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.setActionHandler('play', togglePlay);
+      navigator.mediaSession.setActionHandler('pause', togglePlay);
+      navigator.mediaSession.setActionHandler('seekforward', seekForward);
+      navigator.mediaSession.setActionHandler('seekbackward', seekBackward);
+
+      const goToPart = (delta: number) => {
+        const bk = currentBookRef.current;
+        if (!bk || !bk.partsCount) return;
+        const target = (bk.currentPartIndex || 0) + delta;
+        if (target < 0 || target >= bk.partsCount) return;
+        seekToPart(target);
+      };
+      try {
+        navigator.mediaSession.setActionHandler('nexttrack', () => goToPart(1));
+        navigator.mediaSession.setActionHandler('previoustrack', () => goToPart(-1));
+      } catch {
+        /* Some browsers don't support these actions — safe to ignore */
+      }
+    }
+  }, [togglePlay, seekForward, seekBackward, seekToPart]);
 
   const setVoice = useCallback((voice: string) => {
     setState(prev => ({ ...prev, voice }));
@@ -495,11 +495,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setState(prev => ({ ...prev, searchQuery }));
   }, []);
 
-  // ── Owner-only: delete a book from the global catalog ────────────────────
   const deleteGlobalBook = useCallback(async (book: Book) => {
     if (!book.bookId) return;
     await deleteGlobalBookApi(book.bookId);
-    // Remove from local state immediately for snappy UX
     setBooks(prev => prev.filter(b => b.id !== book.id));
     setState(prev =>
       prev.currentBook?.id === book.id
@@ -508,14 +506,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     );
   }, []);
 
-  // ── Owner-only: update title/category of a global book ───────────────────
   const updateGlobalBookMeta = useCallback(async (
     book: Book,
     patch: { title?: string; category?: string }
   ) => {
     if (!book.bookId) return;
     await updateGlobalBookApi(book.bookId, patch);
-    // Optimistic local update
     setBooks(prev => prev.map(b =>
       b.id === book.id ? { ...b, ...patch } : b
     ));
