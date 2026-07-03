@@ -192,17 +192,131 @@ def sanitize_filename(name: str) -> str:
     return slug[:80] or "libro"
 
 
+def _split_for_tts(text: str, max_chars: int = 1200) -> list[str]:
+    """
+    Split a part's text into small, sentence-based segments (<= max_chars).
+
+    edge-tts occasionally returns INCOMPLETE audio for a single request — it
+    silently drops a portion of the speech, which is exactly the "el audio se
+    salta parte del texto" bug. The drop probability grows with request size,
+    so we feed edge-tts small segments and stitch them back together. A drop in
+    a tiny segment is both far less likely and far less damaging, and can be
+    caught/retried individually.
+    """
+    text = (text or "").strip()
+    if not text:
+        return []
+
+    # Split into sentences, keeping their terminal punctuation.
+    sentences = re.findall(r'[^.!?]*[.!?]+|\S[^.!?]*$', text)
+
+    segments: list[str] = []
+    current = ""
+
+    def flush():
+        nonlocal current
+        if current.strip():
+            segments.append(current.strip())
+        current = ""
+
+    for s in sentences:
+        s = s.strip()
+        if not s:
+            continue
+        # A single sentence longer than max_chars: hard-split at word boundaries.
+        if len(s) > max_chars:
+            flush()
+            buf = ""
+            for w in s.split(' '):
+                if len(buf) + len(w) + 1 > max_chars:
+                    if buf:
+                        segments.append(buf.strip())
+                    buf = w
+                else:
+                    buf = f"{buf} {w}".strip()
+            if buf:
+                current = buf
+            continue
+
+        if len(current) + len(s) + 1 > max_chars:
+            flush()
+            current = s
+        else:
+            current = f"{current} {s}".strip()
+
+    flush()
+    return [seg for seg in segments if seg]
+
+
+async def _edge_tts_bytes(text: str, voice: str) -> bytes:
+    """Stream a segment through edge-tts and return the raw MP3 bytes."""
+    communicate = edge_tts.Communicate(text, voice)
+    audio = bytearray()
+    async for chunk in communicate.stream():
+        if chunk.get("type") == "audio" and chunk.get("data"):
+            audio.extend(chunk["data"])
+    return bytes(audio)
+
+
 async def text_to_mp3(text: str, output_path: Path, voice: str = "es-MX-JorgeNeural"):
-    """Uses edge-tts to generate an MP3 file with a fallback to Google TTS."""
-    try:
-        communicate = edge_tts.Communicate(text, voice)
-        await communicate.save(str(output_path))
-    except Exception as e:
-        print(f"[TTS] Microsoft Edge-TTS connection failed: {e}. Falling back to gTTS...")
-        def generate_gtts():
-            tts = gTTS(text=text, lang="es", tld="com.mx")
-            tts.save(str(output_path))
-        await asyncio.to_thread(generate_gtts)
+    """
+    Generate a COMPLETE MP3 for a part, resilient to edge-tts silently dropping
+    audio (the "skips part of the text" bug).
+
+    Strategy:
+      1. Split the part into small sentence-based segments.
+      2. Generate each segment with edge-tts, retrying if the returned audio is
+         empty or suspiciously short (a sign edge-tts dropped the segment).
+      3. If edge-tts keeps failing for a segment, fall back to gTTS for that
+         segment only — so one bad segment never loses the rest of the part.
+      4. Concatenate every segment's MP3 bytes into the final file.
+    """
+    segments = _split_for_tts(text)
+    if not segments:
+        segments = [(text or ".").strip() or "."]
+
+    out = bytearray()
+
+    for seg in segments:
+        # Conservative floor: any real speech segment produces far more than
+        # this many bytes. It only trips on empty / near-empty (dropped) audio,
+        # avoiding false retries on legitimately short output.
+        min_expected = max(800, len(seg) * 8)
+        seg_bytes = b""
+
+        for attempt in range(3):
+            try:
+                seg_bytes = await _edge_tts_bytes(seg, voice)
+            except Exception as e:
+                print(f"[TTS] edge-tts error (attempt {attempt + 1}/3) on segment len={len(seg)}: {e}")
+                seg_bytes = b""
+
+            if len(seg_bytes) >= min_expected:
+                break
+            print(f"[TTS] Segment audio too short ({len(seg_bytes)}B < {min_expected}B); retry {attempt + 1}/3")
+            await asyncio.sleep(0.4)
+
+        # Per-segment fallback to gTTS if edge-tts kept returning incomplete audio.
+        if len(seg_bytes) < min_expected:
+            print(f"[TTS] Falling back to gTTS for one segment (len={len(seg)}).")
+            def generate_gtts_bytes():
+                import io
+                buf = io.BytesIO()
+                gTTS(text=seg, lang="es", tld="com.mx").write_to_fp(buf)
+                return buf.getvalue()
+            try:
+                seg_bytes = await asyncio.to_thread(generate_gtts_bytes)
+            except Exception as e:
+                print(f"[TTS] gTTS fallback also failed for a segment: {e}")
+                seg_bytes = b""
+
+        out.extend(seg_bytes)
+
+    if not out:
+        raise RuntimeError("No se pudo generar audio para esta parte (TTS vacío).")
+
+    with open(output_path, "wb") as f:
+        f.write(out)
 
 
 # ---------------------------------------------------------------------------
@@ -549,88 +663,4 @@ async def delete_book(book_id_hex: str, authorization: str = Header(default=None
         pass
 
     # ── Delete global_books record (CASCADE removes user_books) ──────────
-    # IMPORTANT: Must use user's JWT directly (not the anon-key supabase client)
-    # so that auth.uid() is set and the RLS DELETE policy is satisfied.
-    await _supabase_delete_as_user("global_books", "id", str(global_book_db_id), token)
-
-    print(f"[Delete] Book {book_id_hex} (db id: {global_book_db_id}) permanently deleted by user {user_id}")
-    return JSONResponse({"status": "success", "message": "Libro eliminado del catálogo permanentemente"})
-
-
-@app.patch("/api/books/{book_id_hex}")
-async def update_book_meta(book_id_hex: str, body: dict, authorization: str = Header(default=None)):
-    """
-    Owner-only: Update a book's title and/or category in global_books.
-    Body: { "title": "...", "category": "..." }  (both optional)
-    Requires: Authorization: Bearer <supabase_jwt>
-    """
-    if not supabase:
-        raise HTTPException(status_code=500, detail="Supabase no configurado")
-
-    # ── Auth ──────────────────────────────────────────────────────────────
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Token de autenticación requerido")
-    token = authorization.split(" ", 1)[1]
-    try:
-        user_response = supabase.auth.get_user(token)
-        user_id = user_response.user.id
-    except Exception:
-        raise HTTPException(status_code=401, detail="Token inválido o expirado")
-
-    # ── Verify ownership ──────────────────────────────────────────────────
-    book_row = await asyncio.to_thread(_verify_book_owner, book_id_hex, user_id)
-    global_book_db_id = book_row["id"]
-
-    # ── Build patch (only allow title and category) ───────────────────────
-    patch: dict = {}
-    if "title" in body and isinstance(body["title"], str) and body["title"].strip():
-        patch["title"] = body["title"].strip()
-    if "category" in body and isinstance(body["category"], str):
-        patch["category"] = body["category"].strip() or None
-
-    if not patch:
-        raise HTTPException(status_code=400, detail="Nada que actualizar. Envía 'title' y/o 'category'.")
-
-    # IMPORTANT: Must use user's JWT directly (not the anon-key supabase client)
-    # so that auth.uid() is set and the RLS UPDATE policy is satisfied.
-    await _supabase_patch_as_user("global_books", "id", str(global_book_db_id), patch, token)
-
-    print(f"[Update] Book {book_id_hex} updated by user {user_id}: {patch}")
-    return JSONResponse({"status": "success", "updated": patch})
-
-
-# ---------------------------------------------------------------------------
-# Debug endpoint — inspect extracted text without generating audio
-# ---------------------------------------------------------------------------
-@app.post("/api/preview-pdf")
-async def preview_pdf(file: UploadFile = File(...)):
-    pdf_bytes = await file.read()
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-    total_pages = len(doc)
-    pages_info = []
-    for i in range(min(5, total_pages)):  # check up to 5 pages
-        raw = doc[i].get_text()
-        pages_info.append({"page": i + 1, "chars_raw": len(raw), "preview": raw[:300]})
-    doc.close()
-
-    raw_all = "\n".join(p["preview"] for p in pages_info)
-    full_raw = "\n".join(
-        fitz.open(stream=pdf_bytes, filetype="pdf")[i].get_text()
-        for i in range(min(2, total_pages))
-    )
-    cleaned = clean_text_for_tts(full_raw)
-
-    return JSONResponse({
-        "total_pages_in_pdf": total_pages,
-        "pages": pages_info,
-        "cleaned_text_length": len(cleaned),
-        "cleaned_text_preview": cleaned[:500],
-        "cleaned_text_end": cleaned[-500:],
-    })
-
-
-# ---------------------------------------------------------------------------
-# Dev entry-point
-# ---------------------------------------------------------------------------
-if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    # IMPORTANT: Must use user's JWT directly (not the anon-key su
