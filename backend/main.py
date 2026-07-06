@@ -668,4 +668,48 @@ async def delete_book(book_id_hex: str, authorization: str = Header(default=None
         pass
 
     # ── Delete global_books record (CASCADE removes user_books) ──────────
-    # IMPORTANT: Must use user's JWT directly (not the anon-key su
+    # IMPORTANT: Must use user's JWT directly (not the anon-key supabase client)
+    # so that RLS policies (auth.uid() = added_by) are respected.
+    await _supabase_delete_as_user("global_books", "id", global_book_db_id, token)
+
+    return {"status": "success", "message": "Libro eliminado permanentemente"}
+
+
+@app.patch("/api/books/{book_id_hex}")
+async def update_book(book_id_hex: str, payload: dict, authorization: str = Header(default=None)):
+    """
+    Owner-only: Updates a book's title and/or category.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase no configurado")
+
+    # ── Auth: extract user from JWT ──
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Token de autenticación requerido")
+    token = authorization.split(" ", 1)[1]
+    try:
+        user_response = supabase.auth.get_user(token)
+        user_id = user_response.user.id
+    except Exception:
+        raise HTTPException(status_code=401, detail="Token inválido o expirado")
+
+    # ── Verify ownership ──
+    book_row = await asyncio.to_thread(_verify_book_owner, book_id_hex, user_id)
+    global_book_db_id = book_row["id"]
+
+    # ── Update global_books record ──
+    patch_data = {}
+    if "title" in payload:
+        patch_data["title"] = payload["title"]
+    if "category" in payload:
+        patch_data["category"] = payload["category"]
+
+    if not patch_data:
+        return {"status": "success", "message": "Nada que actualizar"}
+
+    await _supabase_patch_as_user("global_books", "id", global_book_db_id, patch_data, token)
+
+    return {"status": "success", "message": "Libro actualizado"}
+
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="0.0.0.0", port=8080, reload=True)

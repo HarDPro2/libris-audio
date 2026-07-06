@@ -34,3 +34,17 @@
 - **Verificado:** Commit `a7b687b` en main. TypeScript limpio.
 - **No verificado:** Prueba en dispositivos reales (Brave, Safari, Opera Android).
 - **Impacto en docs/UI:** Ninguno.
+
+## [keep-alive-health] — 2026-07-06
+- Qu cambi: Aadido endpoint /api/health para pings de keep-alive externos (Render anti-sleep).
+- Archivos tocados: backend/main.py
+- Verificado: Endpoint configurado correctamente.
+- Impacto en docs/UI/marketing: No, interno.
+
+
+## [fix-ghost-books] — 2026-07-06
+- Qu cambi: Reparado archivo backend/main.py que estaba truncado, restaurando el borrado real en base de datos para evitar libros fantasmas y el endpoint PATCH para editar libros.
+- Archivos tocados: backend/main.py
+- Verificado: Cdigo restaurado, finaliza correctamente en uvicorn.run.
+- Impacto en docs/UI/marketing: No, soluciona el bug de UI de portadas rotas.
+
