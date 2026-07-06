@@ -323,6 +323,11 @@ async def text_to_mp3(text: str, output_path: Path, voice: str = "es-MX-JorgeNeu
 # Endpoints
 # ---------------------------------------------------------------------------
 
+@app.get("/api/health")
+def health_check():
+    """Endpoint ligero para el ping de Keep-Alive (UptimeRobot)."""
+    return {"status": "ok", "message": "LibrisAudio Backend is awake!"}
+
 @app.get("/api/tts-sample")
 async def get_tts_sample(voice: str = "es-MX-JorgeNeural"):
     """Generates (and caches) a short voice sample to preview."""
