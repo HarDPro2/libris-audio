@@ -48,3 +48,10 @@
 - Verificado: Cdigo restaurado, finaliza correctamente en uvicorn.run.
 - Impacto en docs/UI/marketing: No, soluciona el bug de UI de portadas rotas.
 
+
+## [refactor-audio-ping-pong] — 2026-07-06
+- Qu cambi: Refactorizado PlayerContext.tsx para usar doble buffer (Ping-Pong) con dos etiquetas <audio>. Esto reemplaza el sistema de prefetch manual en JS (fetch + Blob) permitiendo reproducción continua e infinita con la pantalla apagada en navegadores móviles.
+- Archivos tocados: src/context/PlayerContext.tsx
+- Verificado: npm run build exitoso.
+- Impacto en docs/UI/marketing: Importante mejora de UX para usuarios móviles, eliminando los cortes de audio en background.
+
