@@ -50,22 +50,20 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     searchQuery: '',
   });
 
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const prefetchRef = useRef<HTMLAudioElement>(null);
+  // ── Ping-Pong Double Buffering Audio Refs ──
+  const audioRef0 = useRef<HTMLAudioElement>(null);
+  const audioRef1 = useRef<HTMLAudioElement>(null);
+  const activeAudioIndex = useRef<0 | 1>(0);
+  const activeAudioRef = useRef<HTMLAudioElement | null>(null);
+  // We expose activeAudioRef as the traditional `audioRef` so UI components (like progress bar) stay compatible.
+  const exportedAudioRef = useRef<HTMLAudioElement>(null);
+
   const currentBookRef = useRef<Book | null>(null);
   const isPlayingRef = useRef<boolean>(state.isPlaying);
   const voiceRef = useRef<string>(state.voice);
   const isTransitioningRef = useRef<number>(0);
 
-  // Only ONE part ahead: enough to start the next part instantly at the
-  // track boundary (the blob is already in RAM), while the tab stays
-  // "audible" so it can download the following part in the background
-  // during playback. Keeping just 1 avoids piling up unheard audio in memory.
-  const PREFETCH_AHEAD = 1;
-  const prefetchedBlobsRef = useRef<
-    Map<number, { blobUrl: string; bookId: string; voice: string }>
-  >(new Map());
-
+  // Sync refs that are used inside event listeners to avoid stale closures
   useEffect(() => {
     isPlayingRef.current = state.isPlaying;
   }, [state.isPlaying]);
@@ -77,6 +75,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     currentBookRef.current = state.currentBook;
   }, [state.currentBook]);
+
+  // Keep exportedAudioRef pointing to the true active DOM element
+  useEffect(() => {
+    const leader = activeAudioIndex.current === 0 ? audioRef0.current : audioRef1.current;
+    if (leader) {
+      activeAudioRef.current = leader;
+      (exportedAudioRef as any).current = leader;
+    }
+  });
 
   const refreshBooks = useCallback(async () => {
     if (user) {
@@ -91,148 +98,36 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     refreshBooks();
   }, [refreshBooks]);
 
+  // ── 1. Setup Audio Event Listeners ──
   useEffect(() => {
-    if (isTransitioningRef.current > 0) {
-      isTransitioningRef.current -= 1;
-      return;
+    const audio0 = audioRef0.current;
+    const audio1 = audioRef1.current;
+    if (!audio0 || !audio1) return;
+
+    // Set initial active audio
+    if (!activeAudioRef.current) {
+       activeAudioRef.current = audio0;
+       (exportedAudioRef as any).current = audio0;
     }
-
-    const audio = audioRef.current;
-    if (!audio) return;
-    const bk = state.currentBook;
-
-    let expectedSrc = '';
-    if (bk?.bookId) {
-      expectedSrc = `${API_URL}/api/audio/${bk.bookId}/${bk.currentPartIndex || 0}?voice=${state.voice}`;
-    } else if (bk?.audioUrl) {
-      expectedSrc = bk.audioUrl;
-    }
-
-    if (expectedSrc && audio.src !== expectedSrc) {
-      audio.src = expectedSrc;
-      audio.load();
-    } else if (!expectedSrc) {
-      audio.src = '';
-      return;
-    }
-
-    const handleCanPlay = () => {
-      if (bk?.currentTime && bk.currentTime > 1 && audio.currentTime < 1) {
-        audio.currentTime = bk.currentTime;
-      }
-      if (isPlayingRef.current) {
-        audio.play().catch(() => setState(prev => ({ ...prev, isPlaying: false })));
-      }
-    };
-
-    audio.addEventListener('canplay', handleCanPlay);
-    return () => audio.removeEventListener('canplay', handleCanPlay);
-  }, [state.currentBook?.id, state.currentBook?.audioUrl, state.currentBook?.bookId, state.currentBook?.currentPartIndex, state.voice]);
-
-  useEffect(() => {
-    const bk = state.currentBook;
-    if (!bk?.bookId || !bk.partsCount) return;
-
-    const bookId = bk.bookId;
-    const voice = state.voice;
-    const currentIndex = bk.currentPartIndex || 0;
-    const buffer = prefetchedBlobsRef.current;
-
-    for (const [idx, entry] of buffer) {
-      // Use < (not <=) so we never revoke the blob of the part that is
-      // CURRENTLY playing (idx === currentIndex); it is freed once we move past it.
-      if (idx < currentIndex || entry.bookId !== bookId || entry.voice !== voice) {
-        URL.revokeObjectURL(entry.blobUrl);
-        buffer.delete(idx);
-      }
-    }
-
-    let cancelled = false;
-    const lastIndex = bk.partsCount - 1;
-    for (let i = 1; i <= PREFETCH_AHEAD; i++) {
-      const target = currentIndex + i;
-      if (target > lastIndex) break;
-      if (buffer.has(target)) continue;
-
-      const url = `${API_URL}/api/audio/${bookId}/${target}?voice=${voice}`;
-      fetch(url)
-        .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.blob(); })
-        .then(blob => {
-          if (cancelled) return;
-          const cur = currentBookRef.current;
-          if (!cur || cur.bookId !== bookId || voiceRef.current !== voice) return;
-          const blobUrl = URL.createObjectURL(blob);
-          buffer.set(target, { blobUrl, bookId, voice });
-          if (target === currentIndex + 1 && prefetchRef.current) {
-            prefetchRef.current.src = blobUrl;
-            prefetchRef.current.load();
-          }
-          console.log(`[Prefetch] Part ${target} ready in RAM (${Math.round(blob.size / 1024)} KB)`);
-        })
-        .catch(e => console.warn(`[Prefetch] Part ${target} failed:`, e));
-    }
-
-    return () => { cancelled = true; };
-  }, [state.currentBook?.bookId, state.currentBook?.currentPartIndex, state.voice]);
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    if (isTransitioningRef.current > 0) return;
-    if (state.isPlaying && (state.currentBook?.audioUrl || state.currentBook?.bookId)) {
-      audio.play().catch((e) => {
-        console.warn('Autoplay prevented or interrupted:', e);
-        setState(prev => ({ ...prev, isPlaying: false }));
-      });
-    } else {
-      audio.pause();
-    }
-  }, [state.isPlaying]);
-
-  useEffect(() => {
-    if ('mediaSession' in navigator && state.currentBook) {
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: state.currentBook.title,
-        artist: state.currentBook.author || 'Libris Audio',
-        artwork: [
-          { src: state.currentBook.coverUrl || '', sizes: '512x512', type: 'image/png' },
-        ]
-      });
-    }
-  }, [state.currentBook]);
-
-  useEffect(() => {
-    if ('mediaSession' in navigator) {
-      navigator.mediaSession.playbackState = state.isPlaying ? 'playing' : 'paused';
-    }
-  }, [state.isPlaying]);
-
-  useEffect(() => {
-    if (audioRef.current) audioRef.current.playbackRate = state.speed;
-  }, [state.speed]);
-
-  useEffect(() => {
-    if (audioRef.current) audioRef.current.volume = state.volume;
-  }, [state.volume]);
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
 
     let lastSaveTime = 0;
     let lastDbSaveTime = 0;
 
-    const onTimeUpdate = () => {
-      const currentElapsed = audio.currentTime;
+    const onTimeUpdate = (e: Event) => {
+      const target = e.target as HTMLAudioElement;
+      // ONLY process time updates from the LEADER audio. Ignore prefetcher events.
+      if (target !== activeAudioRef.current) return;
+
+      const currentElapsed = target.currentTime;
       setState(prev => ({ ...prev, elapsed: currentElapsed }));
 
       if ('mediaSession' in navigator && 'setPositionState' in navigator.mediaSession) {
-        const dur = audio.duration;
+        const dur = target.duration;
         if (dur && isFinite(dur) && currentElapsed <= dur) {
           try {
             navigator.mediaSession.setPositionState({
               duration: dur,
-              playbackRate: audio.playbackRate || 1,
+              playbackRate: target.playbackRate || 1,
               position: currentElapsed,
             });
           } catch { /* ignore invalid position states */ }
@@ -264,12 +159,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    const onDurationChange = () => {
-      if (!audio.duration || isNaN(audio.duration)) return;
+    const onDurationChange = (e: Event) => {
+      const target = e.target as HTMLAudioElement;
+      if (target !== activeAudioRef.current) return;
+      if (!target.duration || isNaN(target.duration)) return;
+      
       const bk = currentBookRef.current;
       if (!bk) return;
 
-      const dur = Math.round(audio.duration);
+      const dur = Math.round(target.duration);
       if (bk.totalTime === dur) return;
 
       setBooks(bks => bks.map(b => b.id === bk.id ? { ...b, totalTime: dur } : b));
@@ -279,41 +177,49 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       updateBookProgressInDb(bk.id, { total_time: dur }).catch(console.error);
     };
 
-    const onEnded = () => {
+    const onEnded = (e: Event) => {
+      const target = e.target as HTMLAudioElement;
+      if (target !== activeAudioRef.current) return;
+
       const bk = currentBookRef.current;
       if (bk && bk.bookId && bk.partsCount && (bk.currentPartIndex || 0) < bk.partsCount - 1) {
         const nextIndex = (bk.currentPartIndex || 0) + 1;
 
-        const cached = prefetchedBlobsRef.current.get(nextIndex);
-        const isCacheHit =
-          !!cached &&
-          cached.bookId === bk.bookId &&
-          cached.voice === voiceRef.current;
+        console.log(`[Ping-Pong] Part ${bk.currentPartIndex} ended. Swapping to native buffer for Part ${nextIndex}.`);
+        
+        // ── SWAP LEADER AND PREFETCHER ──
+        activeAudioIndex.current = activeAudioIndex.current === 0 ? 1 : 0;
+        activeAudioRef.current = activeAudioIndex.current === 0 ? audioRef0.current : audioRef1.current;
+        (exportedAudioRef as any).current = activeAudioRef.current;
+        
+        const newLeader = activeAudioRef.current;
+        const newPrefetch = activeAudioIndex.current === 0 ? audioRef1.current : audioRef0.current;
 
-        const nextSrc = isCacheHit
-          ? cached!.blobUrl
-          : `${API_URL}/api/audio/${bk.bookId}/${nextIndex}?voice=${voiceRef.current}`;
-
-        console.log(`[onEnded] → Part ${nextIndex} via ${isCacheHit ? 'Blob (RAM, screen-off safe)' : 'API URL (no prefetch ready)'}`);
-
-        if (audio) {
-          audio.src = nextSrc;
-          audio.load();
-          const playWhenReady = () => {
-            audio.play().catch(e => {
-              console.warn('[onEnded] play() blocked:', e);
+        if (newLeader) {
+           const expectedSrc = `${API_URL}/api/audio/${bk.bookId}/${nextIndex}?voice=${voiceRef.current}`;
+           // Ensure it has the right src (in case prefetch failed or didn't run)
+           if (!newLeader.src || !newLeader.src.includes(expectedSrc)) {
+              newLeader.src = expectedSrc;
+              newLeader.load();
+           }
+           newLeader.play().catch(err => {
+              console.warn('[Ping-Pong] play() blocked:', err);
               setState(prev => ({ ...prev, isPlaying: false }));
-            });
-            audio.removeEventListener('canplay', playWhenReady);
-          };
-          audio.addEventListener('canplay', playWhenReady);
-          audio.play().catch(() => { /* canplay listener above will retry */ });
+           });
+        }
+
+        // ── QUEUE NATIVE PREFETCH FOR THE NEXT-NEXT TRACK ──
+        if (newPrefetch && nextIndex + 1 < bk.partsCount) {
+           const nextNextSrc = `${API_URL}/api/audio/${bk.bookId}/${nextIndex + 1}?voice=${voiceRef.current}`;
+           newPrefetch.src = nextNextSrc;
+           newPrefetch.load(); // Native preload!
+           console.log(`[Ping-Pong] Queued native prefetch for Part ${nextIndex + 1}`);
         }
 
         const updatedBook = { ...bk, currentPartIndex: nextIndex, currentTime: 0, totalTime: 0 };
         currentBookRef.current = updatedBook;
-
-        isTransitioningRef.current = 2;
+        
+        isTransitioningRef.current = 2; // Prevent primary useEffect from interfering
 
         setBooks(bks => bks.map(b => b.id === updatedBook.id ? updatedBook : b));
         setState(prev => ({ ...prev, currentBook: updatedBook, elapsed: 0 }));
@@ -333,36 +239,147 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     };
 
     const onError = (e: Event) => {
-      const audioEl = e.target as HTMLAudioElement;
-      const err = audioEl.error;
+      const target = e.target as HTMLAudioElement;
+      if (target !== activeAudioRef.current) return;
+      const err = target.error;
       if (err && (err.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED || err.code === MediaError.MEDIA_ERR_NETWORK)) {
         console.warn('[Audio] Unrecoverable source error (book may have been deleted):', err.message);
         setState(prev => ({ ...prev, isPlaying: false }));
       }
     };
 
-    audio.addEventListener('timeupdate', onTimeUpdate);
-    audio.addEventListener('durationchange', onDurationChange);
-    audio.addEventListener('ended', onEnded);
-    audio.addEventListener('error', onError);
-    return () => {
-      audio.removeEventListener('timeupdate', onTimeUpdate);
-      audio.removeEventListener('durationchange', onDurationChange);
-      audio.removeEventListener('ended', onEnded);
-      audio.removeEventListener('error', onError);
+    const attach = (a: HTMLAudioElement) => {
+      a.addEventListener('timeupdate', onTimeUpdate);
+      a.addEventListener('durationchange', onDurationChange);
+      a.addEventListener('ended', onEnded);
+      a.addEventListener('error', onError);
     };
+    const detach = (a: HTMLAudioElement) => {
+      a.removeEventListener('timeupdate', onTimeUpdate);
+      a.removeEventListener('durationchange', onDurationChange);
+      a.removeEventListener('ended', onEnded);
+      a.removeEventListener('error', onError);
+    };
+
+    attach(audio0); attach(audio1);
+    return () => { detach(audio0); detach(audio1); };
   }, []);
 
+  // ── 2. Primary Playback & Prefetch Initializer ──
+  useEffect(() => {
+    if (isTransitioningRef.current > 0) {
+      isTransitioningRef.current -= 1;
+      return;
+    }
+
+    const leader = activeAudioRef.current;
+    const prefetch = activeAudioIndex.current === 0 ? audioRef1.current : audioRef0.current;
+    if (!leader || !prefetch) return;
+
+    const bk = state.currentBook;
+    if (!bk) {
+      leader.src = '';
+      prefetch.src = '';
+      return;
+    }
+
+    let expectedSrc = '';
+    if (bk.bookId) {
+      expectedSrc = `${API_URL}/api/audio/${bk.bookId}/${bk.currentPartIndex || 0}?voice=${state.voice}`;
+    } else if (bk.audioUrl) {
+      expectedSrc = bk.audioUrl;
+    }
+
+    let changedLeader = false;
+    if (expectedSrc && (!leader.src || !leader.src.includes(expectedSrc))) {
+      leader.src = expectedSrc;
+      leader.load();
+      changedLeader = true;
+    } else if (!expectedSrc) {
+      leader.src = '';
+      prefetch.src = '';
+      return;
+    }
+
+    // Setup initial native prefetch for the next track
+    if (bk.bookId && bk.partsCount && (bk.currentPartIndex || 0) + 1 < bk.partsCount) {
+      const nextSrc = `${API_URL}/api/audio/${bk.bookId}/${(bk.currentPartIndex || 0) + 1}?voice=${state.voice}`;
+      if (!prefetch.src || !prefetch.src.includes(nextSrc)) {
+        prefetch.src = nextSrc;
+        prefetch.load();
+        console.log(`[Ping-Pong] Queued native prefetch for Part ${(bk.currentPartIndex || 0) + 1}`);
+      }
+    }
+
+    // Handle resume from progress
+    if (changedLeader) {
+      const handleCanPlay = () => {
+        if (bk.currentTime && bk.currentTime > 1 && leader.currentTime < 1) {
+          leader.currentTime = bk.currentTime;
+        }
+        if (isPlayingRef.current) {
+          leader.play().catch(() => setState(prev => ({ ...prev, isPlaying: false })));
+        }
+        leader.removeEventListener('canplay', handleCanPlay);
+      };
+      leader.addEventListener('canplay', handleCanPlay);
+    }
+  }, [state.currentBook?.id, state.currentBook?.audioUrl, state.currentBook?.bookId, state.currentBook?.currentPartIndex, state.voice]);
+
+  // ── 3. Handle external isPlaying toggles ──
+  useEffect(() => {
+    const leader = activeAudioRef.current;
+    if (!leader) return;
+    if (isTransitioningRef.current > 0) return;
+    if (state.isPlaying && (state.currentBook?.audioUrl || state.currentBook?.bookId)) {
+      leader.play().catch((e) => {
+        console.warn('Autoplay prevented or interrupted:', e);
+        setState(prev => ({ ...prev, isPlaying: false }));
+      });
+    } else {
+      leader.pause();
+    }
+  }, [state.isPlaying]);
+
+  useEffect(() => {
+    if ('mediaSession' in navigator && state.currentBook) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: state.currentBook.title,
+        artist: state.currentBook.author || 'Libris Audio',
+        artwork: [
+          { src: state.currentBook.coverUrl || '', sizes: '512x512', type: 'image/png' },
+        ]
+      });
+    }
+  }, [state.currentBook]);
+
+  useEffect(() => {
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.playbackState = state.isPlaying ? 'playing' : 'paused';
+    }
+  }, [state.isPlaying]);
+
+  useEffect(() => {
+    if (audioRef0.current) audioRef0.current.playbackRate = state.speed;
+    if (audioRef1.current) audioRef1.current.playbackRate = state.speed;
+  }, [state.speed]);
+
+  useEffect(() => {
+    if (audioRef0.current) audioRef0.current.volume = state.volume;
+    if (audioRef1.current) audioRef1.current.volume = state.volume;
+  }, [state.volume]);
+
   const playBook = useCallback(async (book: Book) => {
-    if (audioRef.current) {
+    const leader = activeAudioRef.current;
+    if (leader) {
       const url = book.bookId
         ? `${API_URL}/api/audio/${book.bookId}/${book.currentPartIndex || 0}?voice=${voiceRef.current}`
         : book.audioUrl || '';
-      if (url && audioRef.current.src !== url) {
-        audioRef.current.src = url;
-        audioRef.current.load();
+      if (url && (!leader.src || !leader.src.includes(url))) {
+        leader.src = url;
+        leader.load();
       }
-      audioRef.current.play().catch(e => console.warn('Autoplay blocked during user gesture:', e));
+      leader.play().catch(e => console.warn('Autoplay blocked during user gesture:', e));
     }
 
     setBooks(prev => {
@@ -394,11 +411,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const togglePlay = useCallback(() => {
     const currentlyPlaying = isPlayingRef.current;
-    if (audioRef.current) {
+    const leader = activeAudioRef.current;
+    if (leader) {
       if (!currentlyPlaying) {
-        audioRef.current.play().catch(console.warn);
+        leader.play().catch(console.warn);
       } else {
-        audioRef.current.pause();
+        leader.pause();
       }
     }
     setState(prev => ({ ...prev, isPlaying: !currentlyPlaying }));
@@ -413,18 +431,18 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const seekForward = useCallback(() => {
-    const audio = audioRef.current;
-    if (audio) {
-      audio.currentTime = Math.min(audio.currentTime + 15, audio.duration || 0);
-      setState(prev => ({ ...prev, elapsed: audio.currentTime }));
+    const leader = activeAudioRef.current;
+    if (leader) {
+      leader.currentTime = Math.min(leader.currentTime + 15, leader.duration || 0);
+      setState(prev => ({ ...prev, elapsed: leader.currentTime }));
     }
   }, []);
 
   const seekBackward = useCallback(() => {
-    const audio = audioRef.current;
-    if (audio) {
-      audio.currentTime = Math.max(audio.currentTime - 15, 0);
-      setState(prev => ({ ...prev, elapsed: audio.currentTime }));
+    const leader = activeAudioRef.current;
+    if (leader) {
+      leader.currentTime = Math.max(leader.currentTime - 15, 0);
+      setState(prev => ({ ...prev, elapsed: leader.currentTime }));
     }
   }, []);
 
@@ -442,8 +460,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setBooks(prev => prev.map(bk => bk.id === id ? { ...bk, currentTime: 0, currentPartIndex: 0, progress: 0 } : bk));
     setState(prev => {
       if (prev.currentBook?.id === id) {
-        const audio = audioRef.current;
-        if (audio) audio.currentTime = 0;
+        const leader = activeAudioRef.current;
+        if (leader) leader.currentTime = 0;
         return { ...prev, currentBook: { ...prev.currentBook, currentTime: 0, currentPartIndex: 0 }, elapsed: 0, isPlaying: true };
       }
       return prev;
@@ -526,7 +544,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     <PlayerContext.Provider value={{
       ...state,
       books,
-      audioRef,
+      audioRef: exportedAudioRef,
       playBook,
       togglePlay,
       setSpeed,
@@ -543,8 +561,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       deleteGlobalBook,
       updateGlobalBookMeta,
     }}>
-      <audio ref={audioRef} preload="metadata" />
-      <audio ref={prefetchRef} preload="auto" style={{ display: 'none' }} />
+      <audio ref={audioRef0} preload="auto" style={{ display: 'none' }} crossOrigin="anonymous" />
+      <audio ref={audioRef1} preload="auto" style={{ display: 'none' }} crossOrigin="anonymous" />
       {children}
     </PlayerContext.Provider>
   );
