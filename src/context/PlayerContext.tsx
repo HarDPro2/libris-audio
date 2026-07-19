@@ -341,10 +341,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const originalMuted = p.muted;
     p.muted = true;
     
-    let needsReset = false;
     if (!p.src) {
        p.src = "data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//OEAAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAAEAAABIAD+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+AAAAAExhdmM1OC4xMzQAAAAAAAAAAAAAAAAkAAQAKAAAAAAASQEAAAAAAAAAAAAAAAAAAA==";
-       needsReset = true;
     }
 
     const promise = p.play();
@@ -352,15 +350,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       promise.then(() => {
          p.pause();
          p.muted = originalMuted;
-         if (needsReset) p.src = "";
       }).catch(() => {
          p.muted = originalMuted;
-         if (needsReset) p.src = "";
       });
     } else {
        p.pause();
        p.muted = originalMuted;
-       if (needsReset) p.src = "";
     }
   }, []);
 
