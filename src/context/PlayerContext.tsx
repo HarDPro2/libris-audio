@@ -60,8 +60,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const isPlayingRef = useRef<boolean>(state.isPlaying);
   const voiceRef = useRef<string>(state.voice);
   const isTransitioningRef = useRef<number>(0);
+  const booksRef = useRef<Book[]>(books);
 
   // Sync refs that are used inside event listeners to avoid stale closures
+  useEffect(() => {
+    booksRef.current = books;
+  }, [books]);
+
   useEffect(() => {
     isPlayingRef.current = state.isPlaying;
   }, [state.isPlaying]);
@@ -327,13 +332,25 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const playBook = useCallback(async (book: Book) => {
     const audio = audioRef.current;
+    
+    // Find the saved book with progress from our personal library synchronously
+    const savedBook = booksRef.current.find(b => b.id === book.id) || book;
+
     if (audio) {
-      const url = book.bookId
-        ? `${API_URL}/api/audio/${book.bookId}/${book.currentPartIndex || 0}?voice=${voiceRef.current}`
-        : book.audioUrl || '';
+      const url = savedBook.bookId
+        ? `${API_URL}/api/audio/${savedBook.bookId}/${savedBook.currentPartIndex || 0}?voice=${voiceRef.current}`
+        : savedBook.audioUrl || '';
       if (url && (!audio.src || !audio.src.includes(url))) {
         audio.src = url;
         audio.load();
+        
+        const handleCanPlay = () => {
+          if (savedBook.currentTime && savedBook.currentTime > 1 && audio.currentTime < 1) {
+            audio.currentTime = savedBook.currentTime;
+          }
+          audio.removeEventListener('canplay', handleCanPlay);
+        };
+        audio.addEventListener('canplay', handleCanPlay);
       }
       audio.play().catch(e => console.warn('Autoplay blocked during user gesture:', e));
     }
@@ -345,14 +362,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         setTimeout(() => {
           setState(prevState => ({
             ...prevState,
-            currentBook: book,
+            currentBook: savedBook,
             isPlaying: true,
-            elapsed: book.currentTime || 0,
+            elapsed: savedBook.currentTime || 0,
           }));
         }, 0);
-        return [book, ...prev];
+        return [savedBook, ...prev];
       }
-      const savedBook = prev.find(b => b.id === book.id) || book;
       setTimeout(() => {
         setState(prevState => ({
           ...prevState,
