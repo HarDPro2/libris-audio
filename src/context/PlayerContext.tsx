@@ -50,18 +50,22 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     searchQuery: '',
   });
 
-  // ── Cache Warmer Pattern Refs ──
-  // The SINGLE audio element that actually plays (holds user gesture)
+  // ── Single audio element that actually plays ──
   const audioRef = useRef<HTMLAudioElement>(null);
-  // The invisible audio element used ONLY to download the next track natively
-  const prefetchRef = useRef<HTMLAudioElement>(null);
 
   const currentBookRef = useRef<Book | null>(null);
   const isPlayingRef = useRef<boolean>(state.isPlaying);
   const voiceRef = useRef<string>(state.voice);
   const isTransitioningRef = useRef<number>(0);
   const booksRef = useRef<Book[]>(books);
-  const hasWarmedUpRef = useRef<boolean>(false);
+
+  // ── fetch()-based Prefetch Refs ──
+  // We use fetch() instead of a hidden <audio> element because:
+  // fetch() is a first-class network request that Android respects even with the
+  // screen off, while a hidden <audio> element gets suspended by the browser.
+  const prefetchBlobUrlRef = useRef<string | null>(null);   // Blob URL of pre-downloaded next track
+  const prefetchingForPartRef = useRef<number>(-1);         // Part index currently being fetched
+  const prefetchAbortRef = useRef<AbortController | null>(null); // To cancel in-flight fetches
 
   // Sync refs that are used inside event listeners to avoid stale closures
   useEffect(() => {
@@ -92,6 +96,47 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     refreshBooks();
   }, [refreshBooks]);
+
+  // ── Prefetch next track via fetch() ──
+  // fetch() works reliably in background even with screen off.
+  const prefetchPart = useCallback((bookId: string, partIndex: number, voice: string) => {
+    // Don't re-fetch if already fetching or have this part ready
+    if (prefetchingForPartRef.current === partIndex) return;
+
+    // Cancel any in-flight fetch
+    if (prefetchAbortRef.current) {
+      prefetchAbortRef.current.abort();
+    }
+
+    // Revoke old blob URL to free RAM
+    if (prefetchBlobUrlRef.current) {
+      URL.revokeObjectURL(prefetchBlobUrlRef.current);
+      prefetchBlobUrlRef.current = null;
+    }
+
+    const controller = new AbortController();
+    prefetchAbortRef.current = controller;
+    prefetchingForPartRef.current = partIndex;
+
+    const url = `${API_URL}/api/audio/${bookId}/${partIndex}?voice=${voice}`;
+    console.log(`[Prefetch] Fetching Part ${partIndex} via fetch()...`);
+
+    fetch(url, { signal: controller.signal })
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.blob();
+      })
+      .then(blob => {
+        prefetchBlobUrlRef.current = URL.createObjectURL(blob);
+        console.log(`[Prefetch] Part ${partIndex} ready as Blob URL (${(blob.size / 1024).toFixed(0)} KB)`);
+      })
+      .catch(err => {
+        if (err.name !== 'AbortError') {
+          console.warn(`[Prefetch] Failed to fetch Part ${partIndex}:`, err);
+          prefetchingForPartRef.current = -1; // Allow retry
+        }
+      });
+  }, []);
 
   // ── 1. Setup Audio Event Listeners ──
   useEffect(() => {
@@ -126,9 +171,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
         let overallProgress = bk.progress;
         if (bk.partsCount && bk.partsCount > 0) {
-           const partBaseProgress = ((bk.currentPartIndex || 0) / bk.partsCount) * 100;
-           const withinPartProgress = Math.min((currentElapsed / 240) * (100 / bk.partsCount), 100 / bk.partsCount);
-           overallProgress = Math.round(partBaseProgress + withinPartProgress);
+          const partBaseProgress = ((bk.currentPartIndex || 0) / bk.partsCount) * 100;
+          const withinPartProgress = Math.min((currentElapsed / 240) * (100 / bk.partsCount), 100 / bk.partsCount);
+          overallProgress = Math.round(partBaseProgress + withinPartProgress);
         }
 
         setBooks(prev => prev.map(b => b.id === bk.id ? { ...b, currentTime: currentElapsed, progress: overallProgress } : b));
@@ -145,7 +190,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
     const onDurationChange = () => {
       if (!audio.duration || isNaN(audio.duration)) return;
-      
+
       const bk = currentBookRef.current;
       if (!bk) return;
 
@@ -164,33 +209,44 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       if (bk && bk.bookId && bk.partsCount && (bk.currentPartIndex || 0) < bk.partsCount - 1) {
         const nextIndex = (bk.currentPartIndex || 0) + 1;
 
-        console.log(`[Cache Warmer] Part ${bk.currentPartIndex} ended. Pulling Part ${nextIndex} from network/cache.`);
-        
-        // ── 1. ASSIGN SRC TO SAME PLAYER AND PLAY IMMEDIATELY ──
-        // Because prefetchRef already downloaded it, the browser should load it from disk cache instantly.
-        // And because it's the SAME audio element that just finished playing, Autoplay is allowed.
-        const expectedSrc = `${API_URL}/api/audio/${bk.bookId}/${nextIndex}?voice=${voiceRef.current}`;
-        
-        // Set and play instantly
-        audio.src = expectedSrc;
+        // Use pre-downloaded Blob URL if available (instant, no network needed)
+        // Otherwise fall back to direct network URL
+        const blobUrl = prefetchBlobUrlRef.current;
+        const playUrl = blobUrl || `${API_URL}/api/audio/${bk.bookId}/${nextIndex}?voice=${voiceRef.current}`;
+        const usingBlob = !!blobUrl;
+
+        // Clear prefetch state — we'll start fetching next-next immediately after
+        prefetchBlobUrlRef.current = null;
+        prefetchingForPartRef.current = -1;
+        if (prefetchAbortRef.current) {
+          prefetchAbortRef.current.abort();
+          prefetchAbortRef.current = null;
+        }
+
+        console.log(`[onEnded] Part ${bk.currentPartIndex} ended. Playing Part ${nextIndex} from ${usingBlob ? 'Blob/RAM ✅' : 'network ⚠️'}...`);
+
+        // Assign to same element (preserves autoplay permission) and play
+        audio.src = playUrl;
         audio.load();
         audio.play().catch(err => {
-           console.warn('[Cache Warmer] play() blocked despite using same element:', err);
-           setState(prev => ({ ...prev, isPlaying: false }));
+          console.warn('[onEnded] play() was blocked:', err);
+          setState(prev => ({ ...prev, isPlaying: false }));
         });
 
-        // ── 2. QUEUE NATIVE PREFETCH FOR THE NEXT-NEXT TRACK ──
-        if (prefetchRef.current && nextIndex + 1 < bk.partsCount) {
-           const nextNextSrc = `${API_URL}/api/audio/${bk.bookId}/${nextIndex + 1}?voice=${voiceRef.current}`;
-           prefetchRef.current.src = nextNextSrc;
-           prefetchRef.current.load(); // Native preload!
-           console.log(`[Cache Warmer] Queued native prefetch for Part ${nextIndex + 1}`);
+        // Revoke the blob URL after a safe delay (30s after we've started playing)
+        if (usingBlob && playUrl.startsWith('blob:')) {
+          setTimeout(() => URL.revokeObjectURL(playUrl), 30000);
+        }
+
+        // Immediately start fetching the next-next track in the background
+        if (nextIndex + 1 < bk.partsCount) {
+          prefetchPart(bk.bookId, nextIndex + 1, voiceRef.current);
         }
 
         const updatedBook = { ...bk, currentPartIndex: nextIndex, currentTime: 0, totalTime: 0 };
         currentBookRef.current = updatedBook;
-        
-        isTransitioningRef.current = 2; // Prevent primary useEffect from interfering
+
+        isTransitioningRef.current = 2; // Absorb React 18 double-render
 
         setBooks(bks => bks.map(b => b.id === updatedBook.id ? updatedBook : b));
         setState(prev => ({ ...prev, currentBook: updatedBook, elapsed: 0 }));
@@ -200,12 +256,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           current_time: 0,
         }).catch(console.error);
       } else {
+        // Book finished
         setState(prev => ({ ...prev, isPlaying: false, elapsed: 0 }));
-        updateBookProgressInDb(bk!.id, {
-          current_part_index: 0,
-          current_time: 0,
-          progress: 100,
-        }).catch(console.error);
+        if (bk) {
+          updateBookProgressInDb(bk.id, {
+            current_part_index: 0,
+            current_time: 0,
+            progress: 100,
+          }).catch(console.error);
+        }
       }
     };
 
@@ -221,14 +280,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     audio.addEventListener('durationchange', onDurationChange);
     audio.addEventListener('ended', onEnded);
     audio.addEventListener('error', onError);
-    
+
     return () => {
       audio.removeEventListener('timeupdate', onTimeUpdate);
       audio.removeEventListener('durationchange', onDurationChange);
       audio.removeEventListener('ended', onEnded);
       audio.removeEventListener('error', onError);
     };
-  }, []);
+  }, [prefetchPart]);
 
   // ── 2. Primary Playback & Prefetch Initializer ──
   useEffect(() => {
@@ -243,7 +302,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const bk = state.currentBook;
     if (!bk) {
       audio.src = '';
-      if (prefetchRef.current) prefetchRef.current.src = '';
+      // Cancel any pending prefetch
+      if (prefetchAbortRef.current) prefetchAbortRef.current.abort();
+      prefetchBlobUrlRef.current = null;
+      prefetchingForPartRef.current = -1;
       return;
     }
 
@@ -261,21 +323,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       changedSrc = true;
     } else if (!expectedSrc) {
       audio.src = '';
-      if (prefetchRef.current) prefetchRef.current.src = '';
       return;
     }
 
-    // Setup initial native prefetch for the next track
-    if (prefetchRef.current && bk.bookId && bk.partsCount && (bk.currentPartIndex || 0) + 1 < bk.partsCount) {
-      const nextSrc = `${API_URL}/api/audio/${bk.bookId}/${(bk.currentPartIndex || 0) + 1}?voice=${state.voice}`;
-      if (!prefetchRef.current.src || !prefetchRef.current.src.includes(nextSrc)) {
-        prefetchRef.current.src = nextSrc;
-        prefetchRef.current.load();
-        console.log(`[Cache Warmer] Queued native prefetch for Part ${(bk.currentPartIndex || 0) + 1}`);
-      }
+    // Start fetch()-based prefetch for the next track
+    if (bk.bookId && bk.partsCount && (bk.currentPartIndex || 0) + 1 < bk.partsCount) {
+      prefetchPart(bk.bookId, (bk.currentPartIndex || 0) + 1, state.voice);
     }
 
-    // Handle resume from progress
+    // Handle resume from saved progress
     if (changedSrc) {
       const handleCanPlay = () => {
         if (bk.currentTime && bk.currentTime > 1 && audio.currentTime < 1) {
@@ -288,7 +344,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       };
       audio.addEventListener('canplay', handleCanPlay);
     }
-  }, [state.currentBook?.id, state.currentBook?.audioUrl, state.currentBook?.bookId, state.currentBook?.currentPartIndex, state.voice]);
+  }, [state.currentBook?.id, state.currentBook?.audioUrl, state.currentBook?.bookId, state.currentBook?.currentPartIndex, state.voice, prefetchPart]);
 
   // ── 3. Handle external isPlaying toggles ──
   useEffect(() => {
@@ -331,40 +387,16 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (audioRef.current) audioRef.current.volume = state.volume;
   }, [state.volume]);
 
-  // Grants the prefetch element background network privileges on first user interaction
-  const warmupPrefetcher = useCallback(() => {
-    if (hasWarmedUpRef.current) return;
-    const p = prefetchRef.current;
-    if (!p) return;
-    hasWarmedUpRef.current = true;
-
-    const originalMuted = p.muted;
-    p.muted = true;
-    
-    if (!p.src) {
-       p.src = "data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//OEAAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAAEAAABIAD+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+AAAAAExhdmM1OC4xMzQAAAAAAAAAAAAAAAAkAAQAKAAAAAAASQEAAAAAAAAAAAAAAAAAAA==";
-    }
-
-    const promise = p.play();
-    if (promise !== undefined) {
-      promise.then(() => {
-         p.pause();
-         p.muted = originalMuted;
-      }).catch(() => {
-         p.muted = originalMuted;
-      });
-    } else {
-       p.pause();
-       p.muted = originalMuted;
-    }
-  }, []);
-
   const playBook = useCallback(async (book: Book) => {
-    warmupPrefetcher();
     const audio = audioRef.current;
-    
+
     // Find the saved book with progress from our personal library synchronously
     const savedBook = booksRef.current.find(b => b.id === book.id) || book;
+
+    // Cancel any existing prefetch for a different book
+    if (prefetchAbortRef.current) prefetchAbortRef.current.abort();
+    prefetchBlobUrlRef.current = null;
+    prefetchingForPartRef.current = -1;
 
     if (audio) {
       const url = savedBook.bookId
@@ -373,7 +405,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       if (url && (!audio.src || !audio.src.includes(url))) {
         audio.src = url;
         audio.load();
-        
+
         const handleCanPlay = () => {
           if (savedBook.currentTime && savedBook.currentTime > 1 && audio.currentTime < 1) {
             audio.currentTime = savedBook.currentTime;
@@ -412,7 +444,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const togglePlay = useCallback(() => {
-    warmupPrefetcher();
     const currentlyPlaying = isPlayingRef.current;
     const audio = audioRef.current;
     if (audio) {
@@ -565,7 +596,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       updateGlobalBookMeta,
     }}>
       <audio ref={audioRef} preload="auto" crossOrigin="anonymous" />
-      <audio ref={prefetchRef} preload="auto" style={{ display: 'none' }} crossOrigin="anonymous" />
       {children}
     </PlayerContext.Provider>
   );
