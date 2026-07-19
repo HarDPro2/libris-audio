@@ -61,6 +61,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const voiceRef = useRef<string>(state.voice);
   const isTransitioningRef = useRef<number>(0);
   const booksRef = useRef<Book[]>(books);
+  const hasWarmedUpRef = useRef<boolean>(false);
 
   // Sync refs that are used inside event listeners to avoid stale closures
   useEffect(() => {
@@ -330,7 +331,41 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (audioRef.current) audioRef.current.volume = state.volume;
   }, [state.volume]);
 
+  // Grants the prefetch element background network privileges on first user interaction
+  const warmupPrefetcher = useCallback(() => {
+    if (hasWarmedUpRef.current) return;
+    const p = prefetchRef.current;
+    if (!p) return;
+    hasWarmedUpRef.current = true;
+
+    const originalMuted = p.muted;
+    p.muted = true;
+    
+    let needsReset = false;
+    if (!p.src) {
+       p.src = "data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//OEAAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAAEAAABIAD+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+AAAAAExhdmM1OC4xMzQAAAAAAAAAAAAAAAAkAAQAKAAAAAAASQEAAAAAAAAAAAAAAAAAAA==";
+       needsReset = true;
+    }
+
+    const promise = p.play();
+    if (promise !== undefined) {
+      promise.then(() => {
+         p.pause();
+         p.muted = originalMuted;
+         if (needsReset) p.src = "";
+      }).catch(() => {
+         p.muted = originalMuted;
+         if (needsReset) p.src = "";
+      });
+    } else {
+       p.pause();
+       p.muted = originalMuted;
+       if (needsReset) p.src = "";
+    }
+  }, []);
+
   const playBook = useCallback(async (book: Book) => {
+    warmupPrefetcher();
     const audio = audioRef.current;
     
     // Find the saved book with progress from our personal library synchronously
@@ -382,6 +417,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const togglePlay = useCallback(() => {
+    warmupPrefetcher();
     const currentlyPlaying = isPlayingRef.current;
     const audio = audioRef.current;
     if (audio) {
