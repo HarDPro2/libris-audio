@@ -1,0 +1,112 @@
+name: Build & Release Android APK
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      # Only run when source code or Android config changes
+      - 'src/**'
+      - 'public/**'
+      - 'android/**'
+      - 'capacitor.config.ts'
+      - 'package.json'
+      - 'vite.config.ts'
+
+  # Allow manual trigger from GitHub UI
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Read version from package.json ───────────────────────
+      - name: Read version
+        id: version
+        run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      # ── 3. Setup Node ────────────────────────────────────────────
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # ── 4. Install dependencies ──────────────────────────────────
+      - name: Install npm dependencies
+        run: npm ci
+
+      # ── 5. Build web app in Capacitor mode ───────────────────────
+      - name: Build web app (Capacitor mode)
+        run: npm run build:capacitor
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          # VITE_API_URL defaults to https://libris-backend-z5fr.onrender.com in the code
+          VITE_API_URL: ${{ secrets.VITE_API_URL || 'https://libris-backend-z5fr.onrender.com' }}
+
+      # ── 6. Sync Capacitor ────────────────────────────────────────
+      - name: Sync Capacitor with Android project
+        run: npx cap sync android
+
+      # ── 7. Setup Java 17 ─────────────────────────────────────────
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # ── 8. Setup Android SDK ─────────────────────────────────────
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      # ── 9. Grant Gradle execute permission ───────────────────────
+      - name: Grant Gradle wrapper execute permission
+        run: chmod +x android/gradlew
+
+      # ── 10. Build debug APK (no signing key needed) ──────────────
+      # We use debug APK for free distribution — no Play Store signing required.
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
+
+      # ── 11. Rename APK to a friendly name ────────────────────────
+      - name: Rename APK
+        run: |
+          mkdir -p release-output
+          cp android/app/build/outputs/apk/debug/app-debug.apk \
+             release-output/libris-audio-v${{ steps.version.outputs.VERSION }}.apk
+
+      # ── 12. Create/update GitHub Release and upload APK ──────────
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.VERSION }}
+          name: "Libris Audio v${{ steps.version.outputs.VERSION }}"
+          body: |
+            ## 📱 Libris Audio v${{ steps.version.outputs.VERSION }}
+
+            Convierte tus PDFs en audiolibros con voces neuronales de alta calidad.
+
+            ### 📥 Instalación (Android)
+            1. Descarga el archivo `.apk` de abajo
+            2. En tu Android ve a **Ajustes → Seguridad → Instalar apps de fuentes desconocidas** y actívalo
+            3. Abre el `.apk` descargado e instala
+            4. ¡Listo!
+
+            > **Requiere Android 5.0 (API 22) o superior**
+          files: release-output/libris-audio-v${{ steps.version.outputs.VERSION }}.apk
+          draft: false
+          prerelease: false
+          # If a release with this tag already exists, update it
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
