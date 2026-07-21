@@ -139,6 +139,38 @@ export default function LandingPage() {
         .l-footer p { font-size:0.82rem;color:#94A3B8; }
         @media(max-width:768px) { .l-nav { padding:1rem; } .l-nav-links { display:none; } .cta-card { padding:3rem 1.5rem; } .l-footer { flex-direction:column;text-align:center; } }
 
+        /* ── DOWNLOAD SECTION ── */
+        .btn-android {
+          background: linear-gradient(135deg,#22c55e,#16a34a);
+          color:#fff; border:none;
+          padding:0.7rem 1.5rem; border-radius:999px;
+          font-size:0.9rem; font-weight:700; cursor:pointer;
+          box-shadow:0 0 30px rgba(34,197,94,0.4);
+          transition:transform 0.2s, box-shadow 0.2s;
+          display:inline-flex; align-items:center; gap:0.5rem;
+          text-decoration:none;
+        }
+        .btn-android:hover { transform:translateY(-2px); box-shadow:0 0 50px rgba(34,197,94,0.55); }
+        .download-section { padding:5rem 2rem; }
+        .download-card {
+          max-width:820px; margin:0 auto;
+          background:rgba(34,197,94,0.06); border:1px solid rgba(34,197,94,0.25);
+          border-radius:24px; padding:3.5rem 3rem;
+          display:flex; align-items:center; gap:3rem; flex-wrap:wrap;
+          position:relative; overflow:hidden;
+        }
+        .download-card::before { content:'';position:absolute;width:300px;height:300px;border-radius:50%;background:rgba(34,197,94,0.1);filter:blur(70px);top:-80px;right:-40px;pointer-events:none; }
+        .download-card-text { flex:1; min-width:220px; position:relative; }
+        .download-card-text h3 { font-size:1.6rem;font-weight:800;margin-bottom:0.5rem; }
+        .download-card-text p { color:#94A3B8;font-size:0.95rem;line-height:1.65;margin-bottom:1.5rem; }
+        .download-badge { display:inline-flex;align-items:center;gap:0.4rem;background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.3);border-radius:999px;padding:0.25rem 0.8rem;font-size:0.75rem;font-weight:700;color:#4ade80;margin-bottom:1rem; }
+        .download-steps { display:flex;flex-direction:column;gap:0.4rem;margin-top:1.2rem; }
+        .download-step { display:flex;align-items:center;gap:0.5rem;font-size:0.82rem;color:#94A3B8; }
+        .download-step span { width:18px;height:18px;border-radius:50%;background:rgba(34,197,94,0.2);color:#4ade80;font-size:0.68rem;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0; }
+        .download-icon-wrap { flex-shrink:0;position:relative; }
+        .download-phone { width:80px;height:140px;background:rgba(255,255,255,0.04);border:2px solid rgba(34,197,94,0.3);border-radius:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.5rem; }
+        @media(max-width:640px){ .download-card{ padding:2rem 1.5rem; } .download-icon-wrap{ display:none; } }
+
         /* ── FLOATING BUTTON ── */
         .landing-floating-btn {
           position: fixed; bottom: 2rem; right: 2rem; z-index: 99;
@@ -182,6 +214,7 @@ export default function LandingPage() {
           <a href="#features">Características</a>
           <a href="#how">Cómo funciona</a>
           <a href="#voices">Voces</a>
+          <a href="#download" style={{color:'#4ade80',fontWeight:700}}>📲 Android</a>
         </div>
         <button className="btn-primary" onClick={goToApp}>Abrir App →</button>
       </nav>
@@ -195,6 +228,14 @@ export default function LandingPage() {
           <button className="btn-primary" onClick={goToApp}>
             ▶ Explorar la Biblioteca
           </button>
+          <a
+            href="https://github.com/HarDPro2/libris-audio/releases/latest/download/libris-audio-v1.0.0.apk"
+            className="btn-android"
+            id="hero-android-download"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.523 15.341a.5.5 0 0 1-.613-.33l-.72-2.16a7.978 7.978 0 0 1-4.38 0l-.72 2.16a.5.5 0 0 1-.613.33 9.027 9.027 0 0 1-4.895-4.21.5.5 0 0 1 .16-.65l1.87-1.18A8.016 8.016 0 0 1 8 8c0-.393.028-.78.082-1.16L6.21 5.66a.5.5 0 0 1-.16-.65 9.027 9.027 0 0 1 4.895-4.21.5.5 0 0 1 .613.33l.72 2.16a7.978 7.978 0 0 1 4.38 0l.72-2.16a.5.5 0 0 1 .613-.33 9.027 9.027 0 0 1 4.895 4.21.5.5 0 0 1-.16.65l-1.87 1.18c.054.38.082.767.082 1.16s-.028.78-.082 1.16l1.87 1.18a.5.5 0 0 1 .16.65 9.027 9.027 0 0 1-4.895 4.21z"/></svg>
+            Descargar para Android
+          </a>
           <a href="#how" className="btn-outline">Ver cómo funciona →</a>
         </div>
         <div className="hero-stats">
@@ -219,7 +260,7 @@ export default function LandingPage() {
             { icon: '💾', bg: 'rgba(248,113,113,0.15)', title: 'Historial Persistente', desc: 'Tu progreso se guarda automáticamente. Vuelve al punto exacto donde lo dejaste, incluso cerrando el navegador.' },
             { icon: '📑', bg: 'rgba(52,211,153,0.15)', title: 'Navegación por Partes', desc: 'Salta directamente a cualquier capítulo con un solo clic. El libro se divide inteligentemente en partes.' },
             { icon: '🗂️', bg: 'rgba(251,191,36,0.15)', title: '34 Géneros Literarios', desc: 'Organiza tu biblioteca con categorías personalizables: Filosofía, Ciencia Ficción, Historia, Romance y más.' },
-            { icon: '📲', bg: 'rgba(167,139,250,0.15)', title: 'Instalable como App', desc: 'Funciona como app nativa gracias a la tecnología PWA. Instálala en tu computadora o teléfono con un clic.' },
+            { icon: '📲', bg: 'rgba(34,197,94,0.15)', title: 'App Nativa para Android', desc: 'Descarga la APK nativa para Android. Audio continuo con la pantalla apagada, sin restricciones del navegador.' },
           ].map((f, i) => (
             <div key={i} className="feature-card reveal">
               <div className="feature-icon" style={{ background: f.bg }}>{f.icon}</div>
@@ -281,6 +322,39 @@ export default function LandingPage() {
               <div><span className="voice-name">{v.name}</span><span className="voice-country">{v.country}</span></div>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* DOWNLOAD SECTION */}
+      <section className="download-section" id="download">
+        <div className="download-card reveal">
+          <div className="download-card-text">
+            <div className="download-badge">● DISPONIBLE AHORA</div>
+            <h3>App Nativa para <span className="gradient-text" style={{backgroundImage:'linear-gradient(135deg,#4ade80,#22c55e)'}}>Android</span></h3>
+            <p>
+              Soluciona el problema de audio en segundo plano definitivamente.
+              La app nativa mantiene el audio activo aunque apagues la pantalla.
+            </p>
+            <a
+              href="https://github.com/HarDPro2/libris-audio/releases/latest/download/libris-audio-v1.0.0.apk"
+              className="btn-android"
+              id="section-android-download"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M5 20a1 1 0 0 0 1 1h1v3a1 1 0 0 0 2 0v-3h2v3a1 1 0 0 0 2 0v-3h1a1 1 0 0 0 1-1V9H5v11zm14-14h-.535A6.977 6.977 0 0 0 13 2.038V2a1 1 0 0 0-2 0v.038A6.977 6.977 0 0 0 5.535 6H5a2 2 0 0 0-2 2v1a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V8a2 2 0 0 0-2-2zM10 4.341A5.009 5.009 0 0 1 12 4c.695 0 1.357.141 1.961.383L12 6.586 10.039 4.341zM9.001 7H9a1 1 0 1 1 0-2 1 1 0 0 1 .001 2zm6 0h-.001A1 1 0 1 1 15 5a1 1 0 0 1 .001 2z"/></svg>
+              Descargar APK gratis · v1.0.0
+            </a>
+            <div className="download-steps">
+              <div className="download-step"><span>1</span>Descarga el archivo .apk</div>
+              <div className="download-step"><span>2</span>Activa "Fuentes desconocidas" en Ajustes</div>
+              <div className="download-step"><span>3</span>Abre el .apk e instala · ¡Listo! 🎧</div>
+            </div>
+          </div>
+          <div className="download-icon-wrap">
+            <div className="download-phone">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="1.5"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg>
+              <span style={{fontSize:'1.5rem'}}>📚</span>
+            </div>
+          </div>
         </div>
       </section>
 
