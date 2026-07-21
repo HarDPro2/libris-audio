@@ -5,16 +5,20 @@ on:
     branches:
       - main
     paths:
-      # Only run when source code or Android config changes
       - 'src/**'
       - 'public/**'
       - 'android/**'
       - 'capacitor.config.ts'
       - 'package.json'
       - 'vite.config.ts'
+      - '.github/workflows/build-android-apk.yml'
 
   # Allow manual trigger from GitHub UI
   workflow_dispatch:
+
+# ── CRITICAL: needed to create GitHub Releases ──────────────────
+permissions:
+  contents: write
 
 jobs:
   build-apk:
@@ -31,7 +35,7 @@ jobs:
         id: version
         run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
-      # ── 3. Setup Node ────────────────────────────────────────────
+      # ── 3. Setup Node 20 ─────────────────────────────────────────
       - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
@@ -48,8 +52,8 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          # VITE_API_URL defaults to https://libris-backend-z5fr.onrender.com in the code
-          VITE_API_URL: ${{ secrets.VITE_API_URL || 'https://libris-backend-z5fr.onrender.com' }}
+          # API URL is not a secret — hardcode the Render backend
+          VITE_API_URL: https://libris-backend-z5fr.onrender.com
 
       # ── 6. Sync Capacitor ────────────────────────────────────────
       - name: Sync Capacitor with Android project
@@ -62,30 +66,29 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      # ── 8. Setup Android SDK ─────────────────────────────────────
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      # ── 8. Accept Android SDK licenses ───────────────────────────
+      # ubuntu-latest already has Android SDK; we just need to accept licenses
+      - name: Accept Android SDK licenses
+        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-      # ── 9. Grant Gradle execute permission ───────────────────────
-      - name: Grant Gradle wrapper execute permission
+      # ── 9. Grant Gradle wrapper execute permission ────────────────
+      - name: Make gradlew executable
         run: chmod +x android/gradlew
 
-      # ── 10. Build debug APK (no signing key needed) ──────────────
-      # We use debug APK for free distribution — no Play Store signing required.
+      # ── 10. Build debug APK ───────────────────────────────────────
+      # Debug APK is fine for direct (non-Play Store) distribution
       - name: Build debug APK
         working-directory: android
-        run: ./gradlew assembleDebug --no-daemon
-        env:
-          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
 
-      # ── 11. Rename APK to a friendly name ────────────────────────
+      # ── 11. Rename APK ────────────────────────────────────────────
       - name: Rename APK
         run: |
           mkdir -p release-output
           cp android/app/build/outputs/apk/debug/app-debug.apk \
-             release-output/libris-audio-v${{ steps.version.outputs.VERSION }}.apk
+             "release-output/libris-audio-v${{ steps.version.outputs.VERSION }}.apk"
 
-      # ── 12. Create/update GitHub Release and upload APK ──────────
+      # ── 12. Publish GitHub Release ────────────────────────────────
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -96,17 +99,14 @@ jobs:
 
             Convierte tus PDFs en audiolibros con voces neuronales de alta calidad.
 
-            ### 📥 Instalación (Android)
+            ### 📥 Cómo instalar en Android
             1. Descarga el archivo `.apk` de abajo
-            2. En tu Android ve a **Ajustes → Seguridad → Instalar apps de fuentes desconocidas** y actívalo
+            2. Ve a **Ajustes → Seguridad** y activa **"Instalar apps de fuentes desconocidas"**
             3. Abre el `.apk` descargado e instala
-            4. ¡Listo!
+            4. ¡Listo! 🎧
 
-            > **Requiere Android 5.0 (API 22) o superior**
+            > Requiere **Android 5.0 (API 22)** o superior
           files: release-output/libris-audio-v${{ steps.version.outputs.VERSION }}.apk
           draft: false
           prerelease: false
-          # If a release with this tag already exists, update it
           make_latest: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
