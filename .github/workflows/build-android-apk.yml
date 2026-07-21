@@ -35,11 +35,12 @@ jobs:
         id: version
         run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
-      # ── 3. Setup Node 20 ─────────────────────────────────────────
-      - name: Setup Node.js 20
+      # ── 3. Setup Node 22 ─────────────────────────────────────────
+      # @capacitor/cli@8.x requires Node >= 22
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       # ── 4. Install dependencies ──────────────────────────────────
