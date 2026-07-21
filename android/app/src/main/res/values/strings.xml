@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Libris Audio</string>
+    <string name="title_activity_main">Libris Audio</string>
+    <string name="package_name">com.librisaudio.app</string>
+    <string name="custom_url_scheme">com.librisaudio.app</string>
+</resources>
