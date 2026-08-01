@@ -15,7 +15,7 @@ import httpx
 from gtts import gTTS
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Header
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
+from fastapi.responses import JSONResponse, FileResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from supabase import create_client, Client
 
@@ -567,54 +567,67 @@ async def get_book_audio(book_id: str, part_index: int, voice: str = "es-MX-Jorg
     """JIT Engine: Delivers audio for a specific part. Generates it if missing.
 
     Files are stored in Cloudflare R2 (zero egress cost).
-    Existence check uses HeadObject — no bandwidth consumed.
+    Streams directly through backend to ensure CORS & Range request compliance for mobile/PWA.
     """
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase no configurado")
 
     safe_voice = sanitize_filename(voice)
     mp3_key = f"{book_id}/audio/part_{part_index}_{safe_voice}.mp3"
-    public_mp3_url = r2_public_url(mp3_key)
 
-    # 1. Check if MP3 already exists in R2 (HeadObject — zero egress)
+    # 1. Check if MP3 already exists in R2
     mp3_exists = await asyncio.to_thread(r2_exists, mp3_key)
-    if mp3_exists:
-        print(f"[Audio] Cache hit en R2: {mp3_key}")
-        return RedirectResponse(public_mp3_url)
-
-    # 2. Not cached — download text part from R2 to generate audio
-    txt_key = f"{book_id}/text/part_{part_index}.txt"
-    try:
-        txt_bytes = await asyncio.to_thread(r2_download, txt_key)
-        text = txt_bytes.decode("utf-8")
-    except Exception:
-        raise HTTPException(status_code=404, detail="Parte de texto no encontrada en R2")
-
-    # 3. Generate MP3 locally with edge-tts
-    print(f"[Audio] Generando MP3 para {mp3_key}...")
-    local_mp3 = Path(f"/tmp/{book_id}_part_{part_index}_{safe_voice}.mp3")
-    try:
-        await text_to_mp3(text, local_mp3, voice=voice)
-    except Exception as exc:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Error al generar audio: {exc}")
-
-    # 4. Upload generated MP3 to R2
-    print(f"[Audio] Subiendo MP3 a R2: {mp3_key}")
-    try:
-        with open(local_mp3, "rb") as f:
-            await asyncio.to_thread(r2_upload, mp3_key, f.read(), "audio/mpeg")
-    except Exception as e:
-        print(f"[Audio] Error subiendo MP3 a R2: {e}")
-    finally:
+    if not mp3_exists:
+        # 2. Not cached — download text part from R2 to generate audio
+        txt_key = f"{book_id}/text/part_{part_index}.txt"
         try:
-            local_mp3.unlink()
+            txt_bytes = await asyncio.to_thread(r2_download, txt_key)
+            text = txt_bytes.decode("utf-8")
         except Exception:
-            pass
+            raise HTTPException(status_code=404, detail="Parte de texto no encontrada en R2")
 
-    # 5. Redirect to the public R2 URL
-    return RedirectResponse(public_mp3_url)
+        # 3. Generate MP3 locally with edge-tts
+        print(f"[Audio] Generando MP3 para {mp3_key}...")
+        local_mp3 = Path(f"/tmp/{book_id}_part_{part_index}_{safe_voice}.mp3")
+        try:
+            await text_to_mp3(text, local_mp3, voice=voice)
+        except Exception as exc:
+            import traceback
+            traceback.print_exc()
+            raise HTTPException(status_code=500, detail=f"Error al generar audio: {exc}")
+
+        # 4. Upload generated MP3 to R2
+        print(f"[Audio] Subiendo MP3 a R2: {mp3_key}")
+        try:
+            with open(local_mp3, "rb") as f:
+                await asyncio.to_thread(r2_upload, mp3_key, f.read(), "audio/mpeg")
+        except Exception as e:
+            print(f"[Audio] Error subiendo MP3 a R2: {e}")
+        finally:
+            try:
+                local_mp3.unlink()
+            except Exception:
+                pass
+
+    # 5. Stream audio from R2 via StreamingResponse (preserves CORS & Range headers for mobile)
+    try:
+        def stream_r2():
+            obj = get_r2().get_object(Bucket=R2_BUCKET, Key=mp3_key)
+            return obj["Body"], obj["ContentLength"]
+
+        body_stream, content_length = await asyncio.to_thread(stream_r2)
+        return StreamingResponse(
+            body_stream,
+            media_type="audio/mpeg",
+            headers={
+                "Content-Length": str(content_length),
+                "Accept-Ranges": "bytes",
+                "Cache-Control": "public, max-age=31536000, immutable",
+            }
+        )
+    except Exception as exc:
+        print(f"[Audio Error] Error streaming audio from R2: {exc}")
+        raise HTTPException(status_code=500, detail=f"Error al transmitir audio: {exc}")
 
 
 # ---------------------------------------------------------------------------
