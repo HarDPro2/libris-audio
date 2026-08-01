@@ -5,6 +5,9 @@ import uuid
 import json
 from pathlib import Path
 
+import boto3
+from botocore.config import Config
+from botocore.exceptions import ClientError
 import edge_tts
 import fitz  # PyMuPDF
 import uvicorn
@@ -16,12 +19,92 @@ from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from supabase import create_client, Client
 
+# ---------------------------------------------------------------------------
+# Supabase — used ONLY for database (auth, global_books, user_books)
+# ---------------------------------------------------------------------------
 SUPABASE_URL = os.environ.get("SUPABASE_URL") or os.environ.get("VITE_SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_ANON_KEY") or os.environ.get("VITE_SUPABASE_ANON_KEY")
 
 supabase: Client | None = None
 if SUPABASE_URL and SUPABASE_KEY:
     supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# ---------------------------------------------------------------------------
+# Cloudflare R2 — used for ALL file storage (covers, text parts, audio MP3s)
+# R2 has zero egress cost vs Supabase Storage's 5 GB/month cap.
+# ---------------------------------------------------------------------------
+R2_ACCESS_KEY_ID     = os.environ.get("R2_ACCESS_KEY_ID", "")
+R2_SECRET_ACCESS_KEY = os.environ.get("R2_SECRET_ACCESS_KEY", "")
+R2_ENDPOINT_URL      = os.environ.get("R2_ENDPOINT_URL", "")
+R2_BUCKET            = os.environ.get("R2_BUCKET_NAME", "libris-audio")
+R2_PUBLIC_URL        = os.environ.get("R2_PUBLIC_URL", "").rstrip("/")
+
+_r2_client = None
+
+def get_r2():
+    """Lazy singleton for the boto3 S3 client pointing to R2."""
+    global _r2_client
+    if _r2_client is None:
+        _r2_client = boto3.client(
+            "s3",
+            endpoint_url=R2_ENDPOINT_URL,
+            aws_access_key_id=R2_ACCESS_KEY_ID,
+            aws_secret_access_key=R2_SECRET_ACCESS_KEY,
+            config=Config(signature_version="s3v4"),
+            region_name="auto",
+        )
+    return _r2_client
+
+
+def r2_upload(key: str, data: bytes, content_type: str) -> None:
+    """Upload bytes to R2."""
+    get_r2().put_object(
+        Bucket=R2_BUCKET,
+        Key=key,
+        Body=data,
+        ContentType=content_type,
+    )
+
+
+def r2_public_url(key: str) -> str:
+    """Return the public CDN URL for a key (zero-egress cost via R2 dev URL)."""
+    return f"{R2_PUBLIC_URL}/{key}"
+
+
+def r2_exists(key: str) -> bool:
+    """Check if a key exists — uses HeadObject (no egress cost)."""
+    try:
+        get_r2().head_object(Bucket=R2_BUCKET, Key=key)
+        return True
+    except ClientError:
+        return False
+
+
+def r2_download(key: str) -> bytes:
+    """Download and return raw bytes for a key."""
+    obj = get_r2().get_object(Bucket=R2_BUCKET, Key=key)
+    return obj["Body"].read()
+
+
+def r2_delete(keys: list[str]) -> None:
+    """Batch-delete a list of keys (max 1000 per call)."""
+    if not keys:
+        return
+    get_r2().delete_objects(
+        Bucket=R2_BUCKET,
+        Delete={"Objects": [{"Key": k} for k in keys], "Quiet": True},
+    )
+
+
+def r2_list_prefix(prefix: str) -> list[str]:
+    """List all object keys under a given prefix."""
+    paginator = get_r2().get_paginator("list_objects_v2")
+    keys = []
+    for page in paginator.paginate(Bucket=R2_BUCKET, Prefix=prefix):
+        for obj in page.get("Contents", []):
+            keys.append(obj["Key"])
+    return keys
+
 
 # ---------------------------------------------------------------------------
 # App setup
@@ -351,7 +434,10 @@ async def upload_pdf(file: UploadFile = File(...)):
         # ── Validate ──────────────────────────────────────────────────────────
         if not supabase:
             raise HTTPException(status_code=500, detail="Supabase no configurado en el backend")
-            
+
+        if not R2_ENDPOINT_URL:
+            raise HTTPException(status_code=500, detail="Cloudflare R2 no configurado en el backend")
+
         if not file.filename or not file.filename.lower().endswith(".pdf"):
             raise HTTPException(status_code=400, detail="Solo se aceptan archivos PDF.")
 
@@ -361,7 +447,6 @@ async def upload_pdf(file: UploadFile = File(...)):
 
         # ── Extract text ───────────────────────────────────────────────────────
         try:
-            # Extraemos todo el texto posible (límite subido a 1000 páginas)
             text = extract_text_from_pdf(pdf_bytes, max_pages=1000)
         except Exception as exc:
             raise HTTPException(status_code=422, detail=f"No se pudo leer el PDF: {exc}")
@@ -373,17 +458,17 @@ async def upload_pdf(file: UploadFile = File(...)):
             )
 
         # ── Derive title ────────────────────────────────────────────────────────
-        raw_title = file.filename.rsplit(".", 1)[0]  # strip ".pdf"
+        raw_title = file.filename.rsplit(".", 1)[0]
         title = raw_title.replace("_", " ").replace("-", " ").strip() or "Libro sin título"
 
         # ── Chunking & Metadata ──────────────────────────────────────────────────
         chunks = chunk_text(text, max_chars=3800)
         if not chunks:
-             raise HTTPException(status_code=422, detail="No se pudo extraer texto suficiente.")
+            raise HTTPException(status_code=422, detail="No se pudo extraer texto suficiente.")
 
         book_id = uuid.uuid4().hex[:12]
 
-        # ── Extract Cover ────────────────────────────────────────────────────────
+        # ── Extract Cover → upload to R2 ─────────────────────────────────────
         cover_url = None
         try:
             doc = fitz.open(stream=pdf_bytes, filetype="pdf")
@@ -391,27 +476,21 @@ async def upload_pdf(file: UploadFile = File(...)):
                 page = doc.load_page(0)
                 pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5))
                 cover_bytes = pix.tobytes("png")
-                
-                cover_path = f"{book_id}/cover.png"
-                supabase.storage.from_("books").upload(
-                    cover_path,
-                    cover_bytes,
-                    {"content-type": "image/png"}
-                )
-                cover_url = supabase.storage.from_("books").get_public_url(cover_path)
-                
+                cover_key = f"{book_id}/cover.png"
+                await asyncio.to_thread(r2_upload, cover_key, cover_bytes, "image/png")
+                cover_url = r2_public_url(cover_key)
+                print(f"[Upload] Cover subida a R2: {cover_key}")
             doc.close()
         except Exception as e:
-            print(f"[PDF] Error extracting cover: {e}")
+            print(f"[PDF] Error extracting/uploading cover: {e}")
 
-        # ── Upload Chunks ────────────────────────────────────────────────────────
-        for i, chunk in enumerate(chunks):
-            txt_path = f"{book_id}/text/part_{i}.txt"
-            supabase.storage.from_("books").upload(
-                txt_path,
-                chunk.encode("utf-8"),
-                {"content-type": "text/plain"}
-            )
+        # ── Upload text chunks to R2 ──────────────────────────────────────────
+        async def upload_chunk(i: int, chunk: str):
+            key = f"{book_id}/text/part_{i}.txt"
+            await asyncio.to_thread(r2_upload, key, chunk.encode("utf-8"), "text/plain; charset=utf-8")
+
+        await asyncio.gather(*[upload_chunk(i, c) for i, c in enumerate(chunks)])
+        print(f"[Upload] {len(chunks)} partes de texto subidas a R2 para {book_id}")
 
         print(f"Subida completada con éxito: {book_id}")
         return JSONResponse({
@@ -421,19 +500,17 @@ async def upload_pdf(file: UploadFile = File(...)):
             "coverUrl": cover_url
         })
     except HTTPException as http_exc:
-        # Re-raise HTTPExceptions directly so FastAPI handles them
         raise http_exc
     except Exception as exc:
         print(f"[Upload Error] {type(exc).__name__}: {exc}")
-        # Explicit JSON Response to preserve CORS headers on 500
         return JSONResponse(status_code=500, content={"detail": f"Error interno en el servidor: {str(exc)}"})
 
 
 @app.get("/api/clean-audio")
 async def clean_audio(token: str = None):
     """
-    Cleans up all generated MP3 audio files in the 'books' storage bucket.
-    This frees up space while maintaining book texts and user progress.
+    Cleans up all generated MP3 audio files from R2 storage.
+    Keeps text parts and covers — only removes cached audio to free space.
     """
     expected_token = os.environ.get("CLEANUP_TOKEN") or "libris_cleanup_default_secret_2026"
     if token != expected_token:
@@ -443,54 +520,41 @@ async def clean_audio(token: str = None):
         raise HTTPException(status_code=500, detail="Supabase no configurado")
 
     try:
-        # 1. Obtener la lista de todos los libros para saber sus IDs
+        # 1. Obtener todos los book_ids de la base de datos
         def get_books():
             return supabase.table("global_books").select("book_id").execute()
-        
+
         response = await asyncio.to_thread(get_books)
         book_ids = [row["book_id"] for row in response.data]
-        
-        cleaned_count = 0
-        all_paths_to_delete = []
 
-        # 2. Listar los archivos en su carpeta de audio de forma concurrente
-        async def process_book(book_id):
-            def list_audio_files(bid):
-                return supabase.storage.from_("books").list(f"{bid}/audio", {"limit": 1000})
+        all_mp3_keys = []
+
+        # 2. Listar archivos .mp3 de cada libro en R2 (concurrente)
+        async def list_audio_keys(book_id: str) -> list[str]:
             try:
-                files = await asyncio.to_thread(list_audio_files, book_id)
-                paths = []
-                for f in files:
-                    if f.get("name") and f["name"].endswith(".mp3"):
-                        paths.append(f"{book_id}/audio/{f['name']}")
-                return paths
+                prefix = f"{book_id}/audio/"
+                keys = await asyncio.to_thread(r2_list_prefix, prefix)
+                return [k for k in keys if k.endswith(".mp3")]
             except Exception as e:
-                print(f"[Cleanup] Error al listar audios para libro {book_id}: {e}")
+                print(f"[Cleanup] Error listando audios de {book_id}: {e}")
                 return []
 
-        tasks = [process_book(bid) for bid in book_ids]
-        results = await asyncio.gather(*tasks)
-        
+        results = await asyncio.gather(*[list_audio_keys(bid) for bid in book_ids])
         for res in results:
-            all_paths_to_delete.extend(res)
+            all_mp3_keys.extend(res)
 
-        # 3. Eliminar los archivos en lotes de 100 de forma concurrente
-        if all_paths_to_delete:
-            def delete_batch(batch):
-                return supabase.storage.from_("books").remove(batch)
-                
-            delete_tasks = []
-            for i in range(0, len(all_paths_to_delete), 100):
-                chunk = all_paths_to_delete[i:i+100]
-                delete_tasks.append(asyncio.to_thread(delete_batch, chunk))
-                cleaned_count += len(chunk)
-                
-            await asyncio.gather(*delete_tasks)
+        # 3. Borrar en lotes de 1000 (límite de R2/S3)
+        deleted_count = 0
+        if all_mp3_keys:
+            for i in range(0, len(all_mp3_keys), 1000):
+                batch = all_mp3_keys[i:i + 1000]
+                await asyncio.to_thread(r2_delete, batch)
+                deleted_count += len(batch)
 
         return JSONResponse({
             "status": "success",
-            "message": f"Se eliminaron {cleaned_count} archivos de audio (.mp3)",
-            "files_deleted": all_paths_to_delete
+            "message": f"Se eliminaron {deleted_count} archivos de audio (.mp3) de R2",
+            "files_deleted": all_mp3_keys
         })
 
     except Exception as e:
@@ -500,64 +564,56 @@ async def clean_audio(token: str = None):
 
 @app.get("/api/audio/{book_id}/{part_index}")
 async def get_book_audio(book_id: str, part_index: int, voice: str = "es-MX-JorgeNeural"):
-    """JIT Engine: Delivers audio for a specific part. Generates it if missing."""
+    """JIT Engine: Delivers audio for a specific part. Generates it if missing.
+
+    Files are stored in Cloudflare R2 (zero egress cost).
+    Existence check uses HeadObject — no bandwidth consumed.
+    """
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase no configurado")
 
     safe_voice = sanitize_filename(voice)
-    mp3_path = f"{book_id}/audio/part_{part_index}_{safe_voice}.mp3"
-    public_mp3_url = supabase.storage.from_("books").get_public_url(mp3_path)
-    
-    # 1. Check if it already exists in Cloud Storage by pinging its public URL
-    async with httpx.AsyncClient() as client:
-        try:
-            r = await client.head(public_mp3_url)
-            if r.status_code == 200:
-                print(f"[Audio] Caching Hit for {mp3_path}")
-                return RedirectResponse(public_mp3_url)
-        except Exception:
-            pass
+    mp3_key = f"{book_id}/audio/part_{part_index}_{safe_voice}.mp3"
+    public_mp3_url = r2_public_url(mp3_key)
 
-    # 2. Doesn't exist. We must generate it. Download text first.
-    txt_path = f"{book_id}/text/part_{part_index}.txt"
-    public_txt_url = supabase.storage.from_("books").get_public_url(txt_path)
-    
-    async with httpx.AsyncClient() as client:
-        r = await client.get(public_txt_url)
-        if r.status_code != 200:
-            raise HTTPException(status_code=404, detail="Parte de texto no encontrada en la nube")
-        text = r.text
-        
-    print(f"[Audio] Generando MP3 localmente para {mp3_path}...")
+    # 1. Check if MP3 already exists in R2 (HeadObject — zero egress)
+    mp3_exists = await asyncio.to_thread(r2_exists, mp3_key)
+    if mp3_exists:
+        print(f"[Audio] Cache hit en R2: {mp3_key}")
+        return RedirectResponse(public_mp3_url)
+
+    # 2. Not cached — download text part from R2 to generate audio
+    txt_key = f"{book_id}/text/part_{part_index}.txt"
+    try:
+        txt_bytes = await asyncio.to_thread(r2_download, txt_key)
+        text = txt_bytes.decode("utf-8")
+    except Exception:
+        raise HTTPException(status_code=404, detail="Parte de texto no encontrada en R2")
+
+    # 3. Generate MP3 locally with edge-tts
+    print(f"[Audio] Generando MP3 para {mp3_key}...")
     local_mp3 = Path(f"/tmp/{book_id}_part_{part_index}_{safe_voice}.mp3")
-    local_mp3.parent.mkdir(parents=True, exist_ok=True)
     try:
         await text_to_mp3(text, local_mp3, voice=voice)
     except Exception as exc:
         import traceback
-        print(f"!!! CRASH IN EDGE-TTS !!!")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error al generar audio: {exc}")
-        
-    # 3. Upload the generated MP3 to Cloud Storage
-    print(f"[Audio] Subiendo generacion a Supabase Storage: {mp3_path}")
-    with open(local_mp3, "rb") as f:
-        try:
-            supabase.storage.from_("books").upload(
-                mp3_path,
-                f.read(),
-                {"content-type": "audio/mpeg"}
-            )
-        except Exception as e:
-            print(f"[Audio] Error subiendo MP3 a Supabase: {e}")
-            
-    # Clean up local temp file
+
+    # 4. Upload generated MP3 to R2
+    print(f"[Audio] Subiendo MP3 a R2: {mp3_key}")
     try:
-        local_mp3.unlink()
-    except:
-        pass
-        
-    # 4. Redirect seamlessly to the newly generated public MP3 file!
+        with open(local_mp3, "rb") as f:
+            await asyncio.to_thread(r2_upload, mp3_key, f.read(), "audio/mpeg")
+    except Exception as e:
+        print(f"[Audio] Error subiendo MP3 a R2: {e}")
+    finally:
+        try:
+            local_mp3.unlink()
+        except Exception:
+            pass
+
+    # 5. Redirect to the public R2 URL
     return RedirectResponse(public_mp3_url)
 
 
@@ -641,29 +697,24 @@ async def delete_book(book_id_hex: str, authorization: str = Header(default=None
     book_row = await asyncio.to_thread(_verify_book_owner, book_id_hex, user_id)
     global_book_db_id = book_row["id"]
 
-    # ── Delete all Storage files concurrently ─────────────────────────────
-    async def delete_folder(folder: str):
-        """List and remove all files under a storage folder path."""
+    # ── Delete all R2 files concurrently ─────────────────────────────────
+    async def delete_r2_prefix(prefix: str):
+        """List and delete all R2 objects under a prefix."""
         try:
-            files = await asyncio.to_thread(
-                lambda: supabase.storage.from_("books").list(folder, {"limit": 1000})
-            )
-            paths = [f"{folder}/{f['name']}" for f in files if f.get("name")]
-            if paths:
-                await asyncio.to_thread(lambda: supabase.storage.from_("books").remove(paths))
-                print(f"[Delete] Removed {len(paths)} files from {folder}/")
+            keys = await asyncio.to_thread(r2_list_prefix, prefix)
+            if keys:
+                await asyncio.to_thread(r2_delete, keys)
+                print(f"[Delete] Eliminados {len(keys)} archivos de R2 bajo {prefix}")
         except Exception as e:
-            print(f"[Delete] Warning: could not clean folder {folder}: {e}")
+            print(f"[Delete] Warning: no se pudo limpiar {prefix} en R2: {e}")
 
     await asyncio.gather(
-        delete_folder(f"{book_id_hex}/audio"),
-        delete_folder(f"{book_id_hex}/text"),
+        delete_r2_prefix(f"{book_id_hex}/audio/"),
+        delete_r2_prefix(f"{book_id_hex}/text/"),
     )
-    # Cover is a single file, remove directly
+    # Cover
     try:
-        await asyncio.to_thread(
-            lambda: supabase.storage.from_("books").remove([f"{book_id_hex}/cover.png"])
-        )
+        await asyncio.to_thread(r2_delete, [f"{book_id_hex}/cover.png"])
     except Exception:
         pass
 
