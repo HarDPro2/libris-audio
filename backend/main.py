@@ -1,5 +1,8 @@
+from __future__ import annotations
 import sys
 import logging
+from typing import List, Optional, Dict, Any
+from pydantic import BaseModel
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 print("=== STARTING LIBRIS AUDIO BACKEND IN CONTAINER ===", flush=True)
 
@@ -803,6 +806,9 @@ async def update_book(book_id_hex: str, payload: dict, authorization: str = Head
     return {"status": "success", "message": "Libro actualizado"}
 
 
+from pydantic import BaseModel
+from typing import List, Optional
+
 class ChatMessage(BaseModel):
     role: str
     content: str
@@ -811,8 +817,8 @@ class ChatBookRequest(BaseModel):
     book_id: str
     part_index: int
     user_message: str
-    history: list[ChatMessage] = []
-    user_openrouter_key: str | None = None
+    history: List[ChatMessage] = []
+    user_openrouter_key: Optional[str] = None
     enforce_free_only: bool = True
 
 @app.post("/api/chat-book")
