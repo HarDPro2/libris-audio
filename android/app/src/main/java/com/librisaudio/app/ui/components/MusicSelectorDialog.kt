@@ -46,7 +46,6 @@ fun MusicSelectorDialog(
                 .fillMaxWidth()
                 .padding(20.dp)
         ) {
-            // Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -69,7 +68,6 @@ fun MusicSelectorDialog(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Volume Control Slider
             Card(
                 colors = CardDefaults.cardColors(containerColor = CardSurface),
                 shape = RoundedCornerShape(16.dp),
@@ -107,21 +105,20 @@ fun MusicSelectorDialog(
             Text("Elige una obra maestra:", fontSize = 12.sp, color = TextMuted)
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Track List
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(320.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // "Sin música de fondo" option
                 item {
                     val isSelected = selectedTrack == null
                     Surface(
-                        onClick = { onSelectTrack(null) },
                         shape = RoundedCornerShape(12.dp),
                         color = if (isSelected) PurpleAccent else CardSurface,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelectTrack(null) }
                     ) {
                         Row(
                             modifier = Modifier.padding(14.dp),
@@ -135,10 +132,11 @@ fun MusicSelectorDialog(
                 items(BackgroundMusicCatalog.tracks) { track ->
                     val isSelected = selectedTrack?.id == track.id
                     Surface(
-                        onClick = { onSelectTrack(track) },
                         shape = RoundedCornerShape(12.dp),
                         color = if (isSelected) PurpleAccent else CardSurface,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelectTrack(track) }
                     ) {
                         Row(
                             modifier = Modifier.padding(12.dp),

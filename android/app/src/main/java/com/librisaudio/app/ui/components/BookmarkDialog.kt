@@ -1,6 +1,7 @@
 package com.librisaudio.app.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -76,7 +77,6 @@ fun BookmarkDialog(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Add Bookmark Card
             Card(
                 colors = CardDefaults.cardColors(containerColor = CardSurface),
                 shape = RoundedCornerShape(16.dp),
@@ -154,10 +154,11 @@ fun BookmarkDialog(
                         val m = (item.positionMs / 1000) / 60
                         val s = (item.positionMs / 1000) % 60
                         Surface(
-                            onClick = { onJumpToBookmark(item) },
                             shape = RoundedCornerShape(12.dp),
                             color = CardSurface,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onJumpToBookmark(item) }
                         ) {
                             Row(
                                 modifier = Modifier.padding(12.dp),

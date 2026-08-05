@@ -1,9 +1,9 @@
 package com.librisaudio.app
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -21,12 +21,12 @@ import com.librisaudio.app.ui.theme.AppThemePreset
 import com.librisaudio.app.ui.theme.LibrisAudioTheme
 import com.librisaudio.app.viewmodel.PlayerViewModel
 
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
 
     private val playerViewModel: PlayerViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate()
+        super.onCreate(savedInstanceState)
         playerViewModel.initMediaController(this)
 
         setContent {

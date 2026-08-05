@@ -87,10 +87,11 @@ fun SleepTimerDialog(
                 items(SleepTimerOption.values()) { option ->
                     val isSelected = selectedOption == option
                     Surface(
-                        onClick = { onSelectOption(option) },
                         shape = RoundedCornerShape(12.dp),
                         color = if (isSelected) PurpleAccent else CardSurface,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelectOption(option) }
                     ) {
                         Row(
                             modifier = Modifier.padding(14.dp),

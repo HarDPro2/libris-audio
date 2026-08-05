@@ -42,6 +42,11 @@ enum class AppThemePreset(
     )
 }
 
+val PurpleAccent = Color(0xFF8B5CF6)
+val CyanAccent = Color(0xFF06B6D4)
+val DarkSlate = Color(0xFF0F172A)
+val CardSurface = Color(0xFF1E293B)
+val GreenAccent = Color(0xFF10B981)
 val TextWhite = Color(0xFFF8FAFC)
 val TextMuted = Color(0xFF94A3B8)
 
