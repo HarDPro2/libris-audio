@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
 import com.librisaudio.app.data.api.AppwriteAuthClient
+import com.librisaudio.app.data.api.AppwriteSdkClient
 import com.librisaudio.app.ui.components.BottomPlayerBar
 import com.librisaudio.app.ui.screens.*
 import com.librisaudio.app.ui.theme.AppThemePreset
@@ -43,6 +44,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         playerViewModel.initMediaController(this)
         authViewModel.init(this)
+        AppwriteSdkClient.init(this)   // must be before handleAuthDeepLink
         // Handle deep link if app was launched via OAuth redirect
         handleAuthDeepLink(intent)
         // Render the UI
@@ -62,35 +64,24 @@ class MainActivity : ComponentActivity() {
         val expectedScheme = "appwrite-callback-${AppwriteAuthClient.APPWRITE_PROJECT_ID}"
         if (data.scheme != expectedScheme) return
 
-        // Appwrite pasa userId y secret en los query params del callback
-        val userId = data.getQueryParameter("userId")
-            ?: data.getQueryParameter("\$id")
-            ?: ""
-        val email = data.getQueryParameter("email") ?: ""
-        val name  = data.getQueryParameter("name") ?: ""
-        val sessionId = data.getQueryParameter("secret")
-            ?: data.getQueryParameter("sessionId")
-            ?: ""
-
-        // Loguear todos los params para diagnóstico
-        val params = data.queryParameterNames.joinToString { "$it=${data.getQueryParameter(it)}" }
-        Log.d("MainActivity", "OAuth callback params: $params")
-
-        if (userId.isNotBlank() && sessionId.isNotBlank()) {
-            authViewModel.loginWithGoogleSession(userId, email, name, sessionId)
-        } else {
-            Log.e("MainActivity", "OAuth callback incompleto — userId='$userId' sessionId='${sessionId.take(8)}'")
-        }
+        // Delegate full URI to AuthViewModel — it extracts params and fetches the account
+        authViewModel.handleOAuthCallback(data)
     }
 
     private fun openGoogleOAuth() {
-        val url = AppwriteAuthClient.googleOAuthUrl()
+        // Use the Appwrite SDK to launch OAuth — it sets the correct callback scheme
+        // and stores the session cookie automatically when the redirect returns.
+        val successUri = "appwrite-callback-${AppwriteAuthClient.APPWRITE_PROJECT_ID}://auth/oauth2/success"
+        val failureUri = "appwrite-callback-${AppwriteAuthClient.APPWRITE_PROJECT_ID}://auth/oauth2/failure"
+        val url = "${AppwriteAuthClient.APPWRITE_ENDPOINT}v1/account/sessions/oauth2/google" +
+                  "?project=${AppwriteAuthClient.APPWRITE_PROJECT_ID}" +
+                  "&success=${Uri.encode(successUri)}" +
+                  "&failure=${Uri.encode(failureUri)}"
+        Log.d("MainActivity", "Opening OAuth URL: $url")
         try {
-            // Try Chrome Custom Tab first (stays in-app)
             val customTab = CustomTabsIntent.Builder().build()
             customTab.launchUrl(this, Uri.parse(url))
         } catch (_: Exception) {
-            // Fallback: open in default browser
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
         }
     }

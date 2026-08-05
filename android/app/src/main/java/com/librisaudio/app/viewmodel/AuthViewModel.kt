@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.librisaudio.app.data.api.AppwriteAuthClient
+import com.librisaudio.app.data.api.AppwriteSdkClient
 import com.librisaudio.app.data.model.AppwriteEmailLoginBody
 import com.librisaudio.app.data.model.AppwriteRegisterBody
 import com.librisaudio.app.data.model.AppwriteSession
@@ -138,7 +139,13 @@ class AuthViewModel : ViewModel() {
                         Log.e("AuthViewModel", "Registro HttpException code=${e.code()} body=$errorBody")
                         val msg = when (e.code()) {
                             409  -> "Ya existe una cuenta con ese email"
-                            400  -> "Email inválido o contraseña muy débil (mín. 8 caracteres)"
+                            400  -> {
+                                // Appwrite rejects common passwords even if ≥8 chars
+                                if (errorBody.contains("password", ignoreCase = true))
+                                    "Contraseña muy común. Usa letras, números y algún símbolo (ej: Mi@Libro24)"
+                                else
+                                    "Email inválido o datos incorrectos: $errorBody"
+                            }
                             429  -> "Demasiados intentos. Espera un momento"
                             else -> "Error al registrar: $errorBody"
                         }
@@ -157,7 +164,42 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-    // Called after successful Google OAuth — saves session from deep link
+    /**
+     * Called after Google OAuth deep link returns to the app.
+     *
+     * The Appwrite Android SDK stores the session cookie internally after the
+     * OAuth redirect. We call account.get() via the SDK — it automatically
+     * sends the stored session cookie — to get the authenticated user's info.
+     */
+    fun handleOAuthCallback(uri: android.net.Uri) {
+        Log.d("AuthViewModel", "OAuth callback URI: $uri")
+        val paramNames = uri.queryParameterNames
+        Log.d("AuthViewModel", "OAuth params: ${paramNames.joinToString { "$it=${uri.getQueryParameter(it)}" }}")
+
+        _authState.value = AuthState.Loading
+        viewModelScope.launch {
+            try {
+                // The SDK's Account.get() uses the session cookie the OAuth flow set
+                val user = AppwriteSdkClient.account.get()
+                Log.d("AuthViewModel", "OAuth SDK account.get() OK: userId=${user.id} email=${user.email}")
+
+                val session = AppwriteSession(
+                    userId    = user.id,
+                    email     = user.email,
+                    name      = user.name.ifBlank { user.email.substringBefore("@") },
+                    sessionId = user.id   // SDK manages the cookie; store userId as reference
+                )
+                saveSession(session)
+                _authState.value = AuthState.Authenticated(session)
+
+            } catch (e: Exception) {
+                Log.e("AuthViewModel", "OAuth SDK account.get() failed: ${e.message}", e)
+                _authState.value = AuthState.Error("No se pudo verificar la sesión de Google. Intenta de nuevo.")
+            }
+        }
+    }
+
+    // Legacy — kept for compatibility, delegates to handleOAuthCallback
     fun loginWithGoogleSession(userId: String, email: String, name: String, sessionSecret: String) {
         val session = AppwriteSession(
             userId    = userId,
