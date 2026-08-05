@@ -11,10 +11,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import com.librisaudio.app.data.model.Book
 import com.librisaudio.app.ui.components.BottomPlayerBar
 import com.librisaudio.app.ui.screens.LibraryScreen
 import com.librisaudio.app.ui.screens.PlayerScreen
+import com.librisaudio.app.ui.theme.AppThemePreset
 import com.librisaudio.app.ui.theme.LibrisAudioTheme
 import com.librisaudio.app.viewmodel.PlayerViewModel
 
@@ -27,7 +27,9 @@ class MainActivity : ComponentActivity() {
         playerViewModel.initMediaController(this)
 
         setContent {
-            LibrisAudioTheme {
+            var currentTheme by remember { mutableStateOf(AppThemePreset.CYBERPUNK) }
+
+            LibrisAudioTheme(preset = currentTheme) {
                 val books by playerViewModel.books.collectAsState()
                 val currentBook by playerViewModel.currentBook.collectAsState()
                 val isPlaying by playerViewModel.isPlaying.collectAsState()
@@ -46,6 +48,8 @@ class MainActivity : ComponentActivity() {
                     ) {
                         LibraryScreen(
                             books = books,
+                            currentTheme = currentTheme,
+                            onSelectTheme = { newTheme -> currentTheme = newTheme },
                             onBookSelect = { selectedBook ->
                                 playerViewModel.playBook(selectedBook)
                             }
@@ -71,6 +75,7 @@ class MainActivity : ComponentActivity() {
                                 playbackSpeed = playbackSpeed,
                                 currentPositionMs = currentPositionMs,
                                 durationMs = durationMs,
+                                currentTheme = currentTheme,
                                 onTogglePlay = { playerViewModel.togglePlayPause() },
                                 onNextPart = { playerViewModel.nextPart() },
                                 onPreviousPart = { playerViewModel.previousPart() },
