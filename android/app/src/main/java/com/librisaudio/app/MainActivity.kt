@@ -13,6 +13,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.librisaudio.app.data.model.MusicTrack
 import com.librisaudio.app.ui.components.BottomPlayerBar
+import com.librisaudio.app.ui.components.StatsDialog
+import com.librisaudio.app.ui.screens.CarModeScreen
 import com.librisaudio.app.ui.screens.LibraryScreen
 import com.librisaudio.app.ui.screens.PlayerScreen
 import com.librisaudio.app.ui.theme.AppThemePreset
@@ -31,6 +33,7 @@ class MainActivity : ComponentActivity() {
             var currentTheme by remember { mutableStateOf(AppThemePreset.CYBERPUNK) }
             var selectedMusicTrack by remember { mutableStateOf<MusicTrack?>(null) }
             var backgroundVolume by remember { mutableStateOf(0.25f) }
+            var isCarModeOpen by remember { mutableStateOf(false) }
 
             LibrisAudioTheme(preset = currentTheme) {
                 val books by playerViewModel.books.collectAsState()
@@ -58,7 +61,7 @@ class MainActivity : ComponentActivity() {
                             }
                         )
 
-                        if (currentBook != null && !isFullPlayerOpen) {
+                        if (currentBook != null && !isFullPlayerOpen && !isCarModeOpen) {
                             BottomPlayerBar(
                                 book = currentBook!!,
                                 isPlaying = isPlaying,
@@ -70,7 +73,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        if (currentBook != null && isFullPlayerOpen) {
+                        if (currentBook != null && isFullPlayerOpen && !isCarModeOpen) {
                             PlayerScreen(
                                 book = currentBook!!,
                                 isPlaying = isPlaying,
@@ -88,7 +91,21 @@ class MainActivity : ComponentActivity() {
                                 onPreviousPart = { playerViewModel.previousPart() },
                                 onSeekTo = { posMs -> playerViewModel.seekTo(posMs) },
                                 onSelectSpeed = { speed -> playerViewModel.setSpeed(speed) },
+                                onOpenCarMode = { isCarModeOpen = true },
                                 onClose = { isFullPlayerOpen = false }
+                            )
+                        }
+
+                        if (currentBook != null && isCarModeOpen) {
+                            CarModeScreen(
+                                book = currentBook!!,
+                                isPlaying = isPlaying,
+                                currentPartIndex = currentPartIndex,
+                                onTogglePlay = { playerViewModel.togglePlayPause() },
+                                onRewind15 = { playerViewModel.seekTo((currentPositionMs - 15000).coerceAtLeast(0)) },
+                                onForward15 = { playerViewModel.seekTo(currentPositionMs + 15000) },
+                                onNextPart = { playerViewModel.nextPart() },
+                                onCloseCarMode = { isCarModeOpen = false }
                             )
                         }
                     }

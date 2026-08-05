@@ -7,8 +7,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Book
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
@@ -33,7 +36,11 @@ import com.librisaudio.app.data.model.Book
 import com.librisaudio.app.data.model.MusicTrack
 import com.librisaudio.app.ui.components.AnimatedBackground
 import com.librisaudio.app.ui.components.AudioVisualizer
+import com.librisaudio.app.ui.components.BookmarkDialog
+import com.librisaudio.app.ui.components.BookmarkItem
 import com.librisaudio.app.ui.components.MusicSelectorDialog
+import com.librisaudio.app.ui.components.SleepTimerDialog
+import com.librisaudio.app.ui.components.SleepTimerOption
 import com.librisaudio.app.ui.components.VirtualBookFrame
 import com.librisaudio.app.ui.theme.AppThemePreset
 import com.librisaudio.app.ui.theme.CardSurface
@@ -65,11 +72,19 @@ fun PlayerScreen(
     onPreviousPart: () -> Unit,
     onSeekTo: (Long) -> Unit,
     onSelectSpeed: (Float) -> Unit,
+    onOpenCarMode: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var viewMode by remember { mutableStateOf(PlayerViewMode.CLASSIC_PLAYER) }
     var isMusicDialogVisible by remember { mutableStateOf(false) }
+    var isSleepTimerVisible by remember { mutableStateOf(false) }
+    var isBookmarkVisible by remember { mutableStateOf(false) }
+
+    var selectedSleepTimer by remember { mutableStateOf(SleepTimerOption.OFF) }
+    var sleepTimerSeconds by remember { mutableStateOf(0L) }
+
+    val bookmarks = remember { mutableStateListOf<BookmarkItem>() }
     val speeds = listOf(1.0f, 1.25f, 1.5f, 1.75f, 2.0f)
 
     val infiniteTransition = rememberInfiniteTransition(label = "AuraPulse")
@@ -138,23 +153,30 @@ fun PlayerScreen(
                     }
                 }
 
-                // Background Music Button
-                IconButton(onClick = { isMusicDialogVisible = true }) {
-                    Icon(
-                        imageVector = Icons.Default.MusicNote,
-                        contentDescription = "Música de Fondo",
-                        tint = if (selectedMusicTrack != null) CyanAccent else Color.White
-                    )
+                // Top Action Icons (Car Mode, Sleep Timer, Bookmarks, Music)
+                Row {
+                    IconButton(onClick = onOpenCarMode) {
+                        Icon(Icons.Default.DirectionsCar, contentDescription = "Modo Auto", tint = Color.White)
+                    }
+                    IconButton(onClick = { isSleepTimerVisible = true }) {
+                        Icon(Icons.Default.Bedtime, contentDescription = "Sleep Timer", tint = if (selectedSleepTimer != SleepTimerOption.OFF) CyanAccent else Color.White)
+                    }
+                    IconButton(onClick = { isBookmarkVisible = true }) {
+                        Icon(Icons.Default.Bookmark, contentDescription = "Marcapáginas", tint = Color.White)
+                    }
+                    IconButton(onClick = { isMusicDialogVisible = true }) {
+                        Icon(Icons.Default.MusicNote, contentDescription = "Música de Fondo", tint = if (selectedMusicTrack != null) CyanAccent else Color.White)
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             if (viewMode == PlayerViewMode.VIRTUAL_BOOK_3D) {
                 // 3D Virtual Book Frame Mode
                 VirtualBookFrame(
                     book = book,
-                    textPart = "", // Text part content loaded natively
+                    textPart = "",
                     currentPartIndex = currentPartIndex,
                     isPlaying = isPlaying,
                     onNextPart = onNextPart,
@@ -168,10 +190,9 @@ fun PlayerScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    // Large Cover Image with Glowing Neon Pulse Aura
                     Box(
                         modifier = Modifier
-                            .size(220.dp)
+                            .size(200.dp)
                             .clip(RoundedCornerShape(24.dp))
                             .border(
                                 width = auraGlow.dp,
@@ -191,14 +212,13 @@ fun PlayerScreen(
                             )
                         } else {
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Text("??", fontSize = 64.sp)
+                                Text("??", fontSize = 60.sp)
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                    // Audio Visualizer Spectrum Bar Graph
                     AudioVisualizer(
                         isPlaying = isPlaying,
                         primaryColor = currentTheme.primary,
@@ -206,7 +226,7 @@ fun PlayerScreen(
                         modifier = Modifier.padding(horizontal = 24.dp)
                     )
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
                         text = book.title,
@@ -217,7 +237,7 @@ fun PlayerScreen(
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "Parte ${currentPartIndex + 1} de ${book.partsCount}",
                         fontSize = 13.sp,
@@ -227,9 +247,8 @@ fun PlayerScreen(
                 }
             }
 
-            // Bottom Audio Control Panel (Shared across views)
+            // Bottom Audio Control Panel
             Column(modifier = Modifier.fillMaxWidth()) {
-                // Progress Slider & Timers
                 val posSec = currentPositionMs / 1000
                 val durSec = durationMs / 1000
                 val sliderValue = if (durationMs > 0) currentPositionMs.toFloat() / durationMs else 0f
@@ -257,9 +276,8 @@ fun PlayerScreen(
                     Text(formatTime(durSec), fontSize = 12.sp, color = TextMuted)
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
-                // Main Playback Buttons
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center,
@@ -274,8 +292,8 @@ fun PlayerScreen(
                     IconButton(
                         onClick = onTogglePlay,
                         modifier = Modifier
-                            .size(64.dp)
-                            .clip(RoundedCornerShape(32.dp))
+                            .size(60.dp)
+                            .clip(RoundedCornerShape(30.dp))
                             .background(
                                 Brush.linearGradient(
                                     colors = listOf(currentTheme.primary, currentTheme.secondary)
@@ -297,9 +315,9 @@ fun PlayerScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-                // Speed Selector Pills
+                // Speed Pills
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.fillMaxWidth(),
@@ -328,7 +346,7 @@ fun PlayerScreen(
             }
         }
 
-        // Classical Background Music Selector Dialog
+        // Dialogs
         if (isMusicDialogVisible) {
             MusicSelectorDialog(
                 selectedTrack = selectedMusicTrack,
@@ -336,6 +354,44 @@ fun PlayerScreen(
                 onSelectTrack = { track -> onSelectMusicTrack(track) },
                 onVolumeChange = onBackgroundVolumeChange,
                 onDismiss = { isMusicDialogVisible = false }
+            )
+        }
+
+        if (isSleepTimerVisible) {
+            SleepTimerDialog(
+                selectedOption = selectedSleepTimer,
+                remainingSeconds = sleepTimerSeconds,
+                onSelectOption = { option ->
+                    selectedSleepTimer = option
+                    sleepTimerSeconds = if (option.minutes > 0) option.minutes * 60L else 0L
+                    isSleepTimerVisible = false
+                },
+                onDismiss = { isSleepTimerVisible = false }
+            )
+        }
+
+        if (isBookmarkVisible) {
+            BookmarkDialog(
+                bookTitle = book.title,
+                currentPartIndex = currentPartIndex,
+                currentPositionMs = currentPositionMs,
+                bookmarks = bookmarks,
+                onAddBookmark = { note ->
+                    bookmarks.add(
+                        BookmarkItem(
+                            id = System.currentTimeMillis().toString(),
+                            bookId = book.bookId,
+                            partIndex = currentPartIndex,
+                            positionMs = currentPositionMs,
+                            note = note
+                        )
+                    )
+                },
+                onJumpToBookmark = { item ->
+                    onSeekTo(item.positionMs)
+                    isBookmarkVisible = false
+                },
+                onDismiss = { isBookmarkVisible = false }
             )
         }
     }
