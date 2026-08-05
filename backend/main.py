@@ -786,6 +786,7 @@ class ChatBookRequest(BaseModel):
     user_message: str
     history: list[ChatMessage] = []
     user_openrouter_key: str | None = None
+    enforce_free_only: bool = True
 
 @app.post("/api/chat-book")
 async def chat_with_book(req: ChatBookRequest):
@@ -838,6 +839,8 @@ async def chat_with_book(req: ChatBookRequest):
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         for model in models_cascade:
+            if req.enforce_free_only and not (model.endswith(":free") or model == "openrouter/free"):
+                continue
             try:
                 payload = {
                     "model": model,
@@ -858,5 +861,6 @@ async def chat_with_book(req: ChatBookRequest):
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8080, reload=True)
+
 
 

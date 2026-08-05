@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -51,6 +52,7 @@ fun ChatWithBookDialog(
     val prefs = remember { context.getSharedPreferences("LibrisAudioPrefs", Context.MODE_PRIVATE) }
     var userApiKey by remember { mutableStateOf(prefs.getString("OPENROUTER_API_KEY", "") ?: "") }
     var isConfigOpen by remember { mutableStateOf(false) }
+    var enforceOnlyFreeModels by remember { mutableStateOf(true) }
 
     var inputText by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
@@ -81,6 +83,7 @@ fun ChatWithBookDialog(
                 json.put("book_id", bookId)
                 json.put("part_index", currentPartIndex)
                 json.put("user_message", userMsg)
+                json.put("enforce_free_only", enforceOnlyFreeModels)
                 if (userApiKey.isNotBlank()) {
                     json.put("user_openrouter_key", userApiKey.trim())
                 }
@@ -146,7 +149,7 @@ fun ChatWithBookDialog(
                 }
             }
 
-            // User API Key Configuration Panel
+            // User API Key & Cost Safety Panel
             if (isConfigOpen) {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = CardSurface),
@@ -157,14 +160,14 @@ fun ChatWithBookDialog(
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Text(
-                            text = "?? Tu API Key de OpenRouter (Cascada Gratuita)",
+                            text = "?? Tu API Key de OpenRouter",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = CyanAccent
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Pega tu clave para usar tu cuotas en cascada (DeepSeek R1, Llama 3.3 70B, Qwen 2.5, Gemma 2).",
+                            text = "Pega tu clave para usar tu cuota personal en cascada.",
                             fontSize = 11.sp,
                             color = TextMuted
                         )
@@ -191,7 +194,33 @@ fun ChatWithBookDialog(
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        // Highlighted Pro Tip Box for $10 Lifetime Upgrade
+                        // Anti-Saldo Consumption Safety Switch
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Security, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Column {
+                                    Text("Escudo 100% Gratuito", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    Text("Fuerza solo modelos :free sin tocar tu saldo", fontSize = 10.sp, color = TextMuted)
+                                }
+                            }
+                            Switch(
+                                checked = enforceOnlyFreeModels,
+                                onCheckedChange = { enforceOnlyFreeModels = it },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color.Black,
+                                    checkedTrackColor = CyanAccent
+                                )
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Highlighted Pro Tip Box
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -207,7 +236,7 @@ fun ChatWithBookDialog(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "?? TRUCO DE CUOTA: Si realizas una compra única de $10 de crédito en OpenRouter, tu límite de peticiones gratuitas aumenta permanentemente de 50 a 1,000 peticiones/día de por vida (incluso cuando tu saldo llegue a $0).",
+                                    text = "?? TRUCO DE CUOTA: Si realizas una compra única de $10 de crédito en OpenRouter, tu límite de peticiones gratuitas aumenta permanentemente de 50 a 1,000 peticiones/día de por vida. El Escudo 100% Gratuito garantiza que tu saldo de $10 NUNCA sea consumido.",
                                     fontSize = 10.5.sp,
                                     color = Color(0xFFE0F2FE),
                                     lineHeight = 14.sp,
@@ -225,7 +254,7 @@ fun ChatWithBookDialog(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(230.dp),
+                    .height(220.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(messages) { item ->
