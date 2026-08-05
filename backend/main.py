@@ -18,6 +18,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from supabase import create_client, Client
+from appwrite.client import Client as AppwriteClient
+from appwrite.services.databases import Databases as AppwriteDatabases
 
 # ---------------------------------------------------------------------------
 # Supabase — used ONLY for database (auth, global_books, user_books)
@@ -28,6 +30,21 @@ SUPABASE_KEY = os.environ.get("SUPABASE_ANON_KEY") or os.environ.get("VITE_SUPAB
 supabase: Client | None = None
 if SUPABASE_URL and SUPABASE_KEY:
     supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# ---------------------------------------------------------------------------
+# Appwrite Database Integration (Continuous 24/7 non-pausing database)
+# ---------------------------------------------------------------------------
+APPWRITE_ENDPOINT   = os.environ.get("APPWRITE_ENDPOINT", "https://nyc.cloud.appwrite.io/v1")
+APPWRITE_PROJECT_ID = os.environ.get("APPWRITE_PROJECT_ID", "6a72f5d6002eeff78bc2")
+APPWRITE_API_KEY    = os.environ.get("APPWRITE_API_KEY", "standard_bb434ca194434c1144b8419ad413abd9473348e2e1eeca63e8edb257ada46c6d35166277da68a5427b6abbef0bbb632b28002dd401386de07c103efe8436a6f1a68b15f6bafe8bc07429fd366fcbdbecf616c7f7f51bab48fe2edacc1823c3f4ca500f397ca88a90b30639b12fea79369d13a018a97667f578497f594d441885")
+APPWRITE_DB_ID      = os.environ.get("APPWRITE_DATABASE_ID", "libris_db")
+
+appwrite_client = AppwriteClient()
+appwrite_client.set_endpoint(APPWRITE_ENDPOINT)
+appwrite_client.set_project(APPWRITE_PROJECT_ID)
+appwrite_client.set_key(APPWRITE_API_KEY)
+
+appwrite_db = AppwriteDatabases(appwrite_client)
 
 # ---------------------------------------------------------------------------
 # Cloudflare R2 — used for ALL file storage (covers, text parts, audio MP3s)
@@ -861,6 +878,7 @@ async def chat_with_book(req: ChatBookRequest):
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8080, reload=True)
+
 
 
 
