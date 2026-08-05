@@ -1,3 +1,8 @@
+import sys
+import logging
+logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+print("=== STARTING LIBRIS AUDIO BACKEND IN CONTAINER ===", flush=True)
+
 import asyncio
 import os
 import re
@@ -886,6 +891,7 @@ if __name__ == "__main__":
 
 
 
+
 
 
 
