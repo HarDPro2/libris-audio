@@ -11,6 +11,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.librisaudio.app.data.model.MusicTrack
 import com.librisaudio.app.ui.components.BottomPlayerBar
 import com.librisaudio.app.ui.screens.LibraryScreen
 import com.librisaudio.app.ui.screens.PlayerScreen
@@ -28,6 +29,8 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             var currentTheme by remember { mutableStateOf(AppThemePreset.CYBERPUNK) }
+            var selectedMusicTrack by remember { mutableStateOf<MusicTrack?>(null) }
+            var backgroundVolume by remember { mutableStateOf(0.25f) }
 
             LibrisAudioTheme(preset = currentTheme) {
                 val books by playerViewModel.books.collectAsState()
@@ -76,6 +79,10 @@ class MainActivity : ComponentActivity() {
                                 currentPositionMs = currentPositionMs,
                                 durationMs = durationMs,
                                 currentTheme = currentTheme,
+                                selectedMusicTrack = selectedMusicTrack,
+                                backgroundVolume = backgroundVolume,
+                                onSelectMusicTrack = { track -> selectedMusicTrack = track },
+                                onBackgroundVolumeChange = { vol -> backgroundVolume = vol },
                                 onTogglePlay = { playerViewModel.togglePlayPause() },
                                 onNextPart = { playerViewModel.nextPart() },
                                 onPreviousPart = { playerViewModel.previousPart() },
