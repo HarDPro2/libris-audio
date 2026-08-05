@@ -9,7 +9,11 @@ import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
 import edge_tts
-import fitz  # PyMuPDF
+try:
+    import fitz  # PyMuPDF
+except ImportError as ex:
+    fitz = None
+    print(f"Warning: PyMuPDF import note: {ex}")
 import uvicorn
 import httpx
 from gtts import gTTS
@@ -882,5 +886,6 @@ if __name__ == "__main__":
 
 
 
+
 
 
