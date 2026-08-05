@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -156,14 +157,14 @@ fun ChatWithBookDialog(
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Text(
-                            text = "?? Tu API Key gratuita de OpenRouter",
+                            text = "?? Tu API Key de OpenRouter (Cascada Gratuita)",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = CyanAccent
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Pega tu clave para usar tu cuota personal en cascada (DeepSeek, Gemini, Llama 3.3).",
+                            text = "Pega tu clave para usar tu cuotas en cascada (DeepSeek R1, Llama 3.3 70B, Qwen 2.5, Gemma 2).",
                             fontSize = 11.sp,
                             color = TextMuted
                         )
@@ -187,6 +188,33 @@ fun ChatWithBookDialog(
                                 unfocusedTextColor = Color.White
                             )
                         )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Highlighted Pro Tip Box for $10 Lifetime Upgrade
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFF06373A), RoundedCornerShape(10.dp))
+                                .padding(10.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.Top) {
+                                Icon(
+                                    Icons.Default.Lightbulb,
+                                    contentDescription = null,
+                                    tint = CyanAccent,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "?? TRUCO DE CUOTA: Si realizas una compra única de $10 de crédito en OpenRouter, tu límite de peticiones gratuitas aumenta permanentemente de 50 a 1,000 peticiones/día de por vida (incluso cuando tu saldo llegue a $0).",
+                                    fontSize = 10.5.sp,
+                                    color = Color(0xFFE0F2FE),
+                                    lineHeight = 14.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -197,7 +225,7 @@ fun ChatWithBookDialog(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(240.dp),
+                    .height(230.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(messages) { item ->
