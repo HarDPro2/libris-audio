@@ -25,11 +25,11 @@
             </intent-filter>
 
             <!-- Deep link for Appwrite Google OAuth callback -->
-            <intent-filter android:autoVerify="true">
+            <intent-filter android:autoVerify="false">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="librisaudio" android:host="oauth" />
+                <data android:scheme="appwrite-callback-6a72f5d6002eeff78bc2" android:host="auth" />
             </intent-filter>
 
         </activity>

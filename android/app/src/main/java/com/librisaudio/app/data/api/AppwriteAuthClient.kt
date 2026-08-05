@@ -55,11 +55,12 @@ object AppwriteAuthClient {
     const val APPWRITE_PROJECT_ID = "6a72f5d6002eeff78bc2"
 
     // Google OAuth URL — opens in browser, redirects back via deep link
+    // Appwrite requires the scheme: appwrite-callback-{projectId}://
     fun googleOAuthUrl(): String =
         "${APPWRITE_ENDPOINT}v1/account/sessions/oauth2/google" +
         "?project=${APPWRITE_PROJECT_ID}" +
-        "&success=librisaudio://oauth/success" +
-        "&failure=librisaudio://oauth/failure"
+        "&success=appwrite-callback-${APPWRITE_PROJECT_ID}://auth/oauth2/success" +
+        "&failure=appwrite-callback-${APPWRITE_PROJECT_ID}://auth/oauth2/failure"
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)

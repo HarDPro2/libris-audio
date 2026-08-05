@@ -56,33 +56,30 @@ class MainActivity : ComponentActivity() {
 
     private fun handleAuthDeepLink(intent: Intent?) {
         val data = intent?.data ?: return
-        Log.d("MainActivity", "Deep link recibido: $data")
+        Log.d("MainActivity", "Deep link recibido: $data scheme=${data.scheme}")
 
-        if (data.scheme != "librisaudio" || data.host != "oauth") return
+        // Appwrite SDK scheme: appwrite-callback-{projectId}
+        val expectedScheme = "appwrite-callback-${AppwriteAuthClient.APPWRITE_PROJECT_ID}"
+        if (data.scheme != expectedScheme) return
 
-        // Appwrite puede retornar el callback con distintos nombres de parámetros
-        // según la versión: "secret" o "sessionId", "userId" o "$id"
+        // Appwrite pasa userId y secret en los query params del callback
         val userId = data.getQueryParameter("userId")
             ?: data.getQueryParameter("\$id")
-            ?: data.getQueryParameter("uid")
             ?: ""
         val email = data.getQueryParameter("email") ?: ""
         val name  = data.getQueryParameter("name") ?: ""
-        // El token de sesión puede venir como "secret" o "sessionId"
         val sessionId = data.getQueryParameter("secret")
             ?: data.getQueryParameter("sessionId")
-            ?: data.getQueryParameter("token")
             ?: ""
 
-        Log.d("MainActivity", "OAuth callback — userId=$userId sessionId=${sessionId.take(8)}...")
+        // Loguear todos los params para diagnóstico
+        val params = data.queryParameterNames.joinToString { "$it=${data.getQueryParameter(it)}" }
+        Log.d("MainActivity", "OAuth callback params: $params")
 
         if (userId.isNotBlank() && sessionId.isNotBlank()) {
             authViewModel.loginWithGoogleSession(userId, email, name, sessionId)
         } else {
             Log.e("MainActivity", "OAuth callback incompleto — userId='$userId' sessionId='${sessionId.take(8)}'")
-            // Mostrar todos los query params para diagnóstico
-            val params = data.queryParameterNames.joinToString { "$it=${data.getQueryParameter(it)}" }
-            Log.e("MainActivity", "Params recibidos: $params")
         }
     }
 
