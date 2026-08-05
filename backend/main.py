@@ -4,7 +4,7 @@ import logging
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
-print("=== STARTING LIBRIS AUDIO BACKEND IN CONTAINER ===", flush=True)
+print("=== STARTING LIBRIS AUDIO BACKEND IN CONTAINER (COMMIT 27af7b9) ===", flush=True)
 
 import asyncio
 import os
