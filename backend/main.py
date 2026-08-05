@@ -819,9 +819,11 @@ async def chat_with_book(req: ChatBookRequest):
 
     openrouter_api_key = (req.user_openrouter_key and req.user_openrouter_key.strip()) or os.environ.get("OPENROUTER_API_KEY", "")
     models_cascade = [
-        "deepseek/deepseek-chat",
-        "google/gemini-2.5-flash",
-        "meta-llama/llama-3.3-70b-instruct"
+        "openrouter/free",
+        "deepseek/deepseek-r1:free",
+        "meta-llama/llama-3.3-70b-instruct:free",
+        "qwen/qwen-2.5-coder-32b-instruct:free",
+        "google/gemma-2-9b-it:free"
     ]
 
     if not openrouter_api_key:
@@ -856,4 +858,5 @@ async def chat_with_book(req: ChatBookRequest):
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8080, reload=True)
+
 
