@@ -512,9 +512,6 @@ async def upload_pdf(file: UploadFile = File(...)):
     print(f"Recibiendo solicitud de subida: {file.filename}")
     try:
         # â”€â”€ Validate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        if not supabase:
-            raise HTTPException(status_code=500, detail="Supabase no configurado en el backend")
-
         if not R2_ENDPOINT_URL:
             raise HTTPException(status_code=500, detail="Cloudflare R2 no configurado en el backend")
 
@@ -649,8 +646,8 @@ async def get_book_audio(book_id: str, part_index: int, voice: str = "es-MX-Jorg
     Files are stored in Cloudflare R2 (zero egress cost).
     Streams directly through backend to ensure CORS & Range request compliance for mobile/PWA.
     """
-    if not supabase:
-        raise HTTPException(status_code=500, detail="Supabase no configurado")
+    if not R2_ENDPOINT_URL:
+        raise HTTPException(status_code=500, detail="Cloudflare R2 no configurado")
 
     safe_voice = sanitize_filename(voice)
     mp3_key = f"{book_id}/audio/part_{part_index}_{safe_voice}.mp3"
@@ -943,11 +940,16 @@ async def chat_with_book(req: ChatBookRequest):
     return JSONResponse({"reply": "Lo siento, la IA no estï¿½ disponible en este momento. Intï¿½ntalo de nuevo en unos instantes."})
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8080, reload=True)
-
-
-
-
+    uvicorn.run("main:app", host="0.0.0.0", port=8080, reload=True)
+
+
+
+
+
+
+
+
+
 
 
 
