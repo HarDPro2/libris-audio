@@ -824,8 +824,8 @@ async def chat_with_book(req: ChatBookRequest):
     system_prompt = (
         "Eres el asistente inteligente de lectura e IA conversacional de Libris Audio (desarrollado por QuantumLabs / HarD P.). "
         "Tu objetivo es ayudar al oyente a comprender mejor el libro, explicar conceptos complejos, resumir personajes o responder sus dudas. "
-        "Responde de forma clara, directa y amable en español.\n\n"
-        f"--- TEXTO DEL CAPÍTULO / PARTE ACTUAL (Parte {req.part_index + 1}) ---\n"
+        "Responde de forma clara, directa y amable en espaï¿½ol.\n\n"
+        f"--- TEXTO DEL CAPï¿½TULO / PARTE ACTUAL (Parte {req.part_index + 1}) ---\n"
         f"{part_text[:4000]}\n"
         "--- FIN DEL TEXTO ---"
     )
@@ -845,7 +845,7 @@ async def chat_with_book(req: ChatBookRequest):
     ]
 
     if not openrouter_api_key:
-        return JSONResponse({"reply": f"Respuesta inteligente a '{req.user_message}': El personaje y capítulo actual analizado por IA. (Nota: Para conectar en vivo con modelos avanzados OpenRouter, asigna OPENROUTER_API_KEY en Render)."})
+        return JSONResponse({"reply": f"Respuesta inteligente a '{req.user_message}': El personaje y capï¿½tulo actual analizado por IA. (Nota: Para conectar en vivo con modelos avanzados OpenRouter, asigna OPENROUTER_API_KEY en Render)."})
 
     headers = {
         "Authorization": f"Bearer {openrouter_api_key}",
@@ -874,11 +874,11 @@ async def chat_with_book(req: ChatBookRequest):
                 print(f"Cascade model {model} failed: {ex}")
                 continue
 
-    return JSONResponse({"reply": "Lo siento, la IA no está disponible en este momento. Inténtalo de nuevo en unos instantes."})
+    return JSONResponse({"reply": "Lo siento, la IA no estï¿½ disponible en este momento. Intï¿½ntalo de nuevo en unos instantes."})
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8080, reload=True)
-
-
-
-
+    uvicorn.run("main:app", host="0.0.0.0", port=8080, reload=True)
+
+
+
+
