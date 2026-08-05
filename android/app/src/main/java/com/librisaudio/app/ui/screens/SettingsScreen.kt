@@ -1,4 +1,4 @@
-﻿package com.librisaudio.app.ui.screens
+package com.librisaudio.app.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -7,8 +7,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,6 +25,9 @@ import com.librisaudio.app.ui.theme.TextMuted
 fun SettingsScreen(
     currentTheme: AppThemePreset,
     onSelectTheme: (AppThemePreset) -> Unit,
+    userName: String = "",
+    userEmail: String = "",
+    onLogout: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var openRouterKey by remember { mutableStateOf("") }
