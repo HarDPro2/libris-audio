@@ -64,7 +64,7 @@ fun BookmarkDialog(
                     Icon(Icons.Default.Bookmark, contentDescription = null, tint = PurpleAccent)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Marcap·ginas y Citas",
+                        text = "Marcap√°ginas y Citas",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -124,7 +124,7 @@ fun BookmarkDialog(
                     ) {
                         Icon(Icons.Default.BookmarkAdd, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Guardar Marcap·ginas", fontSize = 12.sp)
+                        Text("Guardar Marcap√°ginas", fontSize = 12.sp)
                     }
                 }
             }
@@ -141,7 +141,7 @@ fun BookmarkDialog(
                         .height(100.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("A˙n no has guardado marcap·ginas.", fontSize = 12.sp, color = TextMuted)
+                    Text("A√∫n no has guardado marcap√°ginas.", fontSize = 12.sp, color = TextMuted)
                 }
             } else {
                 LazyColumn(
@@ -172,12 +172,12 @@ fun BookmarkDialog(
                                         color = Color.White
                                     )
                                     Text(
-                                        text = "Parte ${item.partIndex + 1} ï ${String.format("%02d:%02d", m, s)}",
+                                        text = "Parte ${item.partIndex + 1} ‚Ä¢ ${String.format("%02d:%02d", m, s)}",
                                         fontSize = 11.sp,
                                         color = CyanAccent
                                     )
                                 }
-                                Text("Ir ?", fontSize = 12.sp, color = PurpleAccent, fontWeight = FontWeight.Bold)
+                                Text("Ir ‚ñ∂", fontSize = 12.sp, color = PurpleAccent, fontWeight = FontWeight.Bold)
                             }
                         }
                     }

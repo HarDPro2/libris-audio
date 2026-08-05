@@ -2,6 +2,7 @@ package com.librisaudio.app.viewmodel
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.librisaudio.app.data.api.AppwriteAuthClient
@@ -59,16 +60,20 @@ class AuthViewModel : ViewModel() {
 
         viewModelScope.launch {
             try {
+                Log.d("AuthViewModel", "Login: enviando a Appwrite endpoint=${AppwriteAuthClient.APPWRITE_ENDPOINT}")
                 val sessionResp = AppwriteAuthClient.authService.loginWithEmail(
                     projectId = AppwriteAuthClient.APPWRITE_PROJECT_ID,
                     body = AppwriteEmailLoginBody(email = email.trim(), password = password)
                 )
-                // Use the session cookie value to fetch the account
+                Log.d("AuthViewModel", "Login: sesión obtenida id=${sessionResp.`$id`}")
+
                 val cookieValue = "a_session_${AppwriteAuthClient.APPWRITE_PROJECT_ID}=${sessionResp.`$id`}"
                 val userResp = AppwriteAuthClient.authService.getAccount(
                     projectId = AppwriteAuthClient.APPWRITE_PROJECT_ID,
                     cookieHeader = cookieValue
                 )
+                Log.d("AuthViewModel", "Login: cuenta obtenida userId=${userResp.`$id`} email=${userResp.email}")
+
                 val session = AppwriteSession(
                     userId    = userResp.`$id`,
                     email     = userResp.email,
@@ -78,14 +83,24 @@ class AuthViewModel : ViewModel() {
                 saveSession(session)
                 _authState.value = AuthState.Authenticated(session)
             } catch (e: HttpException) {
+                val errorBody = parseAppwriteError(e)
+                Log.e("AuthViewModel", "Login HttpException code=${e.code()} body=$errorBody")
                 val msg = when (e.code()) {
                     401  -> "Email o contraseña incorrectos"
+                    400  -> "Datos inválidos: $errorBody"
                     429  -> "Demasiados intentos. Espera un momento"
-                    else -> "Error ${e.code()}: ${parseAppwriteError(e)}"
+                    else -> "Error ${e.code()}: $errorBody"
                 }
                 _authState.value = AuthState.Error(msg)
             } catch (e: Exception) {
-                _authState.value = AuthState.Error("Sin conexión a internet")
+                Log.e("AuthViewModel", "Login error: ${e.javaClass.simpleName} — ${e.message}", e)
+                val msg = when {
+                    e.message?.contains("Unable to resolve host") == true -> "Sin conexión: no se puede alcanzar el servidor"
+                    e.message?.contains("timeout") == true               -> "Tiempo de espera agotado. Revisa tu conexión"
+                    e.message?.contains("SSL") == true                   -> "Error de certificado SSL"
+                    else -> "Error de red: ${e.message ?: "desconocido"}"
+                }
+                _authState.value = AuthState.Error(msg)
             }
         }
     }
@@ -119,15 +134,23 @@ class AuthViewModel : ViewModel() {
                         // Auto-login after successful registration
                         login(email.trim(), password)
                     } catch (e: HttpException) {
+                        val errorBody = parseAppwriteError(e)
+                        Log.e("AuthViewModel", "Registro HttpException code=${e.code()} body=$errorBody")
                         val msg = when (e.code()) {
                             409  -> "Ya existe una cuenta con ese email"
                             400  -> "Email inválido o contraseña muy débil (mín. 8 caracteres)"
                             429  -> "Demasiados intentos. Espera un momento"
-                            else -> "Error al registrar: ${parseAppwriteError(e)}"
+                            else -> "Error al registrar: $errorBody"
                         }
                         _authState.value = AuthState.Error(msg)
                     } catch (e: Exception) {
-                        _authState.value = AuthState.Error("Sin conexión a internet")
+                        Log.e("AuthViewModel", "Registro error: ${e.javaClass.simpleName} — ${e.message}", e)
+                        val msg = when {
+                            e.message?.contains("Unable to resolve host") == true -> "Sin conexión al servidor"
+                            e.message?.contains("timeout") == true               -> "Tiempo de espera agotado"
+                            else -> "Error de red: ${e.message ?: "desconocido"}"
+                        }
+                        _authState.value = AuthState.Error(msg)
                     }
                 }
             }

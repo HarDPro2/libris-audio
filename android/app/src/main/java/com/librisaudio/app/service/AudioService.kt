@@ -1,6 +1,6 @@
 package com.librisaudio.app.service
 
-import android.content.Intent
+import android.os.Bundle
 import android.os.PowerManager
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
@@ -11,6 +11,10 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionResult
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.ListenableFuture
 
 class AudioService : MediaLibraryService() {
 
@@ -110,5 +114,47 @@ class AudioService : MediaLibraryService() {
         super.onDestroy()
     }
 
-    private inner class LibraryCallback : MediaLibrarySession.Callback
+    private inner class LibraryCallback : MediaLibrarySession.Callback {
+
+        // Declare which custom commands this service accepts
+        override fun onConnect(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo
+        ): MediaSession.ConnectionResult {
+            val customCommands = setOf(
+                SessionCommand("SET_BACKGROUND_TRACK",  Bundle.EMPTY),
+                SessionCommand("STOP_BACKGROUND_TRACK", Bundle.EMPTY),
+                SessionCommand("SET_BACKGROUND_VOLUME", Bundle.EMPTY)
+            )
+            val connectionResult = super.onConnect(session, controller)
+            return MediaSession.ConnectionResult.accept(
+                connectionResult.availableSessionCommands.buildUpon()
+                    .addSessionCommands(customCommands)
+                    .build(),
+                connectionResult.availablePlayerCommands
+            )
+        }
+
+        @OptIn(UnstableApi::class)
+        override fun onCustomCommand(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            customCommand: SessionCommand,
+            args: Bundle
+        ): ListenableFuture<SessionResult> {
+            when (customCommand.customAction) {
+                "SET_BACKGROUND_TRACK" -> {
+                    val url    = args.getString("url") ?: return Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_BAD_VALUE))
+                    val volume = args.getFloat("volume", 0.25f)
+                    playBackgroundTrack(url, volume)
+                }
+                "STOP_BACKGROUND_TRACK" -> stopBackgroundTrack()
+                "SET_BACKGROUND_VOLUME" -> {
+                    val volume = args.getFloat("volume", 0.25f)
+                    setBackgroundVolume(volume)
+                }
+            }
+            return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+        }
+    }
 }

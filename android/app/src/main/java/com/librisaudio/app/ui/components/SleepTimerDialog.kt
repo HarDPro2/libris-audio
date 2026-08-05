@@ -58,7 +58,7 @@ fun SleepTimerDialog(
                     Icon(Icons.Default.Bedtime, contentDescription = null, tint = PurpleAccent)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Temporizador de Sueño",
+                        text = "Temporizador de SueÃ±o",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White

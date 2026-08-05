@@ -7,6 +7,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.delay
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Book
@@ -17,6 +19,7 @@ import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.QueryStats
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.*
@@ -42,6 +45,7 @@ import com.librisaudio.app.ui.components.BookmarkItem
 import com.librisaudio.app.ui.components.ChatWithBookDialog
 import com.librisaudio.app.ui.components.MusicSelectorDialog
 import com.librisaudio.app.ui.components.SleepTimerDialog
+import com.librisaudio.app.ui.components.StatsDialog
 import com.librisaudio.app.ui.components.SleepTimerOption
 import com.librisaudio.app.ui.components.VirtualBookFrame
 import com.librisaudio.app.ui.theme.AppThemePreset
@@ -67,6 +71,8 @@ fun PlayerScreen(
     currentTheme: AppThemePreset,
     selectedMusicTrack: MusicTrack?,
     backgroundVolume: Float,
+    currentPartText: String = "",
+    isTextLoading: Boolean = false,
     onSelectMusicTrack: (MusicTrack?) -> Unit,
     onBackgroundVolumeChange: (Float) -> Unit,
     onTogglePlay: () -> Unit,
@@ -76,6 +82,9 @@ fun PlayerScreen(
     onSelectSpeed: (Float) -> Unit,
     onOpenCarMode: () -> Unit,
     onClose: () -> Unit,
+    todayMinutes: Int = 0,
+    streakDays: Int = 0,
+    totalHours: Double = 0.0,
     modifier: Modifier = Modifier
 ) {
     var viewMode by remember { mutableStateOf(PlayerViewMode.CLASSIC_PLAYER) }
@@ -83,9 +92,24 @@ fun PlayerScreen(
     var isSleepTimerVisible by remember { mutableStateOf(false) }
     var isBookmarkVisible by remember { mutableStateOf(false) }
     var isAiChatVisible by remember { mutableStateOf(false) }
+    var isStatsVisible by remember { mutableStateOf(false) }
 
     var selectedSleepTimer by remember { mutableStateOf(SleepTimerOption.OFF) }
     var sleepTimerSeconds by remember { mutableStateOf(0L) }
+
+    // ── Sleep Timer countdown ──────────────────────────────────────────────
+    LaunchedEffect(sleepTimerSeconds, isPlaying) {
+        if (sleepTimerSeconds > 0 && isPlaying) {
+            delay(1000L)
+            sleepTimerSeconds -= 1
+            if (sleepTimerSeconds == 0L) {
+                onTogglePlay() // pause audio when timer reaches zero
+                selectedSleepTimer = SleepTimerOption.OFF
+            }
+        } else if (selectedSleepTimer == SleepTimerOption.END_OF_PART) {
+            // END_OF_PART: handled via onPartEnded — no countdown needed here
+        }
+    }
 
     val bookmarks = remember { mutableStateListOf<BookmarkItem>() }
     val speeds = listOf(1.0f, 1.25f, 1.5f, 1.75f, 2.0f)
@@ -120,7 +144,7 @@ fun PlayerScreen(
                     Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = Color.White)
                 }
 
-                // View Mode Switcher Pills (Cl�sico vs Libro 3D)
+                // View Mode Switcher Pills (Cl�sico vs Libro 3D)
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(16.dp))
@@ -137,7 +161,7 @@ fun PlayerScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Headphones, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Cl�sico", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text("Clásico", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
                         }
                     }
 
@@ -158,6 +182,9 @@ fun PlayerScreen(
 
                 // Top Action Icons (AI Chat, Car Mode, Sleep Timer, Bookmarks, Music)
                 Row {
+                    IconButton(onClick = { isStatsVisible = true }) {
+                        Icon(Icons.Default.QueryStats, contentDescription = "Estadísticas", tint = Color.White)
+                    }
                     IconButton(onClick = { isAiChatVisible = true }) {
                         Icon(Icons.Default.AutoAwesome, contentDescription = "Preguntale a la IA", tint = CyanAccent)
                     }
@@ -168,10 +195,10 @@ fun PlayerScreen(
                         Icon(Icons.Default.Bedtime, contentDescription = "Sleep Timer", tint = if (selectedSleepTimer != SleepTimerOption.OFF) CyanAccent else Color.White)
                     }
                     IconButton(onClick = { isBookmarkVisible = true }) {
-                        Icon(Icons.Default.Bookmark, contentDescription = "Marcap�ginas", tint = Color.White)
+                        Icon(Icons.Default.Bookmark, contentDescription = "Marcapáginas", tint = Color.White)
                     }
                     IconButton(onClick = { isMusicDialogVisible = true }) {
-                        Icon(Icons.Default.MusicNote, contentDescription = "M�sica de Fondo", tint = if (selectedMusicTrack != null) CyanAccent else Color.White)
+                        Icon(Icons.Default.MusicNote, contentDescription = "Música de Fondo", tint = if (selectedMusicTrack != null) CyanAccent else Color.White)
                     }
                 }
             }
@@ -182,7 +209,8 @@ fun PlayerScreen(
                 // 3D Virtual Book Frame Mode
                 VirtualBookFrame(
                     book = book,
-                    textPart = "",
+                    textPart = currentPartText,
+                    isTextLoading = isTextLoading,
                     currentPartIndex = currentPartIndex,
                     isPlaying = isPlaying,
                     onNextPart = onNextPart,
@@ -352,6 +380,15 @@ fun PlayerScreen(
         }
 
         // Dialogs
+        if (isStatsVisible) {
+            StatsDialog(
+                todayMinutes = todayMinutes,
+                streakDays = streakDays,
+                totalHours = totalHours,
+                onDismiss = { isStatsVisible = false }
+            )
+        }
+
         if (isAiChatVisible) {
             ChatWithBookDialog(
                 bookId = book.bookId,
@@ -376,7 +413,12 @@ fun PlayerScreen(
                 remainingSeconds = sleepTimerSeconds,
                 onSelectOption = { option ->
                     selectedSleepTimer = option
-                    sleepTimerSeconds = if (option.minutes > 0) option.minutes * 60L else 0L
+                    sleepTimerSeconds = when {
+                        option == SleepTimerOption.OFF          -> 0L
+                        option == SleepTimerOption.END_OF_PART  -> -1L // special marker
+                        option.minutes > 0                       -> option.minutes * 60L
+                        else                                     -> 0L
+                    }
                     isSleepTimerVisible = false
                 },
                 onDismiss = { isSleepTimerVisible = false }

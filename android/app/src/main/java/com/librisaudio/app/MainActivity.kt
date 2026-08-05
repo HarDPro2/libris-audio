@@ -3,6 +3,7 @@ package com.librisaudio.app
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.viewModels
 import androidx.activity.compose.setContent
@@ -20,7 +21,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
 import com.librisaudio.app.data.api.AppwriteAuthClient
-import com.librisaudio.app.data.model.MusicTrack
 import com.librisaudio.app.ui.components.BottomPlayerBar
 import com.librisaudio.app.ui.screens.*
 import com.librisaudio.app.ui.theme.AppThemePreset
@@ -56,14 +56,33 @@ class MainActivity : ComponentActivity() {
 
     private fun handleAuthDeepLink(intent: Intent?) {
         val data = intent?.data ?: return
-        if (data.scheme == "librisaudio" && data.host == "oauth") {
-            val userId    = data.getQueryParameter("userId") ?: ""
-            val email     = data.getQueryParameter("email") ?: ""
-            val name      = data.getQueryParameter("name") ?: ""
-            val sessionId = data.getQueryParameter("secret") ?: ""
-            if (userId.isNotBlank() && sessionId.isNotBlank()) {
-                authViewModel.loginWithGoogleSession(userId, email, name, sessionId)
-            }
+        Log.d("MainActivity", "Deep link recibido: $data")
+
+        if (data.scheme != "librisaudio" || data.host != "oauth") return
+
+        // Appwrite puede retornar el callback con distintos nombres de parámetros
+        // según la versión: "secret" o "sessionId", "userId" o "$id"
+        val userId = data.getQueryParameter("userId")
+            ?: data.getQueryParameter("\$id")
+            ?: data.getQueryParameter("uid")
+            ?: ""
+        val email = data.getQueryParameter("email") ?: ""
+        val name  = data.getQueryParameter("name") ?: ""
+        // El token de sesión puede venir como "secret" o "sessionId"
+        val sessionId = data.getQueryParameter("secret")
+            ?: data.getQueryParameter("sessionId")
+            ?: data.getQueryParameter("token")
+            ?: ""
+
+        Log.d("MainActivity", "OAuth callback — userId=$userId sessionId=${sessionId.take(8)}...")
+
+        if (userId.isNotBlank() && sessionId.isNotBlank()) {
+            authViewModel.loginWithGoogleSession(userId, email, name, sessionId)
+        } else {
+            Log.e("MainActivity", "OAuth callback incompleto — userId='$userId' sessionId='${sessionId.take(8)}'")
+            // Mostrar todos los query params para diagnóstico
+            val params = data.queryParameterNames.joinToString { "$it=${data.getQueryParameter(it)}" }
+            Log.e("MainActivity", "Params recibidos: $params")
         }
     }
 
@@ -82,7 +101,7 @@ class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
     private fun buildUi() {
         setContent {
-            var currentTheme by remember { mutableStateOf(AppThemePreset.CYBERPUNK) }
+            val currentTheme by playerViewModel.selectedTheme.collectAsState()
 
             LibrisAudioTheme(preset = currentTheme) {
                 val authState by authViewModel.authState.collectAsState()
@@ -110,9 +129,15 @@ class MainActivity : ComponentActivity() {
                 val session = (authState as? AuthState.Authenticated)?.session
 
                 var selectedTab by remember { mutableStateOf(MainTab.LIBRARY) }
-                var selectedMusicTrack by remember { mutableStateOf<MusicTrack?>(null) }
-                var backgroundVolume by remember { mutableStateOf(0.25f) }
                 var isCarModeOpen by remember { mutableStateOf(false) }
+
+                // Background music state — tracked in PlayerViewModel so AudioService receives commands
+                val selectedMusicTrack by playerViewModel.selectedMusicTrack.collectAsState()
+                val backgroundVolume   by playerViewModel.backgroundVolume.collectAsState()
+
+                // Libro 3D text state
+                val currentPartText by playerViewModel.currentPartText.collectAsState()
+                val isTextLoading   by playerViewModel.isTextLoading.collectAsState()
 
                 val books by playerViewModel.books.collectAsState()
                 val currentBook by playerViewModel.currentBook.collectAsState()
@@ -253,7 +278,7 @@ class MainActivity : ComponentActivity() {
                             )
                             MainTab.SETTINGS -> SettingsScreen(
                                 currentTheme = currentTheme,
-                                onSelectTheme = { newTheme -> currentTheme = newTheme },
+                                onSelectTheme = { newTheme -> playerViewModel.setTheme(newTheme) },
                                 userName = session?.name ?: "",
                                 userEmail = session?.email ?: "",
                                 onLogout = { authViewModel.logout() }
@@ -271,8 +296,13 @@ class MainActivity : ComponentActivity() {
                                 currentTheme = currentTheme,
                                 selectedMusicTrack = selectedMusicTrack,
                                 backgroundVolume = backgroundVolume,
-                                onSelectMusicTrack = { track -> selectedMusicTrack = track },
-                                onBackgroundVolumeChange = { vol -> backgroundVolume = vol },
+                                currentPartText = currentPartText,
+                                isTextLoading = isTextLoading,
+                                todayMinutes = playerViewModel.todayMinutes,
+                                streakDays = playerViewModel.streakDays,
+                                totalHours = playerViewModel.totalHours,
+                                onSelectMusicTrack = { track -> playerViewModel.setBackgroundTrack(track) },
+                                onBackgroundVolumeChange = { vol -> playerViewModel.setBackgroundVolume(vol) },
                                 onTogglePlay = { playerViewModel.togglePlayPause() },
                                 onNextPart = { playerViewModel.nextPart() },
                                 onPreviousPart = { playerViewModel.previousPart() },

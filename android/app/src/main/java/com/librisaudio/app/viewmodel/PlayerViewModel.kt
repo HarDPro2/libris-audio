@@ -1,8 +1,10 @@
 package com.librisaudio.app.viewmodel
 
+import android.app.Application
 import android.content.ComponentName
 import android.content.Context
-import androidx.lifecycle.ViewModel
+import android.content.SharedPreferences
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -13,13 +15,17 @@ import com.google.common.util.concurrent.MoreExecutors
 import com.librisaudio.app.data.api.ApiClient
 import com.librisaudio.app.data.model.Book
 import com.librisaudio.app.service.AudioService
+import com.librisaudio.app.ui.theme.AppThemePreset
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-class PlayerViewModel : ViewModel() {
+class PlayerViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val prefs: SharedPreferences =
+        application.getSharedPreferences("libris_progress", Context.MODE_PRIVATE)
 
     private val _books = MutableStateFlow<List<Book>>(emptyList())
     val books: StateFlow<List<Book>> = _books.asStateFlow()
@@ -43,6 +49,67 @@ class PlayerViewModel : ViewModel() {
     val durationMs: StateFlow<Long> = _durationMs.asStateFlow()
 
     private var mediaController: MediaController? = null
+
+    // ── Part text (for VirtualBookFrame / Libro 3D mode) ──────────────────
+    private val _currentPartText = MutableStateFlow("")
+    val currentPartText: StateFlow<String> = _currentPartText.asStateFlow()
+
+    private val _isTextLoading = MutableStateFlow(false)
+    val isTextLoading: StateFlow<Boolean> = _isTextLoading.asStateFlow()
+
+    // ── Listening stats ───────────────────────────────────────────────────
+    /** Today's listening minutes (persisted by calendar date). */
+    val todayMinutes: Int
+        get() {
+            val today = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US)
+                .format(java.util.Date())
+            return prefs.getInt("stats_today_min_$today", 0)
+        }
+
+    /** Total accumulated listening hours (all time). */
+    val totalHours: Double
+        get() = prefs.getInt("stats_total_min", 0) / 60.0
+
+    /** Consecutive days listened (naive: incremented once per day a book plays). */
+    val streakDays: Int
+        get() = prefs.getInt("stats_streak", 0)
+
+    private fun addListeningMinutes(minutes: Int) {
+        if (minutes <= 0) return
+        val today = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US)
+            .format(java.util.Date())
+        val lastDay = prefs.getString("stats_last_day", "") ?: ""
+        val todaySoFar = prefs.getInt("stats_today_min_$today", 0)
+        val totalSoFar = prefs.getInt("stats_total_min", 0)
+        val streak = prefs.getInt("stats_streak", 0)
+
+        prefs.edit()
+            .putInt("stats_today_min_$today", todaySoFar + minutes)
+            .putInt("stats_total_min", totalSoFar + minutes)
+            .putInt("stats_streak", if (lastDay != today) streak + 1 else streak)
+            .putString("stats_last_day", today)
+            .apply()
+    }
+
+    // ── Theme persistence ─────────────────────────────────────────────────
+    private val _selectedTheme = MutableStateFlow(
+        runCatching {
+            AppThemePreset.valueOf(prefs.getString("theme", AppThemePreset.CYBERPUNK.name)!!)
+        }.getOrDefault(AppThemePreset.CYBERPUNK)
+    )
+    val selectedTheme: StateFlow<AppThemePreset> = _selectedTheme.asStateFlow()
+
+    fun setTheme(preset: AppThemePreset) {
+        _selectedTheme.value = preset
+        prefs.edit().putString("theme", preset.name).apply()
+    }
+
+    // ── Background music state ─────────────────────────────────────────────
+    private val _selectedMusicTrack = MutableStateFlow<com.librisaudio.app.data.model.MusicTrack?>(null)
+    val selectedMusicTrack: StateFlow<com.librisaudio.app.data.model.MusicTrack?> = _selectedMusicTrack.asStateFlow()
+
+    private val _backgroundVolume = MutableStateFlow(0.25f)
+    val backgroundVolume: StateFlow<Float> = _backgroundVolume.asStateFlow()
 
     init {
         loadBooks()
@@ -91,13 +158,22 @@ class PlayerViewModel : ViewModel() {
             try {
                 val dtos = ApiClient.backendService.getBooksFromBackend()
                 val mapped = dtos.map { dto ->
+                    val bookId = dto.bookId ?: dto.id ?: "1"
+                    // Restore persisted progress from SharedPreferences
+                    val savedPartIndex    = prefs.getInt("part_$bookId", 0)
+                    val savedProgressPct  = prefs.getInt("pct_$bookId", 0)
                     Book(
-                        id = dto.id ?: dto.bookId ?: "1",
-                        bookId = dto.bookId ?: dto.id ?: "1",
-                        title = dto.title ?: "Sin título",
-                        category = dto.category ?: "General",
-                        coverUrl = if (!dto.coverUrl.isNullOrEmpty()) dto.coverUrl else "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=300&h=400&fit=crop",
-                        partsCount = dto.partsCount ?: 1
+                        id              = dto.id ?: bookId,
+                        bookId          = bookId,
+                        title           = dto.title ?: "Sin título",
+                        author          = dto.author ?: "Libris Audio",
+                        category        = dto.category ?: "General",
+                        coverUrl        = if (!dto.coverUrl.isNullOrEmpty()) dto.coverUrl
+                                          else "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=300&h=400&fit=crop",
+                        partsCount      = dto.partsCount ?: 1,
+                        currentPartIndex = savedPartIndex,
+                        progressPercent  = savedProgressPct,
+                        addedBy         = dto.addedBy ?: ""
                     )
                 }
                 _books.value = if (mapped.isNotEmpty()) mapped else getDefaultCatalog()
@@ -106,6 +182,30 @@ class PlayerViewModel : ViewModel() {
                 _books.value = getDefaultCatalog()
             }
         }
+    }
+
+    /** Fetches the plain text of a book part from the backend (for Libro 3D mode). */
+    fun loadPartText(bookId: String, partIndex: Int) {
+        viewModelScope.launch {
+            _isTextLoading.value = true
+            _currentPartText.value = ""
+            try {
+                val body = ApiClient.backendService.getBookText(bookId, partIndex)
+                _currentPartText.value = body.string()
+            } catch (e: Exception) {
+                _currentPartText.value = "No se pudo cargar el texto de esta parte."
+            } finally {
+                _isTextLoading.value = false
+            }
+        }
+    }
+
+    /** Persist part index and progress percentage for a book to SharedPreferences. */
+    private fun saveProgress(bookId: String, partIndex: Int, progressPct: Int) {
+        prefs.edit()
+            .putInt("part_$bookId", partIndex)
+            .putInt("pct_$bookId", progressPct)
+            .apply()
     }
 
     private fun getDefaultCatalog(): List<Book> {
@@ -132,6 +232,21 @@ class PlayerViewModel : ViewModel() {
     fun playBook(book: Book, partIndex: Int = 0) {
         _currentBook.value = book
         _currentPartIndex.value = partIndex
+
+        // Persist which part we're on so HistoryScreen can show progress
+        val progressPct = if (book.partsCount > 0)
+            ((partIndex.toFloat() / book.partsCount) * 100).toInt()
+        else 0
+        saveProgress(book.bookId, partIndex, progressPct)
+
+        // Update progress in the in-memory list so HistoryScreen updates immediately
+        _books.value = _books.value.map {
+            if (it.bookId == book.bookId) it.copy(currentPartIndex = partIndex, progressPercent = progressPct)
+            else it
+        }
+
+        // Load text for Libro 3D mode (non-blocking, runs in background)
+        loadPartText(book.bookId, partIndex)
 
         val audioUrl = book.getAudioUrl(partIndex)
         val mediaItem = MediaItem.Builder()
@@ -195,16 +310,53 @@ class PlayerViewModel : ViewModel() {
 
     private fun startPositionTracker() {
         viewModelScope.launch {
+            var ticksPlaying = 0
             while (true) {
                 delay(500)
                 mediaController?.let { player ->
                     if (player.isPlaying) {
                         _currentPositionMs.value = player.currentPosition
                         _durationMs.value = player.duration.coerceAtLeast(0L)
+                        ticksPlaying++
+                        // Every 60 ticks = 30 seconds of real playback → add 1 minute to stats
+                        if (ticksPlaying % 60 == 0) {
+                            addListeningMinutes(1)
+                        }
                     }
                 }
             }
         }
+    }
+
+    // ── Background music controls ──────────────────────────────────────────
+
+    /**
+     * Set (or clear) the background ambient track.
+     * Sends a Media3 Custom Command to AudioService via the MediaController.
+     */
+    fun setBackgroundTrack(track: com.librisaudio.app.data.model.MusicTrack?) {
+        _selectedMusicTrack.value = track
+
+        val controller = mediaController ?: return
+        if (track == null) {
+            val cmd = androidx.media3.session.SessionCommand("STOP_BACKGROUND_TRACK", android.os.Bundle.EMPTY)
+            controller.sendCustomCommand(cmd, android.os.Bundle.EMPTY)
+        } else {
+            val extras = android.os.Bundle().apply {
+                putString("url", track.streamUrl)
+                putFloat("volume", _backgroundVolume.value)
+            }
+            val cmd = androidx.media3.session.SessionCommand("SET_BACKGROUND_TRACK", android.os.Bundle.EMPTY)
+            controller.sendCustomCommand(cmd, extras)
+        }
+    }
+
+    fun setBackgroundVolume(volume: Float) {
+        _backgroundVolume.value = volume.coerceIn(0f, 1f)
+        val controller = mediaController ?: return
+        val extras = android.os.Bundle().apply { putFloat("volume", volume.coerceIn(0f, 1f)) }
+        val cmd = androidx.media3.session.SessionCommand("SET_BACKGROUND_VOLUME", android.os.Bundle.EMPTY)
+        controller.sendCustomCommand(cmd, extras)
     }
 
     /** Owner: delete a book from catalog + R2. sessionId = Appwrite session token. */

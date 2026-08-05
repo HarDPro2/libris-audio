@@ -28,7 +28,9 @@ import com.librisaudio.app.ui.theme.CyanAccent
 import com.librisaudio.app.ui.theme.DarkSlate
 import com.librisaudio.app.ui.theme.PurpleAccent
 import com.librisaudio.app.ui.theme.TextMuted
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -78,27 +80,28 @@ fun ChatWithBookDialog(
 
         coroutineScope.launch {
             try {
-                val client = OkHttpClient()
-                val json = JSONObject()
-                json.put("book_id", bookId)
-                json.put("part_index", currentPartIndex)
-                json.put("user_message", userMsg)
-                json.put("enforce_free_only", enforceOnlyFreeModels)
-                if (userApiKey.isNotBlank()) {
-                    json.put("user_openrouter_key", userApiKey.trim())
+                val replyText = withContext(Dispatchers.IO) {
+                    val client = OkHttpClient()
+                    val json = JSONObject()
+                    json.put("book_id", bookId)
+                    json.put("part_index", currentPartIndex)
+                    json.put("user_message", userMsg)
+                    json.put("enforce_free_only", enforceOnlyFreeModels)
+                    if (userApiKey.isNotBlank()) {
+                        json.put("user_openrouter_key", userApiKey.trim())
+                    }
+
+                    val body = json.toString().toRequestBody("application/json".toMediaType())
+                    val request = Request.Builder()
+                        .url("https://libris-audio-backend-856706599879.us-west1.run.app/api/chat-book")
+                        .post(body)
+                        .build()
+
+                    val response = client.newCall(request).execute()
+                    val respStr = response.body?.string() ?: ""
+                    val replyJson = JSONObject(respStr)
+                    replyJson.optString("reply", "No se pudo obtener respuesta de la IA.")
                 }
-
-                val body = json.toString().toRequestBody("application/json".toMediaType())
-                val request = Request.Builder()
-                    .url("https://libris-audio-backend-856706599879.us-west1.run.app/api/chat-book")
-                    .post(body)
-                    .build()
-
-                val response = client.newCall(request).execute()
-                val respStr = response.body?.string() ?: ""
-                val replyJson = JSONObject(respStr)
-                val replyText = replyJson.optString("reply", "No se pudo obtener respuesta de la IA.")
-
                 messages.add(ChatBubble(System.currentTimeMillis().toString(), "ai", replyText))
             } catch (e: Exception) {
                 messages.add(ChatBubble(System.currentTimeMillis().toString(), "ai", "Error de conexión con la IA. Inténtalo de nuevo."))
@@ -160,7 +163,7 @@ fun ChatWithBookDialog(
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Text(
-                            text = "?? Tu API Key de OpenRouter",
+                            text = "🔑 Tu API Key de OpenRouter",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = CyanAccent
@@ -236,7 +239,7 @@ fun ChatWithBookDialog(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "?? TRUCO DE CUOTA: Si realizas una compra única de $10 de crédito en OpenRouter, tu límite de peticiones gratuitas aumenta permanentemente de 50 a 1,000 peticiones/día de por vida. El Escudo 100% Gratuito garantiza que tu saldo de $10 NUNCA sea consumido.",
+                                    text = "💡 TRUCO DE CUOTA: Si realizas una compra única de $10 de crédito en OpenRouter, tu límite de peticiones gratuitas aumenta permanentemente de 50 a 1,000 peticiones/día de por vida. El Escudo 100% Gratuito garantiza que tu saldo de $10 NUNCA sea consumido.",
                                     fontSize = 10.5.sp,
                                     color = Color(0xFFE0F2FE),
                                     lineHeight = 14.sp,

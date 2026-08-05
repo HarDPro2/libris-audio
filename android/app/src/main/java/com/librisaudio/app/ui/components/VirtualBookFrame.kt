@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.librisaudio.app.data.model.Book
@@ -36,28 +37,28 @@ enum class BookBindingStyle(
     val accentColor: Color
 ) {
     LUXURY_LEATHER(
-        title = "?? Cuero de Lujo",
+        title = "🟤 Cuero de Lujo",
         coverBorderColor = Color(0xFF422006),
         paperColor = Color(0xFFFEF3C7),
         textColor = Color(0xFF1E1003),
         accentColor = Color(0xFFD97706)
     ),
     MINIMALIST(
-        title = "?? Minimalista",
+        title = "⬜ Minimalista",
         coverBorderColor = Color(0xFF334155),
         paperColor = Color(0xFFF8FAFC),
         textColor = Color(0xFF0F172A),
         accentColor = Color(0xFF0284C7)
     ),
     VELVET_NIGHT(
-        title = "?? Velvet Nocturno",
+        title = "🌙 Velvet Nocturno",
         coverBorderColor = Color(0xFF1E1B4B),
         paperColor = Color(0xFF0F172A),
         textColor = Color(0xFFF1F5F9),
         accentColor = Color(0xFF818CF8)
     ),
     ANCIENT_PARCHMENT(
-        title = "?? Pergamino Antiguo",
+        title = "📜 Pergamino Antiguo",
         coverBorderColor = Color(0xFF78350F),
         paperColor = Color(0xFFFDE68A),
         textColor = Color(0xFF451A03),
@@ -71,6 +72,7 @@ fun VirtualBookFrame(
     textPart: String,
     currentPartIndex: Int,
     isPlaying: Boolean,
+    isTextLoading: Boolean = false,
     onNextPart: () -> Unit,
     onPreviousPart: () -> Unit,
     modifier: Modifier = Modifier
@@ -190,15 +192,38 @@ fun VirtualBookFrame(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Text Content
-                Text(
-                    text = textPart.ifEmpty { "Cargando texto de la p�gina..." },
-                    fontSize = fontSizeSp.sp,
-                    fontFamily = if (isSerifFont) FontFamily.Serif else FontFamily.Default,
-                    lineHeight = (fontSizeSp * 1.6).sp,
-                    color = selectedStyle.textColor,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                // Text Content — spinner mientras carga, texto real cuando llega
+                if (isTextLoading) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator(
+                                color = selectedStyle.accentColor,
+                                modifier = Modifier.size(32.dp)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "Cargando texto...",
+                                fontSize = 13.sp,
+                                color = selectedStyle.textColor.copy(alpha = 0.6f),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                } else {
+                    Text(
+                        text = textPart.ifEmpty { "Selecciona un libro y pulsa reproducir para ver el texto aquí." },
+                        fontSize = fontSizeSp.sp,
+                        fontFamily = if (isSerifFont) FontFamily.Serif else FontFamily.Default,
+                        lineHeight = (fontSizeSp * 1.6).sp,
+                        color = selectedStyle.textColor,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(32.dp))
 
@@ -228,7 +253,7 @@ fun VirtualBookFrame(
                     .padding(4.dp)
                     .background(Color(0x22000000), RoundedCornerShape(16.dp))
             ) {
-                Icon(Icons.Default.NavigateBefore, contentDescription = "P�gina anterior", tint = selectedStyle.textColor)
+                Icon(Icons.Default.NavigateBefore, contentDescription = "Página anterior", tint = selectedStyle.textColor)
             }
 
             IconButton(
@@ -242,7 +267,7 @@ fun VirtualBookFrame(
                     .padding(4.dp)
                     .background(Color(0x22000000), RoundedCornerShape(16.dp))
             ) {
-                Icon(Icons.Default.NavigateNext, contentDescription = "Siguiente p�gina", tint = selectedStyle.textColor)
+                Icon(Icons.Default.NavigateNext, contentDescription = "Siguiente página", tint = selectedStyle.textColor)
             }
         }
     }

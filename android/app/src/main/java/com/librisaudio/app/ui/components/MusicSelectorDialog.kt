@@ -55,7 +55,7 @@ fun MusicSelectorDialog(
                     Icon(Icons.Default.MusicNote, contentDescription = null, tint = PurpleAccent)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Música de Fondo Clásica",
+                        text = "MÃºsica de Fondo ClÃ¡sica",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -82,7 +82,7 @@ fun MusicSelectorDialog(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.VolumeUp, contentDescription = null, tint = CyanAccent)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Volumen de Música de Fondo", fontSize = 13.sp, color = Color.White)
+                            Text("Volumen de MÃºsica de Fondo", fontSize = 13.sp, color = Color.White)
                         }
                         Text("${(backgroundVolume * 100).toInt()}%", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CyanAccent)
                     }
@@ -124,7 +124,7 @@ fun MusicSelectorDialog(
                             modifier = Modifier.padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("?? Sin música de fondo", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text("ðŸ”‡ Sin mÃºsica de fondo", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
                         }
                     }
                 }
@@ -150,13 +150,13 @@ fun MusicSelectorDialog(
                                     color = Color.White
                                 )
                                 Text(
-                                    text = "${track.composer} • ${track.category}",
+                                    text = "${track.composer} â€¢ ${track.category}",
                                     fontSize = 11.sp,
                                     color = if (isSelected) Color.White.copy(alpha = 0.8f) else TextMuted
                                 )
                             }
                             if (isSelected) {
-                                Text("??", fontSize = 16.sp)
+                                Text("â–¶", fontSize = 16.sp)
                             }
                         }
                     }

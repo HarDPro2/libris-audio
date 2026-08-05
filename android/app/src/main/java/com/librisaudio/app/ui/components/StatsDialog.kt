@@ -50,7 +50,7 @@ fun StatsDialog(
                     Icon(Icons.Default.QueryStats, contentDescription = null, tint = CyanAccent)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Estadísticas de Lectura",
+                        text = "EstadÃ­sticas de Lectura",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -84,13 +84,13 @@ fun StatsDialog(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(
-                            text = "Racha Diaria: $streakDays Días Seguidos ??",
+                            text = "Racha Diaria: $streakDays DÃ­as Seguidos ðŸ”¥",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Black,
                             color = Color(0xFFFED7AA)
                         )
                         Text(
-                            text = "¡Vas genial! Mantén el hábito escuchando hoy.",
+                            text = "Â¡Vas genial! MantÃ©n el hÃ¡bito escuchando hoy.",
                             fontSize = 11.sp,
                             color = Color(0xFFFDBA74)
                         )

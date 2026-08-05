@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Configuración de seguridad de red para Libris Audio.
+    Permite conexiones HTTPS a Appwrite Cloud y Google Cloud Run.
+    Las conexiones HTTP cleartext quedan bloqueadas (solo HTTPS).
+-->
+<network-security-config>
+
+    <!-- Configuración base: solo HTTPS en producción -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <!-- Confiar en CAs del sistema (incluye Let's Encrypt, DigiCert, etc.) -->
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Appwrite Cloud (autenticación y base de datos) -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">cloud.appwrite.io</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+
+    <!-- Google Cloud Run (backend FastAPI) -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">run.app</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+
+    <!-- Cloudflare R2 (portadas y audio) -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">r2.dev</domain>
+        <domain includeSubdomains="true">cloudflarestorage.com</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+
+    <!-- OpenRouter (chat IA) -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">openrouter.ai</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+
+    <!-- Unsplash (imágenes de portada de fallback) -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">unsplash.com</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+
+</network-security-config>
