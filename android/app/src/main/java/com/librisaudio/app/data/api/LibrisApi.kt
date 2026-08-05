@@ -28,7 +28,7 @@ interface LibrisApiService {
 object ApiClient {
     private const val SUPABASE_URL = "https://ltyjvsenislyykjspjfb.supabase.co/"
     const val SUPABASE_ANON_KEY = "sb_publishable_4Ls4KIWHnQ-Hxa2G-dWQ2g_Z_PbilzO"
-    const val BACKEND_URL = "https://libris-backend-z5fr.onrender.com/"
+    const val BACKEND_URL = "https://libris-audio-backend-856706599879.us-west1.run.app/"
 
     private val okHttpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)

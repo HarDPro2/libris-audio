@@ -1,4 +1,4 @@
-package com.librisaudio.app.ui.components
+ï»¿package com.librisaudio.app.ui.components
 
 import android.content.Context
 import androidx.compose.foundation.background
@@ -58,15 +58,15 @@ fun ChatWithBookDialog(
     var isLoading by remember { mutableStateOf(false) }
     val messages = remember {
         mutableStateListOf(
-            ChatBubble("1", "ai", "¡Hola! Soy tu asistente de lectura de Libris Audio. ¿Qué duda tienes sobre esta parte del libro?")
+            ChatBubble("1", "ai", "Â¡Hola! Soy tu asistente de lectura de Libris Audio. Â¿QuÃ© duda tienes sobre esta parte del libro?")
         )
     }
     val coroutineScope = rememberCoroutineScope()
 
     val quickQuestions = listOf(
-        "¿Quién es el personaje principal?",
+        "Â¿QuiÃ©n es el personaje principal?",
         "Hazme un resumen de esta parte",
-        "Explícame la idea central"
+        "ExplÃ­came la idea central"
     )
 
     fun sendMessage(msg: String) {
@@ -90,7 +90,7 @@ fun ChatWithBookDialog(
 
                 val body = json.toString().toRequestBody("application/json".toMediaType())
                 val request = Request.Builder()
-                    .url("https://libris-backend-z5fr.onrender.com/api/chat-book")
+                    .url("https://libris-audio-backend-856706599879.us-west1.run.app/api/chat-book")
                     .post(body)
                     .build()
 
@@ -101,7 +101,7 @@ fun ChatWithBookDialog(
 
                 messages.add(ChatBubble(System.currentTimeMillis().toString(), "ai", replyText))
             } catch (e: Exception) {
-                messages.add(ChatBubble(System.currentTimeMillis().toString(), "ai", "Error de conexión con la IA. Inténtalo de nuevo."))
+                messages.add(ChatBubble(System.currentTimeMillis().toString(), "ai", "Error de conexiÃ³n con la IA. IntÃ©ntalo de nuevo."))
             } finally {
                 isLoading = false
             }
@@ -128,7 +128,7 @@ fun ChatWithBookDialog(
                     Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = CyanAccent)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Pregúntale a la IA",
+                        text = "PregÃºntale a la IA",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -236,7 +236,7 @@ fun ChatWithBookDialog(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "?? TRUCO DE CUOTA: Si realizas una compra única de $10 de crédito en OpenRouter, tu límite de peticiones gratuitas aumenta permanentemente de 50 a 1,000 peticiones/día de por vida. El Escudo 100% Gratuito garantiza que tu saldo de $10 NUNCA sea consumido.",
+                                    text = "?? TRUCO DE CUOTA: Si realizas una compra Ãºnica de $10 de crÃ©dito en OpenRouter, tu lÃ­mite de peticiones gratuitas aumenta permanentemente de 50 a 1,000 peticiones/dÃ­a de por vida. El Escudo 100% Gratuito garantiza que tu saldo de $10 NUNCA sea consumido.",
                                     fontSize = 10.5.sp,
                                     color = Color(0xFFE0F2FE),
                                     lineHeight = 14.sp,
@@ -338,3 +338,4 @@ fun ChatWithBookDialog(
         }
     }
 }
+

@@ -34,6 +34,6 @@ data class Book(
     val progressPercent: Int = 0
 ) {
     fun getAudioUrl(partIndex: Int = currentPartIndex, voice: String = "es-MX-JorgeNeural"): String {
-        return "https://libris-backend-z5fr.onrender.com/api/audio/$bookId/$partIndex?voice=$voice"
+        return "https://libris-audio-backend-856706599879.us-west1.run.app/api/audio/$bookId/$partIndex?voice=$voice"
     }
 }
