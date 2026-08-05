@@ -6,9 +6,7 @@ import { VitePWA } from "vite-plugin-pwa";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
-  // './' is required for Capacitor's WebView (file:// protocol).
-  // In web/Vercel mode this defaults to '/' via the env var.
-  base: mode === 'capacitor' ? './' : '/',
+  base: '/',
 
   server: {
     host: "::",
@@ -20,8 +18,7 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     mode === 'development' && componentTagger(),
-    // Skip the PWA/Service Worker when building for Capacitor — Android handles this natively
-    mode !== 'capacitor' && VitePWA({
+    VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
       devOptions: { enabled: true }, // Ensure PWA works in dev mode for testing

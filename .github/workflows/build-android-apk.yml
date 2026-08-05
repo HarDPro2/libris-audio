@@ -1,28 +1,21 @@
-name: Build & Release Android APK
+name: Build & Release Native Android APK
 
 on:
   push:
     branches:
       - main
     paths:
-      - 'src/**'
-      - 'public/**'
       - 'android/**'
-      - 'capacitor.config.ts'
-      - 'package.json'
-      - 'vite.config.ts'
       - '.github/workflows/build-android-apk.yml'
 
-  # Allow manual trigger from GitHub UI
   workflow_dispatch:
 
-# ── CRITICAL: needed to create GitHub Releases ──────────────────
 permissions:
   contents: write
 
 jobs:
   build-apk:
-    name: Build Android APK
+    name: Build Native Android APK
     runs-on: ubuntu-latest
 
     steps:
@@ -35,42 +28,14 @@ jobs:
         id: version
         run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
-      # ── 3. Setup Node 22 ─────────────────────────────────────────
-      # @capacitor/cli@8.x requires Node >= 22
-      - name: Setup Node.js 22
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-
-      # ── 4. Install dependencies ──────────────────────────────────
-      - name: Install npm dependencies
-        run: npm ci
-
-      # ── 5. Build web app in Capacitor mode ───────────────────────
-      - name: Build web app (Capacitor mode)
-        run: npm run build:capacitor
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          # API URL is not a secret — hardcode the Render backend
-          VITE_API_URL: https://libris-backend-z5fr.onrender.com
-
-      # ── 6. Sync Capacitor ────────────────────────────────────────
-      - name: Sync Capacitor with Android project
-        run: npx cap sync android
-
-      # ── 7. Setup Java 21 ─────────────────────────────────────────
-      # Capacitor 8 + compileSdk 36 requires Java 21 (not 17)
-      - name: Setup Java 21
+      # ── 3. Setup Java 17 for Native Kotlin Build ─────────────────
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '21'
+          java-version: '17'
 
-      # ── 8. Accept Android SDK licenses (write hash files directly) ──
-      # Writing the license hashes directly is faster and produces no noise in the log,
-      # unlike `sdkmanager --licenses` which prints thousands of lines.
+      # ── 4. Accept Android SDK licenses ───────────────────────────
       - name: Accept Android SDK licenses
         run: |
           mkdir -p "$ANDROID_HOME/licenses"
@@ -82,42 +47,45 @@ jobs:
             > "$ANDROID_HOME/licenses/android-googletv-license"
           echo "Licenses written ✅"
 
-      # ── 9. Grant Gradle wrapper execute permission ────────────────
+      # ── 5. Grant Gradle wrapper execute permission ────────────────
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
-      # ── 10. Build debug APK ───────────────────────────────────────
-      # Debug APK is fine for direct (non-Play Store) distribution
-      - name: Build debug APK
+      # ── 6. Build debug APK ───────────────────────────────────────
+      - name: Build Native Debug APK
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon --stacktrace
 
-      # ── 11. Rename APK ────────────────────────────────────────────
+      # ── 7. Rename APK ────────────────────────────────────────────
       - name: Rename APK
         run: |
           mkdir -p release-output
           cp android/app/build/outputs/apk/debug/app-debug.apk \
              "release-output/libris-audio-v${{ steps.version.outputs.VERSION }}.apk"
 
-      # ── 12. Publish GitHub Release ────────────────────────────────
+      # ── 8. Publish GitHub Release ────────────────────────────────
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.VERSION }}
-          name: "Libris Audio v${{ steps.version.outputs.VERSION }}"
+          name: "Libris Audio v${{ steps.version.outputs.VERSION }} (Nativa Android)"
           body: |
-            ## 📱 Libris Audio v${{ steps.version.outputs.VERSION }}
+            ## 📱 Libris Audio v${{ steps.version.outputs.VERSION }} (App 100% Nativa Android)
 
-            Convierte tus PDFs en audiolibros con voces neuronales de alta calidad.
+            App nativa escrita en **Kotlin + Jetpack Compose + AndroidX Media3 (ExoPlayer)**.
+
+            ### 🚀 Mejoras en esta versión:
+            - **Audio en segundo plano 100% ininterrumpido** gracias al Foreground Service nativo.
+            - **Controles en pantalla de bloqueo** y barra de notificaciones.
+            - **Velocidad de reproducción ajustable** (1.0x - 2.0x).
+            - **Diseño oscuro fluido** con portadas de libros.
 
             ### 📥 Cómo instalar en Android
-            1. Descarga el archivo `.apk` de abajo
-            2. Ve a **Ajustes → Seguridad** y activa **"Instalar apps de fuentes desconocidas"**
-            3. Abre el `.apk` descargado e instala
-            4. ¡Listo! 🎧
-
-            > Requiere **Android 5.0 (API 22)** o superior
+            1. Descarga el archivo `.apk` adjunto abajo.
+            2. Activa **"Instalar de fuentes desconocidas"** en Ajustes de Android.
+            3. Abre e instala el `.apk`.
           files: release-output/libris-audio-v${{ steps.version.outputs.VERSION }}.apk
           draft: false
           prerelease: false
           make_latest: true
+
