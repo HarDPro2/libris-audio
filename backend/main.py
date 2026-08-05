@@ -508,7 +508,12 @@ async def get_tts_sample(voice: str = "es-MX-JorgeNeural"):
 
 
 @app.post("/api/upload-pdf")
-async def upload_pdf(file: UploadFile = File(...)):
+async def upload_pdf(
+    file: UploadFile = File(...),
+    title: str = Form(None),
+    category: str = Form("General"),
+    added_by: str = Form("upload")
+):
     print(f"Recibiendo solicitud de subida: {file.filename}")
     try:
         # â”€â”€ Validate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -938,6 +943,153 @@ async def chat_with_book(req: ChatBookRequest):
                 continue
 
     return JSONResponse({"reply": "Lo siento, la IA no estï¿½ disponible en este momento. Intï¿½ntalo de nuevo en unos instantes."})
+
+@app.delete("/api/books/{book_id_hex}")
+async def delete_book(book_id_hex: str, authorization: str = Header(default=None)):
+    """
+    Owner-only: Deletes a book and ALL its R2 files.
+    Auth: Authorization: Bearer <appwrite_session_id>
+    Ownership is verified against Appwrite global_books.added_by.
+    """
+    if not appwrite_db:
+        raise HTTPException(status_code=500, detail="Base de datos no configurada")
+
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Token de autenticacion requerido")
+
+    session_id = authorization.split(" ", 1)[1]
+
+    # Verify Appwrite session to get user ID
+    try:
+        import requests as req_lib
+        aw_resp = req_lib.get(
+            f"https://nyc.cloud.appwrite.io/v1/account",
+            headers={
+                "X-Appwrite-Project": APPWRITE_PROJECT_ID,
+                "Cookie": f"a_session_{APPWRITE_PROJECT_ID}={session_id}"
+            },
+            timeout=10
+        )
+        if aw_resp.status_code != 200:
+            raise HTTPException(status_code=401, detail="Sesion invalida")
+        user_id = aw_resp.json().get("$id", "")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Error verificando sesion: {e}")
+
+    # Check ownership in Appwrite global_books
+    try:
+        book_docs = appwrite_db.list_documents(
+            APPWRITE_DB_ID, "global_books",
+            queries=[f'equal("book_id", "{book_id_hex}")']
+        )
+        docs = book_docs.get("documents", [])
+        if not docs:
+            raise HTTPException(status_code=404, detail="Libro no encontrado")
+        book_doc = docs[0]
+        if book_doc.get("added_by") != user_id:
+            raise HTTPException(status_code=403, detail="No tienes permiso para eliminar este libro")
+        doc_id = book_doc.get("$id")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error verificando propiedad: {e}")
+
+    # Delete from R2 (text parts, audio parts, cover)
+    try:
+        prefixes = [f"{book_id_hex}/text/", f"{book_id_hex}/audio/", f"{book_id_hex}/"]
+        all_keys = []
+        for prefix in prefixes:
+            try:
+                keys = await asyncio.to_thread(r2_list_prefix, prefix)
+                all_keys.extend(keys)
+            except Exception:
+                pass
+        if all_keys:
+            await asyncio.to_thread(r2_delete, list(set(all_keys)))
+        print(f"[Delete] R2 files removed for {book_id_hex}: {len(all_keys)} files")
+    except Exception as e:
+        print(f"[Delete] R2 cleanup warning: {e}")
+
+    # Delete from Appwrite
+    try:
+        appwrite_db.delete_document(APPWRITE_DB_ID, "global_books", doc_id)
+    except Exception as e:
+        print(f"[Delete] Appwrite delete warning: {e}")
+
+    return {"status": "deleted", "book_id": book_id_hex}
+
+
+@app.patch("/api/books/{book_id_hex}")
+async def patch_book(book_id_hex: str, authorization: str = Header(default=None), body: dict = None):
+    """
+    Owner-only: Update title and/or category of a book.
+    Auth: Authorization: Bearer <appwrite_session_id>
+    """
+    if not appwrite_db:
+        raise HTTPException(status_code=500, detail="Base de datos no configurada")
+
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Token de autenticacion requerido")
+
+    session_id = authorization.split(" ", 1)[1]
+    patch_data = body or {}
+
+    # Verify Appwrite session
+    try:
+        import requests as req_lib
+        aw_resp = req_lib.get(
+            f"https://nyc.cloud.appwrite.io/v1/account",
+            headers={
+                "X-Appwrite-Project": APPWRITE_PROJECT_ID,
+                "Cookie": f"a_session_{APPWRITE_PROJECT_ID}={session_id}"
+            },
+            timeout=10
+        )
+        if aw_resp.status_code != 200:
+            raise HTTPException(status_code=401, detail="Sesion invalida")
+        user_id = aw_resp.json().get("$id", "")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Error verificando sesion: {e}")
+
+    # Find and verify ownership
+    try:
+        book_docs = appwrite_db.list_documents(
+            APPWRITE_DB_ID, "global_books",
+            queries=[f'equal("book_id", "{book_id_hex}")']
+        )
+        docs = book_docs.get("documents", [])
+        if not docs:
+            raise HTTPException(status_code=404, detail="Libro no encontrado")
+        book_doc = docs[0]
+        if book_doc.get("added_by") != user_id:
+            raise HTTPException(status_code=403, detail="No tienes permiso para editar este libro")
+        doc_id = book_doc.get("$id")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error verificando propiedad: {e}")
+
+    # Apply patch
+    update_data = {}
+    if "title" in patch_data and patch_data["title"].strip():
+        update_data["title"] = patch_data["title"].strip()
+    if "category" in patch_data and patch_data["category"].strip():
+        update_data["category"] = patch_data["category"].strip()
+
+    if not update_data:
+        return {"status": "no_changes"}
+
+    try:
+        appwrite_db.update_document(APPWRITE_DB_ID, "global_books", doc_id, data=update_data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error actualizando libro: {e}")
+
+    return {"status": "updated", "book_id": book_id_hex, "changes": update_data}
+
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8080, reload=True)

@@ -228,17 +228,24 @@ class MainActivity : ComponentActivity() {
                         when (selectedTab) {
                             MainTab.LIBRARY -> LibraryScreen(
                                 books = books,
+                                personalBooks = books.filter { it.progressPercent > 0 },
                                 currentTheme = currentTheme,
-                                onSelectTheme = { newTheme -> currentTheme = newTheme },
-                                onBookSelect = { selectedBook -> playerViewModel.playBook(selectedBook) }
+                                currentUserId = session?.userId ?: "",
+                                onBookSelect = { selectedBook -> playerViewModel.playBook(selectedBook) },
+                                onDeleteBook = { book -> playerViewModel.deleteBook(book, session?.sessionId ?: "") },
+                                onEditBook  = { book, newTitle, newCat -> playerViewModel.editBook(book, newTitle, newCat, session?.sessionId ?: "") }
                             )
                             MainTab.HISTORY -> HistoryScreen(
                                 books = books,
                                 currentTheme = currentTheme,
-                                onBookSelect = { selectedBook -> playerViewModel.playBook(selectedBook) }
+                                onBookSelect = { selectedBook ->
+                                    playerViewModel.playBook(selectedBook)
+                                    selectedTab = MainTab.LIBRARY
+                                }
                             )
                             MainTab.UPLOAD -> UploadScreen(
                                 currentTheme = currentTheme,
+                                currentUserId = session?.userId ?: "",
                                 onUploadSuccess = {
                                     playerViewModel.loadBooks()
                                     selectedTab = MainTab.LIBRARY

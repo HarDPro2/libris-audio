@@ -1,4 +1,4 @@
-﻿package com.librisaudio.app.viewmodel
+package com.librisaudio.app.viewmodel
 
 import android.content.ComponentName
 import android.content.Context
@@ -203,6 +203,58 @@ class PlayerViewModel : ViewModel() {
                         _durationMs.value = player.duration.coerceAtLeast(0L)
                     }
                 }
+            }
+        }
+    }
+
+    /** Owner: delete a book from catalog + R2. sessionId = Appwrite session token. */
+    fun deleteBook(book: Book, sessionId: String) {
+        viewModelScope.launch {
+            try {
+                val response = ApiClient.backendService.deleteBook(
+                    bookId = book.bookId,
+                    authorization = "Bearer $sessionId"
+                )
+                if (response.isSuccessful || response.code() == 404) {
+                    // Remove from local list regardless
+                    _books.value = _books.value.filter { it.id != book.id }
+                    if (_currentBook.value?.id == book.id) {
+                        _currentBook.value = null
+                        _isPlaying.value = false
+                        mediaController?.stop()
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    /** Owner: edit a book's title and/or category in catalog. */
+    fun editBook(book: Book, newTitle: String, newCategory: String, sessionId: String) {
+        viewModelScope.launch {
+            try {
+                val patch = mutableMapOf<String, String>()
+                if (newTitle.isNotBlank() && newTitle != book.title) patch["title"] = newTitle
+                if (newCategory.isNotBlank() && newCategory != book.category) patch["category"] = newCategory
+                if (patch.isEmpty()) return@launch
+
+                val response = ApiClient.backendService.patchBook(
+                    bookId = book.bookId,
+                    authorization = "Bearer $sessionId",
+                    body = patch
+                )
+                if (response.isSuccessful) {
+                    // Update local list immediately
+                    _books.value = _books.value.map {
+                        if (it.id == book.id) it.copy(title = newTitle, category = newCategory) else it
+                    }
+                    if (_currentBook.value?.id == book.id) {
+                        _currentBook.value = _currentBook.value?.copy(title = newTitle, category = newCategory)
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }
