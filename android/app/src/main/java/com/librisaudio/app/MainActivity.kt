@@ -7,7 +7,6 @@ import androidx.activity.compose.setContent
 import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -116,7 +115,7 @@ class MainActivity : ComponentActivity() {
                                 actions = {
                                     IconButton(onClick = { authViewModel.logout() }) {
                                         Icon(
-                                            Logout,
+                                            Icons.Default.Logout,
                                             contentDescription = "Cerrar sesión",
                                             tint = Color(0xFF8FA3BF)
                                         )
