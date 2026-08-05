@@ -19,6 +19,7 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -37,7 +38,8 @@ import com.librisaudio.app.viewmodel.AuthViewModel
 fun LoginScreen(
     authViewModel: AuthViewModel,
     authState: AuthState,
-    currentTheme: AppThemePreset
+    currentTheme: AppThemePreset,
+    onGoogleSignIn: () -> Unit = {}
 ) {
     var isRegisterMode by remember { mutableStateOf(false) }
 
@@ -49,6 +51,7 @@ fun LoginScreen(
     var showPass  by remember { mutableStateOf(false) }
     var showConf  by remember { mutableStateOf(false) }
 
+    val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     val isLoading = authState is AuthState.Loading
 
@@ -292,6 +295,54 @@ fun LoginScreen(
                                 fontSize = 16.sp
                             )
                         }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // ── Divider OR ──────────────────────────────────────
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0x33FFFFFF))
+                        Text(
+                            "  o continúa con  ",
+                            color = Color(0xFF4A6080),
+                            fontSize = 12.sp
+                        )
+                        HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0x33FFFFFF))
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // ── Google Sign-In Button ─────────────────────────
+                    OutlinedButton(
+                        onClick = { onGoogleSignIn() },
+                        enabled = !isLoading,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp, Color(0x55FFFFFF)
+                        ),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color(0x1AFFFFFF)
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AccountCircle,
+                            contentDescription = "Google",
+                            tint = Color(0xFFEA4335),
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Continuar con Google",
+                            color = Color.White,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 15.sp
+                        )
                     }
                 }
             }

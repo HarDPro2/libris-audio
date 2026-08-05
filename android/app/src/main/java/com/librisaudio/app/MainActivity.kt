@@ -1,9 +1,12 @@
 package com.librisaudio.app
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.viewModels
 import androidx.activity.compose.setContent
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -16,6 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
+import com.librisaudio.app.data.api.AppwriteAuthClient
 import com.librisaudio.app.data.model.MusicTrack
 import com.librisaudio.app.ui.components.BottomPlayerBar
 import com.librisaudio.app.ui.screens.*
@@ -39,7 +43,42 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         playerViewModel.initMediaController(this)
         authViewModel.init(this)
+        // Handle deep link if app was launched via OAuth redirect
+        handleAuthDeepLink(intent)
+    }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleAuthDeepLink(intent)
+    }
+
+    private fun handleAuthDeepLink(intent: Intent?) {
+        val data = intent?.data ?: return
+        if (data.scheme == "librisaudio" && data.host == "oauth") {
+            val userId    = data.getQueryParameter("userId") ?: ""
+            val email     = data.getQueryParameter("email") ?: ""
+            val name      = data.getQueryParameter("name") ?: ""
+            val sessionId = data.getQueryParameter("secret") ?: ""
+            if (userId.isNotBlank() && sessionId.isNotBlank()) {
+                authViewModel.loginWithGoogleSession(userId, email, name, sessionId)
+            }
+        }
+    }
+
+    private fun openGoogleOAuth() {
+        val url = AppwriteAuthClient.googleOAuthUrl()
+        try {
+            // Try Chrome Custom Tab first (stays in-app)
+            val customTab = CustomTabsIntent.Builder().build()
+            customTab.launchUrl(this, Uri.parse(url))
+        } catch (_: Exception) {
+            // Fallback: open in default browser
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        }
+    }
+
+    @OptIn(ExperimentalMaterial3Api::class)
+    private fun buildUi() {
         setContent {
             var currentTheme by remember { mutableStateOf(AppThemePreset.CYBERPUNK) }
 
@@ -59,7 +98,8 @@ class MainActivity : ComponentActivity() {
                     LoginScreen(
                         authViewModel   = authViewModel,
                         authState       = authState,
-                        currentTheme    = currentTheme
+                        currentTheme    = currentTheme,
+                        onGoogleSignIn  = { openGoogleOAuth() }
                     )
                     return@LibrisAudioTheme
                 }

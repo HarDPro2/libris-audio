@@ -18,46 +18,54 @@ import java.util.concurrent.TimeUnit
 
 interface AppwriteAuthService {
 
+    // Login with email+password — returns session
     @POST("v1/account/sessions/email")
     suspend fun loginWithEmail(
         @Header("X-Appwrite-Project") projectId: String,
-        @Header("X-Appwrite-Response-Format") format: String = "1.6.0",
         @Header("Content-Type") contentType: String = "application/json",
         @Body body: AppwriteEmailLoginBody
     ): AppwriteSessionResponse
 
+    // Register new account
     @POST("v1/account")
     suspend fun registerAccount(
         @Header("X-Appwrite-Project") projectId: String,
-        @Header("X-Appwrite-Response-Format") format: String = "1.6.0",
         @Header("Content-Type") contentType: String = "application/json",
         @Body body: AppwriteRegisterBody
     ): AppwriteUserResponse
 
+    // Get current account info — requires session cookie
     @GET("v1/account")
     suspend fun getAccount(
         @Header("X-Appwrite-Project") projectId: String,
-        @Header("X-Appwrite-Session") sessionId: String,
-        @Header("X-Appwrite-Response-Format") format: String = "1.6.0"
+        @Header("Cookie") cookieHeader: String
     ): AppwriteUserResponse
 
+    // Delete session (logout) — use "current" as sessionId path
     @DELETE("v1/account/sessions/{sessionId}")
     suspend fun deleteSession(
         @Header("X-Appwrite-Project") projectId: String,
-        @Header("X-Appwrite-Session") sessionId: String,
+        @Header("Cookie") cookieHeader: String,
         @Path("sessionId") sessionIdPath: String
-    ): Unit
+    )
 }
 
 object AppwriteAuthClient {
-    const val APPWRITE_ENDPOINT = "https://nyc.cloud.appwrite.io/"
+    const val APPWRITE_ENDPOINT   = "https://nyc.cloud.appwrite.io/"
     const val APPWRITE_PROJECT_ID = "6a72f5d6002eeff78bc2"
+
+    // Google OAuth URL — opens in browser, redirects back via deep link
+    fun googleOAuthUrl(): String =
+        "${APPWRITE_ENDPOINT}v1/account/sessions/oauth2/google" +
+        "?project=${APPWRITE_PROJECT_ID}" +
+        "&success=librisaudio://oauth/success" +
+        "&failure=librisaudio://oauth/failure"
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .addInterceptor(HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BASIC
+            level = HttpLoggingInterceptor.Level.BODY
         })
         .build()
 

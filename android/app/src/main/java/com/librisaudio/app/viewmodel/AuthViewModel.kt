@@ -11,6 +11,8 @@ import com.librisaudio.app.data.model.AppwriteSession
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
+import java.util.UUID
 
 sealed class AuthState {
     object Idle : AuthState()
@@ -29,11 +31,10 @@ class AuthViewModel : ViewModel() {
 
     fun init(context: Context) {
         prefs = context.getSharedPreferences("libris_prefs", Context.MODE_PRIVATE)
-        // Check if we have a saved session
-        val savedUserId   = prefs.getString("user_id", null)
-        val savedEmail    = prefs.getString("user_email", null)
-        val savedName     = prefs.getString("user_name", null)
-        val savedSession  = prefs.getString("session_id", null)
+        val savedUserId  = prefs.getString("user_id", null)
+        val savedEmail   = prefs.getString("user_email", null)
+        val savedName    = prefs.getString("user_name", null)
+        val savedSession = prefs.getString("session_id", null)
 
         if (savedUserId != null && savedEmail != null && savedSession != null) {
             _authState.value = AuthState.Authenticated(
@@ -62,10 +63,11 @@ class AuthViewModel : ViewModel() {
                     projectId = AppwriteAuthClient.APPWRITE_PROJECT_ID,
                     body = AppwriteEmailLoginBody(email = email.trim(), password = password)
                 )
-                // Fetch user info using the session
+                // Use the session cookie value to fetch the account
+                val cookieValue = "a_session_${AppwriteAuthClient.APPWRITE_PROJECT_ID}=${sessionResp.`$id`}"
                 val userResp = AppwriteAuthClient.authService.getAccount(
                     projectId = AppwriteAuthClient.APPWRITE_PROJECT_ID,
-                    sessionId = sessionResp.`$id`
+                    cookieHeader = cookieValue
                 )
                 val session = AppwriteSession(
                     userId    = userResp.`$id`,
@@ -75,13 +77,15 @@ class AuthViewModel : ViewModel() {
                 )
                 saveSession(session)
                 _authState.value = AuthState.Authenticated(session)
-            } catch (e: Exception) {
-                val msg = when {
-                    e.message?.contains("401") == true -> "Email o contraseña incorrectos"
-                    e.message?.contains("network") == true -> "Sin conexión a internet"
-                    else -> "Error al iniciar sesión: ${e.message?.take(80)}"
+            } catch (e: HttpException) {
+                val msg = when (e.code()) {
+                    401  -> "Email o contraseña incorrectos"
+                    429  -> "Demasiados intentos. Espera un momento"
+                    else -> "Error ${e.code()}: ${parseAppwriteError(e)}"
                 }
                 _authState.value = AuthState.Error(msg)
+            } catch (e: Exception) {
+                _authState.value = AuthState.Error("Sin conexión a internet")
             }
         }
     }
@@ -90,6 +94,8 @@ class AuthViewModel : ViewModel() {
         when {
             name.isBlank() || email.isBlank() || password.isBlank() ->
                 _authState.value = AuthState.Error("Todos los campos son obligatorios")
+            !email.contains("@") || !email.contains(".") ->
+                _authState.value = AuthState.Error("Ingresa un email válido (ej: usuario@gmail.com)")
             password != confirmPassword ->
                 _authState.value = AuthState.Error("Las contraseñas no coinciden")
             password.length < 8 ->
@@ -98,12 +104,8 @@ class AuthViewModel : ViewModel() {
                 _authState.value = AuthState.Loading
                 viewModelScope.launch {
                     try {
-                        // Appwrite requires a unique userId — use email-based slug
-                        val userId = email.trim()
-                            .substringBefore("@")
-                            .replace(Regex("[^a-zA-Z0-9._-]"), "_")
-                            .take(36)
-                            .plus("_${System.currentTimeMillis() % 10000}")
+                        // Appwrite userId: max 36 chars, only [a-zA-Z0-9._-]
+                        val userId = UUID.randomUUID().toString()
 
                         AppwriteAuthClient.authService.registerAccount(
                             projectId = AppwriteAuthClient.APPWRITE_PROJECT_ID,
@@ -114,29 +116,45 @@ class AuthViewModel : ViewModel() {
                                 name     = name.trim()
                             )
                         )
-                        // Auto-login after register
-                        login(email, password)
-                    } catch (e: Exception) {
-                        val msg = when {
-                            e.message?.contains("409") == true -> "Ya existe una cuenta con ese email"
-                            e.message?.contains("400") == true -> "Email o contraseña inválidos"
-                            else -> "Error al registrar: ${e.message?.take(80)}"
+                        // Auto-login after successful registration
+                        login(email.trim(), password)
+                    } catch (e: HttpException) {
+                        val msg = when (e.code()) {
+                            409  -> "Ya existe una cuenta con ese email"
+                            400  -> "Email inválido o contraseña muy débil (mín. 8 caracteres)"
+                            429  -> "Demasiados intentos. Espera un momento"
+                            else -> "Error al registrar: ${parseAppwriteError(e)}"
                         }
                         _authState.value = AuthState.Error(msg)
+                    } catch (e: Exception) {
+                        _authState.value = AuthState.Error("Sin conexión a internet")
                     }
                 }
             }
         }
     }
 
+    // Called after successful Google OAuth — saves session from deep link
+    fun loginWithGoogleSession(userId: String, email: String, name: String, sessionSecret: String) {
+        val session = AppwriteSession(
+            userId    = userId,
+            email     = email,
+            name      = name.ifBlank { email.substringBefore("@") },
+            sessionId = sessionSecret
+        )
+        saveSession(session)
+        _authState.value = AuthState.Authenticated(session)
+    }
+
     fun logout() {
         val session = (_authState.value as? AuthState.Authenticated)?.session ?: return
         viewModelScope.launch {
             try {
+                val cookieValue = "a_session_${AppwriteAuthClient.APPWRITE_PROJECT_ID}=${session.sessionId}"
                 AppwriteAuthClient.authService.deleteSession(
                     projectId    = AppwriteAuthClient.APPWRITE_PROJECT_ID,
-                    sessionId    = session.sessionId,
-                    sessionIdPath = session.sessionId
+                    cookieHeader = cookieValue,
+                    sessionIdPath = "current"
                 )
             } catch (_: Exception) { /* ignora error de red en logout */ }
             clearSession()
@@ -159,5 +177,16 @@ class AuthViewModel : ViewModel() {
 
     private fun clearSession() {
         prefs.edit().clear().apply()
+    }
+
+    private fun parseAppwriteError(e: HttpException): String {
+        return try {
+            e.response()?.errorBody()?.string()
+                ?.let { body ->
+                    // Appwrite returns {"message": "...", "code": N}
+                    val msgMatch = Regex("\"message\"\\s*:\\s*\"([^\"]+)\"").find(body)
+                    msgMatch?.groupValues?.get(1) ?: body.take(80)
+                } ?: "Error desconocido"
+        } catch (_: Exception) { "Error desconocido" }
     }
 }
