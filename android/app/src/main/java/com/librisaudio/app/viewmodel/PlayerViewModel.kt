@@ -1,4 +1,4 @@
-package com.librisaudio.app.viewmodel
+﻿package com.librisaudio.app.viewmodel
 
 import android.content.ComponentName
 import android.content.Context
@@ -89,62 +89,94 @@ class PlayerViewModel : ViewModel() {
     fun loadBooks() {
         viewModelScope.launch {
             try {
-                val dtos = ApiClient.supabaseService.getGlobalBooks(ApiClient.SUPABASE_ANON_KEY)
+                val dtos = ApiClient.backendService.getBooksFromBackend()
                 val mapped = dtos.map { dto ->
                     Book(
-                        id = dto.id,
-                        bookId = dto.bookId,
-                        title = dto.title,
+                        id = dto.id ?: dto.bookId ?: "1",
+                        bookId = dto.bookId ?: dto.id ?: "1",
+                        title = dto.title ?: "Sin título",
                         category = dto.category ?: "General",
-                        coverUrl = dto.coverUrl,
+                        coverUrl = if (!dto.coverUrl.isNullOrEmpty()) dto.coverUrl else "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=300&h=400&fit=crop",
                         partsCount = dto.partsCount ?: 1
                     )
                 }
-                _books.value = mapped
+                _books.value = if (mapped.isNotEmpty()) mapped else getDefaultCatalog()
             } catch (e: Exception) {
                 e.printStackTrace()
+                _books.value = getDefaultCatalog()
             }
         }
+    }
+
+    private fun getDefaultCatalog(): List<Book> {
+        return listOf(
+            Book(
+                id = "1",
+                bookId = "9780140449136",
+                title = "La Odisea",
+                category = "Clásicos",
+                coverUrl = "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=300&h=400&fit=crop",
+                partsCount = 5
+            ),
+            Book(
+                id = "2",
+                bookId = "9788437604947",
+                title = "Don Quijote de la Mancha",
+                category = "Ficción",
+                coverUrl = "https://images.unsplash.com/photo-1512820790803-83ca734da794?w=300&h=400&fit=crop",
+                partsCount = 8
+            )
+        )
     }
 
     fun playBook(book: Book, partIndex: Int = 0) {
         _currentBook.value = book
         _currentPartIndex.value = partIndex
+
         val audioUrl = book.getAudioUrl(partIndex)
-
-        val metadata = MediaMetadata.Builder()
-            .setTitle(book.title)
-            .setArtist(book.author)
-            .build()
-
         val mediaItem = MediaItem.Builder()
             .setUri(audioUrl)
-            .setMediaMetadata(metadata)
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle("${book.title} (Parte ${partIndex + 1})")
+                    .setArtist(book.category)
+                    .build()
+            )
             .build()
 
-        mediaController?.let { controller ->
-            controller.setMediaItem(mediaItem)
-            controller.setPlaybackSpeed(_playbackSpeed.value)
-            controller.prepare()
-            controller.play()
+        mediaController?.let { player ->
+            player.setMediaItem(mediaItem)
+            player.prepare()
+            player.play()
             _isPlaying.value = true
         }
     }
 
     fun togglePlayPause() {
-        val controller = mediaController ?: return
-        if (controller.isPlaying) {
-            controller.pause()
+        val player = mediaController ?: return
+        if (player.isPlaying) {
+            player.pause()
             _isPlaying.value = false
         } else {
-            controller.play()
+            player.play()
             _isPlaying.value = true
         }
     }
 
-    fun setSpeed(speed: Float) {
-        _playbackSpeed.value = speed
-        mediaController?.setPlaybackSpeed(speed)
+    fun nextPart() {
+        val book = _currentBook.value ?: return
+        val nextIdx = _currentPartIndex.value + 1
+        if (nextIdx < book.partsCount) {
+            playBook(book, nextIdx)
+        }
+    }
+
+    fun previousPart() {
+        val book = _currentBook.value ?: return
+        val prevIdx = _currentPartIndex.value - 1
+        if (prevIdx >= 0) {
+            playBook(book, prevIdx)
+        }
     }
 
     fun seekTo(positionMs: Long) {
@@ -152,39 +184,25 @@ class PlayerViewModel : ViewModel() {
         _currentPositionMs.value = positionMs
     }
 
-    fun nextPart() {
-        val book = _currentBook.value ?: return
-        if (_currentPartIndex.value < book.partsCount - 1) {
-            playBook(book, _currentPartIndex.value + 1)
-        }
-    }
-
-    fun previousPart() {
-        val book = _currentBook.value ?: return
-        if (_currentPartIndex.value > 0) {
-            playBook(book, _currentPartIndex.value - 1)
-        }
+    fun setSpeed(speed: Float) {
+        _playbackSpeed.value = speed
+        mediaController?.setPlaybackSpeed(speed)
     }
 
     private fun onPartEnded() {
-        val book = _currentBook.value ?: return
-        if (_currentPartIndex.value < book.partsCount - 1) {
-            playBook(book, _currentPartIndex.value + 1)
-        } else {
-            _isPlaying.value = false
-        }
+        nextPart()
     }
 
     private fun startPositionTracker() {
         viewModelScope.launch {
             while (true) {
-                mediaController?.let { controller ->
-                    if (controller.isPlaying) {
-                        _currentPositionMs.value = controller.currentPosition
-                        _durationMs.value = if (controller.duration > 0) controller.duration else 0L
+                delay(500)
+                mediaController?.let { player ->
+                    if (player.isPlaying) {
+                        _currentPositionMs.value = player.currentPosition
+                        _durationMs.value = player.duration.coerceAtLeast(0L)
                     }
                 }
-                delay(1000)
             }
         }
     }

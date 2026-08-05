@@ -1,4 +1,4 @@
-package com.librisaudio.app.data.api
+﻿package com.librisaudio.app.data.api
 
 import com.librisaudio.app.data.model.GlobalBookDto
 import com.librisaudio.app.data.model.UserBookDto
@@ -12,6 +12,9 @@ import retrofit2.http.Query
 import java.util.concurrent.TimeUnit
 
 interface LibrisApiService {
+    @GET("api/books")
+    suspend fun getBooksFromBackend(): List<GlobalBookDto>
+
     @GET("rest/v1/global_books")
     suspend fun getGlobalBooks(
         @Header("apikey") apiKey: String,
@@ -37,6 +40,15 @@ object ApiClient {
             level = HttpLoggingInterceptor.Level.BASIC
         })
         .build()
+
+    val backendService: LibrisApiService by lazy {
+        Retrofit.Builder()
+            .baseUrl(BACKEND_URL)
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(LibrisApiService::class.java)
+    }
 
     val supabaseService: LibrisApiService by lazy {
         Retrofit.Builder()

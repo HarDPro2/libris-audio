@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 import sys
 import logging
 from typing import List, Optional, Dict, Any
@@ -35,7 +35,7 @@ from appwrite.client import Client as AppwriteClient
 from appwrite.services.databases import Databases as AppwriteDatabases
 
 # ---------------------------------------------------------------------------
-# Supabase — used ONLY for database (auth, global_books, user_books)
+# Supabase â€” used ONLY for database (auth, global_books, user_books)
 # ---------------------------------------------------------------------------
 SUPABASE_URL = os.environ.get("SUPABASE_URL") or os.environ.get("VITE_SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_ANON_KEY") or os.environ.get("VITE_SUPABASE_ANON_KEY")
@@ -60,7 +60,7 @@ appwrite_client.set_key(APPWRITE_API_KEY)
 appwrite_db = AppwriteDatabases(appwrite_client)
 
 # ---------------------------------------------------------------------------
-# Cloudflare R2 — used for ALL file storage (covers, text parts, audio MP3s)
+# Cloudflare R2 â€” used for ALL file storage (covers, text parts, audio MP3s)
 # R2 has zero egress cost vs Supabase Storage's 5 GB/month cap.
 # ---------------------------------------------------------------------------
 R2_ACCESS_KEY_ID     = os.environ.get("R2_ACCESS_KEY_ID", "")
@@ -102,7 +102,7 @@ def r2_public_url(key: str) -> str:
 
 
 def r2_exists(key: str) -> bool:
-    """Check if a key exists — uses HeadObject (no egress cost)."""
+    """Check if a key exists â€” uses HeadObject (no egress cost)."""
     try:
         get_r2().head_object(Bucket=R2_BUCKET, Key=key)
         return True
@@ -163,7 +163,7 @@ def clean_text_for_tts(raw: str) -> str:
     """
     Prepare raw PDF text for edge-tts:
     - Remove lines that are ONLY digits (page numbers)
-    - Remove common PDF page-marker patterns ("Página N", "Page N", "- 2 -")
+    - Remove common PDF page-marker patterns ("PÃ¡gina N", "Page N", "- 2 -")
     - Collapse multiple blank lines / whitespace into a single space
     - Ensure the text ends with a period so the TTS doesn't cut off abruptly
     """
@@ -177,15 +177,15 @@ def clean_text_for_tts(raw: str) -> str:
         # Skip lines that are ONLY a number (bare page numbers: "1", "2", "42")
         if re.fullmatch(r'\d+', stripped):
             continue
-        # Skip lines that end with page markers like: "Página 2", "Page 2", "www.lectulandia.com - Página 3"
-        if re.search(r'(p[áa]gina|page|pág\.?)\s*\d+$', stripped, re.IGNORECASE):
+        # Skip lines that end with page markers like: "PÃ¡gina 2", "Page 2", "www.lectulandia.com - PÃ¡gina 3"
+        if re.search(r'(p[Ã¡a]gina|page|pÃ¡g\.?)\s*\d+$', stripped, re.IGNORECASE):
             continue
-        # Skip dash-wrapped page numbers: "- 2 -", "— 12 —"
-        if re.fullmatch(r'[-–—\s]*\d+[-–—\s]*', stripped):
+        # Skip dash-wrapped page numbers: "- 2 -", "â€” 12 â€”"
+        if re.fullmatch(r'[-â€“â€”\s]*\d+[-â€“â€”\s]*', stripped):
             continue
         cleaned.append(stripped)
 
-    # Join with a single space — no blank-line pauses
+    # Join with a single space â€” no blank-line pauses
     text = ' '.join(cleaned)
 
     # Collapse any remaining multiple spaces
@@ -198,13 +198,13 @@ def clean_text_for_tts(raw: str) -> str:
     return text.strip()
 
 def extract_text_from_pdf(pdf_bytes: bytes, max_pages: int = 1000) -> str:
-    """Extrae texto limpio de los PDF usando análisis de diccionario y tamaño de fuente."""
+    """Extrae texto limpio de los PDF usando anÃ¡lisis de diccionario y tamaÃ±o de fuente."""
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     num_pages = min(len(doc), max_pages)
     
-    # 1. Encontrar el tamaño de fuente dominante (main_font_size)
+    # 1. Encontrar el tamaÃ±o de fuente dominante (main_font_size)
     font_counts = {}
-    sample_pages = min(20, num_pages) # Analizamos las primeras 20 págs
+    sample_pages = min(20, num_pages) # Analizamos las primeras 20 pÃ¡gs
     for i in range(sample_pages):
         page = doc[i]
         blocks = page.get_text("dict").get("blocks", [])
@@ -245,7 +245,7 @@ def extract_text_from_pdf(pdf_bytes: bytes, max_pages: int = 1000) -> str:
                 # bbox es [x0, y0, x1, y1]
                 y0, y1 = bbox[1], bbox[3]
                 if y1 < top_margin or y0 > bottom_margin:
-                    continue # Es un encabezado o pie de página
+                    continue # Es un encabezado o pie de pÃ¡gina
                     
             for line in b.get("lines", []):
                 line_text = ""
@@ -253,7 +253,7 @@ def extract_text_from_pdf(pdf_bytes: bytes, max_pages: int = 1000) -> str:
                     size = round(s.get("size", 0), 1)
                     text = s.get("text", "")
                     
-                    # Conservamos si el tamaño es razonable para ser texto del cuerpo/citas (al menos 70% del tamaño principal)
+                    # Conservamos si el tamaÃ±o es razonable para ser texto del cuerpo/citas (al menos 70% del tamaÃ±o principal)
                     if size >= main_font_size * 0.7:
                         line_text += text
                 
@@ -265,9 +265,9 @@ def extract_text_from_pdf(pdf_bytes: bytes, max_pages: int = 1000) -> str:
     
     raw_text = "\n".join(extracted_lines)
     
-    print(f"[PDF] Extracción heurística completada. {len(extracted_lines)} líneas útiles encontradas.")
+    print(f"[PDF] ExtracciÃ³n heurÃ­stica completada. {len(extracted_lines)} lÃ­neas Ãºtiles encontradas.")
     
-    # 3. Lo pasamos por el limpiador básico para arreglar guiones y puntuaciones
+    # 3. Lo pasamos por el limpiador bÃ¡sico para arreglar guiones y puntuaciones
     cleaned = clean_text_for_tts(raw_text)
     
     return cleaned
@@ -309,7 +309,7 @@ def _split_for_tts(text: str, max_chars: int = 1200) -> list[str]:
     """
     Split a part's text into small, sentence-based segments (<= max_chars).
 
-    edge-tts occasionally returns INCOMPLETE audio for a single request — it
+    edge-tts occasionally returns INCOMPLETE audio for a single request â€” it
     silently drops a portion of the speech, which is exactly the "el audio se
     salta parte del texto" bug. The drop probability grows with request size,
     so we feed edge-tts small segments and stitch them back together. A drop in
@@ -381,7 +381,7 @@ async def text_to_mp3(text: str, output_path: Path, voice: str = "es-MX-JorgeNeu
       2. Generate each segment with edge-tts, retrying if the returned audio is
          empty or suspiciously short (a sign edge-tts dropped the segment).
       3. If edge-tts keeps failing for a segment, fall back to gTTS for that
-         segment only — so one bad segment never loses the rest of the part.
+         segment only â€” so one bad segment never loses the rest of the part.
       4. Concatenate every segment's MP3 bytes into the final file.
     """
     segments = _split_for_tts(text)
@@ -426,7 +426,7 @@ async def text_to_mp3(text: str, output_path: Path, voice: str = "es-MX-JorgeNeu
         out.extend(seg_bytes)
 
     if not out:
-        raise RuntimeError("No se pudo generar audio para esta parte (TTS vacío).")
+        raise RuntimeError("No se pudo generar audio para esta parte (TTS vacÃ­o).")
 
     with open(output_path, "wb") as f:
         f.write(out)
@@ -435,6 +435,56 @@ async def text_to_mp3(text: str, output_path: Path, voice: str = "es-MX-JorgeNeu
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
+
+@app.get("/api/books")
+async def get_all_books():
+    """Returns global books catalog from Appwrite 24/7 database with fallback."""
+    books = []
+    if appwrite_db:
+        try:
+            res = appwrite_db.list_documents(APPWRITE_DB_ID, "global_books")
+            for doc in res.get("documents", []):
+                books.append({
+                    "id": doc.get("$id") or doc.get("book_id"),
+                    "book_id": doc.get("book_id"),
+                    "title": doc.get("title", "Sin título"),
+                    "author": doc.get("author", "Autor Desconocido"),
+                    "parts_count": doc.get("parts_count", 1),
+                    "category": doc.get("category", "General"),
+                    "cover_url": doc.get("cover_url", ""),
+                    "file_hash": doc.get("file_hash", ""),
+                    "added_by": doc.get("added_by", "")
+                })
+        except Exception as ex:
+            print(f"Appwrite list books note: {ex}")
+
+    if not books:
+        books = [
+            {
+                "id": "1",
+                "book_id": "9780140449136",
+                "title": "La Odisea",
+                "author": "Homero",
+                "parts_count": 5,
+                "category": "Clásicos",
+                "cover_url": "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=300&h=400&fit=crop",
+                "file_hash": "odisea_hash",
+                "added_by": "Libris"
+            },
+            {
+                "id": "2",
+                "book_id": "9788437604947",
+                "title": "Don Quijote de la Mancha",
+                "author": "Miguel de Cervantes",
+                "parts_count": 8,
+                "category": "Ficción",
+                "cover_url": "https://images.unsplash.com/photo-1512820790803-83ca734da794?w=300&h=400&fit=crop",
+                "file_hash": "quijote_hash",
+                "added_by": "Libris"
+            }
+        ]
+    return books
 
 @app.get("/api/health")
 def health_check():
@@ -448,7 +498,7 @@ async def get_tts_sample(voice: str = "es-MX-JorgeNeural"):
     sample_path = AUDIO_DIR / f"sample_{safe_voice}.mp3"
     
     if not sample_path.exists():
-        text = "Hola, esta es una pequeña muestra de mi voz."
+        text = "Hola, esta es una pequeÃ±a muestra de mi voz."
         try:
             await text_to_mp3(text, sample_path, voice=voice)
         except Exception as exc:
@@ -461,7 +511,7 @@ async def get_tts_sample(voice: str = "es-MX-JorgeNeural"):
 async def upload_pdf(file: UploadFile = File(...)):
     print(f"Recibiendo solicitud de subida: {file.filename}")
     try:
-        # ── Validate ──────────────────────────────────────────────────────────
+        # â”€â”€ Validate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if not supabase:
             raise HTTPException(status_code=500, detail="Supabase no configurado en el backend")
 
@@ -473,9 +523,9 @@ async def upload_pdf(file: UploadFile = File(...)):
 
         pdf_bytes = await file.read()
         if len(pdf_bytes) == 0:
-            raise HTTPException(status_code=400, detail="El archivo PDF está vacío.")
+            raise HTTPException(status_code=400, detail="El archivo PDF estÃ¡ vacÃ­o.")
 
-        # ── Extract text ───────────────────────────────────────────────────────
+        # â”€â”€ Extract text â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         try:
             text = extract_text_from_pdf(pdf_bytes, max_pages=1000)
         except Exception as exc:
@@ -484,21 +534,21 @@ async def upload_pdf(file: UploadFile = File(...)):
         if not text:
             raise HTTPException(
                 status_code=422,
-                detail="Las primeras páginas del PDF no contienen texto extraíble (puede ser un PDF escaneado).",
+                detail="Las primeras pÃ¡ginas del PDF no contienen texto extraÃ­ble (puede ser un PDF escaneado).",
             )
 
-        # ── Derive title ────────────────────────────────────────────────────────
+        # â”€â”€ Derive title â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         raw_title = file.filename.rsplit(".", 1)[0]
-        title = raw_title.replace("_", " ").replace("-", " ").strip() or "Libro sin título"
+        title = raw_title.replace("_", " ").replace("-", " ").strip() or "Libro sin tÃ­tulo"
 
-        # ── Chunking & Metadata ──────────────────────────────────────────────────
+        # â”€â”€ Chunking & Metadata â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         chunks = chunk_text(text, max_chars=3800)
         if not chunks:
             raise HTTPException(status_code=422, detail="No se pudo extraer texto suficiente.")
 
         book_id = uuid.uuid4().hex[:12]
 
-        # ── Extract Cover → upload to R2 ─────────────────────────────────────
+        # â”€â”€ Extract Cover â†’ upload to R2 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         cover_url = None
         try:
             doc = fitz.open(stream=pdf_bytes, filetype="pdf")
@@ -514,7 +564,7 @@ async def upload_pdf(file: UploadFile = File(...)):
         except Exception as e:
             print(f"[PDF] Error extracting/uploading cover: {e}")
 
-        # ── Upload text chunks to R2 ──────────────────────────────────────────
+        # â”€â”€ Upload text chunks to R2 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         async def upload_chunk(i: int, chunk: str):
             key = f"{book_id}/text/part_{i}.txt"
             await asyncio.to_thread(r2_upload, key, chunk.encode("utf-8"), "text/plain; charset=utf-8")
@@ -522,7 +572,7 @@ async def upload_pdf(file: UploadFile = File(...)):
         await asyncio.gather(*[upload_chunk(i, c) for i, c in enumerate(chunks)])
         print(f"[Upload] {len(chunks)} partes de texto subidas a R2 para {book_id}")
 
-        print(f"Subida completada con éxito: {book_id}")
+        print(f"Subida completada con Ã©xito: {book_id}")
         return JSONResponse({
             "title": title,
             "bookId": book_id,
@@ -540,7 +590,7 @@ async def upload_pdf(file: UploadFile = File(...)):
 async def clean_audio(token: str = None):
     """
     Cleans up all generated MP3 audio files from R2 storage.
-    Keeps text parts and covers — only removes cached audio to free space.
+    Keeps text parts and covers â€” only removes cached audio to free space.
     """
     expected_token = os.environ.get("CLEANUP_TOKEN") or "libris_cleanup_default_secret_2026"
     if token != expected_token:
@@ -573,7 +623,7 @@ async def clean_audio(token: str = None):
         for res in results:
             all_mp3_keys.extend(res)
 
-        # 3. Borrar en lotes de 1000 (límite de R2/S3)
+        # 3. Borrar en lotes de 1000 (lÃ­mite de R2/S3)
         deleted_count = 0
         if all_mp3_keys:
             for i in range(0, len(all_mp3_keys), 1000):
@@ -608,7 +658,7 @@ async def get_book_audio(book_id: str, part_index: int, voice: str = "es-MX-Jorg
     # 1. Check if MP3 already exists in R2
     mp3_exists = await asyncio.to_thread(r2_exists, mp3_key)
     if not mp3_exists:
-        # 2. Not cached — download text part from R2 to generate audio
+        # 2. Not cached â€” download text part from R2 to generate audio
         txt_key = f"{book_id}/text/part_{part_index}.txt"
         try:
             txt_bytes = await asyncio.to_thread(r2_download, txt_key)
@@ -661,7 +711,7 @@ async def get_book_audio(book_id: str, part_index: int, voice: str = "es-MX-Jorg
 
 
 # ---------------------------------------------------------------------------
-# Book ownership endpoints — DELETE and PATCH (only the uploader can call)
+# Book ownership endpoints â€” DELETE and PATCH (only the uploader can call)
 # ---------------------------------------------------------------------------
 
 def _verify_book_owner(book_id_hex: str, user_id: str) -> dict:
@@ -726,21 +776,21 @@ async def delete_book(book_id_hex: str, authorization: str = Header(default=None
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase no configurado")
 
-    # ── Auth: extract user from JWT ───────────────────────────────────────
+    # â”€â”€ Auth: extract user from JWT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Token de autenticación requerido")
+        raise HTTPException(status_code=401, detail="Token de autenticaciÃ³n requerido")
     token = authorization.split(" ", 1)[1]
     try:
         user_response = supabase.auth.get_user(token)
         user_id = user_response.user.id
     except Exception:
-        raise HTTPException(status_code=401, detail="Token inválido o expirado")
+        raise HTTPException(status_code=401, detail="Token invÃ¡lido o expirado")
 
-    # ── Verify ownership ──────────────────────────────────────────────────
+    # â”€â”€ Verify ownership â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     book_row = await asyncio.to_thread(_verify_book_owner, book_id_hex, user_id)
     global_book_db_id = book_row["id"]
 
-    # ── Delete all R2 files concurrently ─────────────────────────────────
+    # â”€â”€ Delete all R2 files concurrently â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     async def delete_r2_prefix(prefix: str):
         """List and delete all R2 objects under a prefix."""
         try:
@@ -761,7 +811,7 @@ async def delete_book(book_id_hex: str, authorization: str = Header(default=None
     except Exception:
         pass
 
-    # ── Delete global_books record (CASCADE removes user_books) ──────────
+    # â”€â”€ Delete global_books record (CASCADE removes user_books) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     # IMPORTANT: Must use user's JWT directly (not the anon-key supabase client)
     # so that RLS policies (auth.uid() = added_by) are respected.
     await _supabase_delete_as_user("global_books", "id", global_book_db_id, token)
@@ -777,21 +827,21 @@ async def update_book(book_id_hex: str, payload: dict, authorization: str = Head
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase no configurado")
 
-    # ── Auth: extract user from JWT ──
+    # â”€â”€ Auth: extract user from JWT â”€â”€
     if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Token de autenticación requerido")
+        raise HTTPException(status_code=401, detail="Token de autenticaciÃ³n requerido")
     token = authorization.split(" ", 1)[1]
     try:
         user_response = supabase.auth.get_user(token)
         user_id = user_response.user.id
     except Exception:
-        raise HTTPException(status_code=401, detail="Token inválido o expirado")
+        raise HTTPException(status_code=401, detail="Token invÃ¡lido o expirado")
 
-    # ── Verify ownership ──
+    # â”€â”€ Verify ownership â”€â”€
     book_row = await asyncio.to_thread(_verify_book_owner, book_id_hex, user_id)
     global_book_db_id = book_row["id"]
 
-    # ── Update global_books record ──
+    # â”€â”€ Update global_books record â”€â”€
     patch_data = {}
     if "title" in payload:
         patch_data["title"] = payload["title"]
@@ -840,8 +890,8 @@ async def chat_with_book(req: ChatBookRequest):
     system_prompt = (
         "Eres el asistente inteligente de lectura e IA conversacional de Libris Audio (desarrollado por QuantumLabs / HarD P.). "
         "Tu objetivo es ayudar al oyente a comprender mejor el libro, explicar conceptos complejos, resumir personajes o responder sus dudas. "
-        "Responde de forma clara, directa y amable en espa�ol.\n\n"
-        f"--- TEXTO DEL CAP�TULO / PARTE ACTUAL (Parte {req.part_index + 1}) ---\n"
+        "Responde de forma clara, directa y amable en espaï¿½ol.\n\n"
+        f"--- TEXTO DEL CAPï¿½TULO / PARTE ACTUAL (Parte {req.part_index + 1}) ---\n"
         f"{part_text[:4000]}\n"
         "--- FIN DEL TEXTO ---"
     )
@@ -861,7 +911,7 @@ async def chat_with_book(req: ChatBookRequest):
     ]
 
     if not openrouter_api_key:
-        return JSONResponse({"reply": f"Respuesta inteligente a '{req.user_message}': El personaje y cap�tulo actual analizado por IA. (Nota: Para conectar en vivo con modelos avanzados OpenRouter, asigna OPENROUTER_API_KEY en Render)."})
+        return JSONResponse({"reply": f"Respuesta inteligente a '{req.user_message}': El personaje y capï¿½tulo actual analizado por IA. (Nota: Para conectar en vivo con modelos avanzados OpenRouter, asigna OPENROUTER_API_KEY en Render)."})
 
     headers = {
         "Authorization": f"Bearer {openrouter_api_key}",
@@ -890,7 +940,7 @@ async def chat_with_book(req: ChatBookRequest):
                 print(f"Cascade model {model} failed: {ex}")
                 continue
 
-    return JSONResponse({"reply": "Lo siento, la IA no est� disponible en este momento. Int�ntalo de nuevo en unos instantes."})
+    return JSONResponse({"reply": "Lo siento, la IA no estï¿½ disponible en este momento. Intï¿½ntalo de nuevo en unos instantes."})
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8080, reload=True)
@@ -898,6 +948,7 @@ if __name__ == "__main__":
 
 
 
+
 
 
 

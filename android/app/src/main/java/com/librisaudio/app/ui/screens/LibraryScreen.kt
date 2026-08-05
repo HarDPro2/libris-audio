@@ -1,4 +1,4 @@
-package com.librisaudio.app.ui.screens
+ï»¿package com.librisaudio.app.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -112,7 +112,7 @@ fun LibraryScreen(
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                placeholder = { Text("Buscar por título o categoría...", color = TextMuted) },
+                placeholder = { Text("Buscar por tÃ­tulo o categorÃ­a...", color = TextMuted) },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = TextMuted) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
@@ -162,3 +162,4 @@ fun LibraryScreen(
         }
     }
 }
+
