@@ -785,6 +785,7 @@ class ChatBookRequest(BaseModel):
     part_index: int
     user_message: str
     history: list[ChatMessage] = []
+    user_openrouter_key: str | None = None
 
 @app.post("/api/chat-book")
 async def chat_with_book(req: ChatBookRequest):
@@ -816,7 +817,7 @@ async def chat_with_book(req: ChatBookRequest):
         messages.append({"role": msg.role, "content": msg.content})
     messages.append({"role": "user", "content": req.user_message})
 
-    openrouter_api_key = os.environ.get("OPENROUTER_API_KEY", "")
+    openrouter_api_key = (req.user_openrouter_key and req.user_openrouter_key.strip()) or os.environ.get("OPENROUTER_API_KEY", "")
     models_cascade = [
         "deepseek/deepseek-chat",
         "google/gemini-2.5-flash",
@@ -855,3 +856,4 @@ async def chat_with_book(req: ChatBookRequest):
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8080, reload=True)
+

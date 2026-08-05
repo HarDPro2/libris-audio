@@ -1,5 +1,6 @@
 package com.librisaudio.app.ui.components
 
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -9,12 +10,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -43,6 +46,11 @@ fun ChatWithBookDialog(
     currentPartIndex: Int,
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("LibrisAudioPrefs", Context.MODE_PRIVATE) }
+    var userApiKey by remember { mutableStateOf(prefs.getString("OPENROUTER_API_KEY", "") ?: "") }
+    var isConfigOpen by remember { mutableStateOf(false) }
+
     var inputText by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     val messages = remember {
@@ -72,6 +80,9 @@ fun ChatWithBookDialog(
                 json.put("book_id", bookId)
                 json.put("part_index", currentPartIndex)
                 json.put("user_message", userMsg)
+                if (userApiKey.isNotBlank()) {
+                    json.put("user_openrouter_key", userApiKey.trim())
+                }
 
                 val body = json.toString().toRequestBody("application/json".toMediaType())
                 val request = Request.Builder()
@@ -113,24 +124,80 @@ fun ChatWithBookDialog(
                     Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = CyanAccent)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Pregúntale a la IA (OpenRouter)",
+                        text = "Pregúntale a la IA",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
                 }
-                IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = TextMuted)
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { isConfigOpen = !isConfigOpen }) {
+                        Icon(
+                            Icons.Default.Key,
+                            contentDescription = "Configurar API Key",
+                            tint = if (userApiKey.isNotBlank()) CyanAccent else TextMuted
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = TextMuted)
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            // User API Key Configuration Panel
+            if (isConfigOpen) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardSurface),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Text(
+                            text = "?? Tu API Key gratuita de OpenRouter",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = CyanAccent
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Pega tu clave para usar tu cuota personal en cascada (DeepSeek, Gemini, Llama 3.3).",
+                            fontSize = 11.sp,
+                            color = TextMuted
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = userApiKey,
+                            onValueChange = {
+                                userApiKey = it
+                                prefs.edit().putString("OPENROUTER_API_KEY", it).apply()
+                            },
+                            placeholder = { Text("sk-or-v1-...", fontSize = 12.sp, color = TextMuted) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = CyanAccent,
+                                unfocusedBorderColor = Color(0xFF334155),
+                                focusedContainerColor = Color(0xFF0F172A),
+                                unfocusedContainerColor = Color(0xFF0F172A),
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White
+                            )
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             // Messages Container
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(260.dp),
+                    .height(240.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(messages) { item ->
