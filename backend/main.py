@@ -22,6 +22,7 @@ except ImportError as ex:
 import uvicorn
 import httpx
 from gtts import gTTS
+from pydantic import BaseModel
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse, StreamingResponse
