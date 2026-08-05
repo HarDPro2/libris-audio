@@ -45,6 +45,8 @@ class MainActivity : ComponentActivity() {
         authViewModel.init(this)
         // Handle deep link if app was launched via OAuth redirect
         handleAuthDeepLink(intent)
+        // Render the UI
+        buildUi()
     }
 
     override fun onNewIntent(intent: Intent) {
