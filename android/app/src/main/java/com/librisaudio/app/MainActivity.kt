@@ -1,27 +1,32 @@
-package com.librisaudio.app
+﻿package com.librisaudio.app
 
 import android.os.Bundle
+import androidx.activity.ComponentActivity
 import androidx.activity.viewModels
-import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Book
+import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import com.librisaudio.app.data.model.MusicTrack
 import com.librisaudio.app.ui.components.BottomPlayerBar
-import com.librisaudio.app.ui.components.StatsDialog
-import com.librisaudio.app.ui.screens.CarModeScreen
-import com.librisaudio.app.ui.screens.LibraryScreen
-import com.librisaudio.app.ui.screens.PlayerScreen
+import com.librisaudio.app.ui.screens.*
 import com.librisaudio.app.ui.theme.AppThemePreset
 import com.librisaudio.app.ui.theme.LibrisAudioTheme
 import com.librisaudio.app.viewmodel.PlayerViewModel
 
-class MainActivity : AppCompatActivity() {
+enum class MainTab {
+    LIBRARY, HISTORY, UPLOAD, SETTINGS
+}
+
+class MainActivity : ComponentActivity() {
 
     private val playerViewModel: PlayerViewModel by viewModels()
 
@@ -31,6 +36,7 @@ class MainActivity : AppCompatActivity() {
 
         setContent {
             var currentTheme by remember { mutableStateOf(AppThemePreset.CYBERPUNK) }
+            var selectedTab by remember { mutableStateOf(MainTab.LIBRARY) }
             var selectedMusicTrack by remember { mutableStateOf<MusicTrack?>(null) }
             var backgroundVolume by remember { mutableStateOf(0.25f) }
             var isCarModeOpen by remember { mutableStateOf(false) }
@@ -46,30 +52,94 @@ class MainActivity : AppCompatActivity() {
 
                 var isFullPlayerOpen by remember { mutableStateOf(false) }
 
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                Scaffold(
+                    modifier = Modifier.fillMaxSize(),
+                    bottomBar = {
+                        if (!isFullPlayerOpen && !isCarModeOpen) {
+                            Column {
+                                if (currentBook != null) {
+                                    BottomPlayerBar(
+                                        book = currentBook!!,
+                                        isPlaying = isPlaying,
+                                        currentPartIndex = currentPartIndex,
+                                        onTogglePlay = { playerViewModel.togglePlayPause() },
+                                        onNextPart = { playerViewModel.nextPart() },
+                                        onOpenFullPlayer = { isFullPlayerOpen = true }
+                                    )
+                                }
+
+                                NavigationBar(
+                                    containerColor = Color(0xEE0F172A),
+                                    contentColor = Color.White
+                                ) {
+                                    NavigationBarItem(
+                                        selected = selectedTab == MainTab.LIBRARY,
+                                        onClick = { selectedTab = MainTab.LIBRARY },
+                                        icon = { Icon(Icons.Default.Book, contentDescription = "Biblioteca") },
+                                        label = { Text("Biblioteca") },
+                                        colors = NavigationBarItemDefaults.colors(
+                                            indicatorColor = currentTheme.primary
+                                        )
+                                    )
+                                    NavigationBarItem(
+                                        selected = selectedTab == MainTab.HISTORY,
+                                        onClick = { selectedTab = MainTab.HISTORY },
+                                        icon = { Icon(Icons.Default.History, contentDescription = "Historial") },
+                                        label = { Text("Historial") },
+                                        colors = NavigationBarItemDefaults.colors(
+                                            indicatorColor = currentTheme.primary
+                                        )
+                                    )
+                                    NavigationBarItem(
+                                        selected = selectedTab == MainTab.UPLOAD,
+                                        onClick = { selectedTab = MainTab.UPLOAD },
+                                        icon = { Icon(Icons.Default.CloudUpload, contentDescription = "Subir PDF") },
+                                        label = { Text("Subir PDF") },
+                                        colors = NavigationBarItemDefaults.colors(
+                                            indicatorColor = currentTheme.primary
+                                        )
+                                    )
+                                    NavigationBarItem(
+                                        selected = selectedTab == MainTab.SETTINGS,
+                                        onClick = { selectedTab = MainTab.SETTINGS },
+                                        icon = { Icon(Icons.Default.Settings, contentDescription = "Ajustes") },
+                                        label = { Text("Ajustes") },
+                                        colors = NavigationBarItemDefaults.colors(
+                                            indicatorColor = currentTheme.primary
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+                ) { innerPadding ->
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(innerPadding)
                     ) {
-                        LibraryScreen(
-                            books = books,
-                            currentTheme = currentTheme,
-                            onSelectTheme = { newTheme -> currentTheme = newTheme },
-                            onBookSelect = { selectedBook ->
-                                playerViewModel.playBook(selectedBook)
-                            }
-                        )
-
-                        if (currentBook != null && !isFullPlayerOpen && !isCarModeOpen) {
-                            BottomPlayerBar(
-                                book = currentBook!!,
-                                isPlaying = isPlaying,
-                                currentPartIndex = currentPartIndex,
-                                onTogglePlay = { playerViewModel.togglePlayPause() },
-                                onNextPart = { playerViewModel.nextPart() },
-                                onOpenFullPlayer = { isFullPlayerOpen = true },
-                                modifier = Modifier.align(Alignment.BottomCenter)
+                        when (selectedTab) {
+                            MainTab.LIBRARY -> LibraryScreen(
+                                books = books,
+                                currentTheme = currentTheme,
+                                onSelectTheme = { newTheme -> currentTheme = newTheme },
+                                onBookSelect = { selectedBook -> playerViewModel.playBook(selectedBook) }
+                            )
+                            MainTab.HISTORY -> HistoryScreen(
+                                books = books,
+                                currentTheme = currentTheme,
+                                onBookSelect = { selectedBook -> playerViewModel.playBook(selectedBook) }
+                            )
+                            MainTab.UPLOAD -> UploadScreen(
+                                currentTheme = currentTheme,
+                                onUploadSuccess = {
+                                    playerViewModel.loadBooks()
+                                    selectedTab = MainTab.LIBRARY
+                                }
+                            )
+                            MainTab.SETTINGS -> SettingsScreen(
+                                currentTheme = currentTheme,
+                                onSelectTheme = { newTheme -> currentTheme = newTheme }
                             )
                         }
 
