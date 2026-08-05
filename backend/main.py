@@ -775,5 +775,83 @@ async def update_book(book_id_hex: str, payload: dict, authorization: str = Head
 
     return {"status": "success", "message": "Libro actualizado"}
 
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+class ChatBookRequest(BaseModel):
+    book_id: str
+    part_index: int
+    user_message: str
+    history: list[ChatMessage] = []
+
+@app.post("/api/chat-book")
+async def chat_with_book(req: ChatBookRequest):
+    """
+    OpenRouter Cascade LLM Assistant for asking questions about the book.
+    Firmado por: HarD P. / QuantumLabs-by-HarDP
+    """
+    part_key = f"parts/{req.book_id}/part_{req.part_index}.json"
+    part_text = ""
+    try:
+        data = r2_download(part_key)
+        if data:
+            part_json = json.loads(data.decode("utf-8"))
+            part_text = part_json.get("text", "")
+    except Exception as e:
+        print(f"Could not load part text for chat: {e}")
+
+    system_prompt = (
+        "Eres el asistente inteligente de lectura e IA conversacional de Libris Audio (desarrollado por QuantumLabs / HarD P.). "
+        "Tu objetivo es ayudar al oyente a comprender mejor el libro, explicar conceptos complejos, resumir personajes o responder sus dudas. "
+        "Responde de forma clara, directa y amable en español.\n\n"
+        f"--- TEXTO DEL CAPÍTULO / PARTE ACTUAL (Parte {req.part_index + 1}) ---\n"
+        f"{part_text[:4000]}\n"
+        "--- FIN DEL TEXTO ---"
+    )
+
+    messages = [{"role": "system", "content": system_prompt}]
+    for msg in (req.history or []):
+        messages.append({"role": msg.role, "content": msg.content})
+    messages.append({"role": "user", "content": req.user_message})
+
+    openrouter_api_key = os.environ.get("OPENROUTER_API_KEY", "")
+    models_cascade = [
+        "deepseek/deepseek-chat",
+        "google/gemini-2.5-flash",
+        "meta-llama/llama-3.3-70b-instruct"
+    ]
+
+    if not openrouter_api_key:
+        return JSONResponse({"reply": f"Respuesta inteligente a '{req.user_message}': El personaje y capítulo actual analizado por IA. (Nota: Para conectar en vivo con modelos avanzados OpenRouter, asigna OPENROUTER_API_KEY en Render)."})
+
+    headers = {
+        "Authorization": f"Bearer {openrouter_api_key}",
+        "HTTP-Referer": "https://libris-audio.vercel.app",
+        "X-Title": "Libris Audio - QuantumLabs",
+        "Content-Type": "application/json"
+    }
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        for model in models_cascade:
+            try:
+                payload = {
+                    "model": model,
+                    "messages": messages,
+                    "max_tokens": 500,
+                    "temperature": 0.7
+                }
+                res = await client.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
+                if res.status_code == 200:
+                    resp_data = res.json()
+                    reply = resp_data["choices"][0]["message"]["content"]
+                    return JSONResponse({"reply": reply, "model_used": model})
+            except Exception as ex:
+                print(f"Cascade model {model} failed: {ex}")
+                continue
+
+    return JSONResponse({"reply": "Lo siento, la IA no está disponible en este momento. Inténtalo de nuevo en unos instantes."})
+
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8080, reload=True)

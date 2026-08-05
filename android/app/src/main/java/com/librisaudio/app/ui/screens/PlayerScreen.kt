@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Bookmark
@@ -38,6 +39,7 @@ import com.librisaudio.app.ui.components.AnimatedBackground
 import com.librisaudio.app.ui.components.AudioVisualizer
 import com.librisaudio.app.ui.components.BookmarkDialog
 import com.librisaudio.app.ui.components.BookmarkItem
+import com.librisaudio.app.ui.components.ChatWithBookDialog
 import com.librisaudio.app.ui.components.MusicSelectorDialog
 import com.librisaudio.app.ui.components.SleepTimerDialog
 import com.librisaudio.app.ui.components.SleepTimerOption
@@ -80,6 +82,7 @@ fun PlayerScreen(
     var isMusicDialogVisible by remember { mutableStateOf(false) }
     var isSleepTimerVisible by remember { mutableStateOf(false) }
     var isBookmarkVisible by remember { mutableStateOf(false) }
+    var isAiChatVisible by remember { mutableStateOf(false) }
 
     var selectedSleepTimer by remember { mutableStateOf(SleepTimerOption.OFF) }
     var sleepTimerSeconds by remember { mutableStateOf(0L) }
@@ -153,8 +156,11 @@ fun PlayerScreen(
                     }
                 }
 
-                // Top Action Icons (Car Mode, Sleep Timer, Bookmarks, Music)
+                // Top Action Icons (AI Chat, Car Mode, Sleep Timer, Bookmarks, Music)
                 Row {
+                    IconButton(onClick = { isAiChatVisible = true }) {
+                        Icon(Icons.Default.AutoAwesome, contentDescription = "Preguntale a la IA", tint = CyanAccent)
+                    }
                     IconButton(onClick = onOpenCarMode) {
                         Icon(Icons.Default.DirectionsCar, contentDescription = "Modo Auto", tint = Color.White)
                     }
@@ -317,7 +323,6 @@ fun PlayerScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Speed Pills
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.fillMaxWidth(),
@@ -347,6 +352,14 @@ fun PlayerScreen(
         }
 
         // Dialogs
+        if (isAiChatVisible) {
+            ChatWithBookDialog(
+                bookId = book.bookId,
+                currentPartIndex = currentPartIndex,
+                onDismiss = { isAiChatVisible = false }
+            )
+        }
+
         if (isMusicDialogVisible) {
             MusicSelectorDialog(
                 selectedTrack = selectedMusicTrack,
