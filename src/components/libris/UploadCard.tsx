@@ -14,7 +14,7 @@ import {
 
 import { Button } from '@/components/ui/button';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL || 'https://libris-audio-backend-856706599879.us-west1.run.app';
 
 export function UploadCard() {
   const fileRef = useRef<HTMLInputElement>(null);

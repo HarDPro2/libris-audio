@@ -153,7 +153,7 @@ export async function checkDuplicateHash(hash: string): Promise<boolean> {
   return (data?.length ?? 0) > 0;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL || 'https://libris-audio-backend-856706599879.us-west1.run.app';
 
 // 8. Permanently delete a book from the global catalog (uploader only)
 export async function deleteGlobalBook(bookIdHex: string): Promise<void> {
