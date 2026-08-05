@@ -19,32 +19,27 @@ import java.util.concurrent.TimeUnit
 interface AppwriteAuthService {
 
     // Login with email+password — returns session
+    // Content-Type is set automatically by Retrofit for @Body; X-Appwrite-Project via interceptor
     @POST("v1/account/sessions/email")
     suspend fun loginWithEmail(
-        @Header("X-Appwrite-Project") projectId: String,
-        @Header("Content-Type") contentType: String = "application/json",
         @Body body: AppwriteEmailLoginBody
     ): AppwriteSessionResponse
 
     // Register new account
     @POST("v1/account")
     suspend fun registerAccount(
-        @Header("X-Appwrite-Project") projectId: String,
-        @Header("Content-Type") contentType: String = "application/json",
         @Body body: AppwriteRegisterBody
     ): AppwriteUserResponse
 
     // Get current account info — requires session cookie
     @GET("v1/account")
     suspend fun getAccount(
-        @Header("X-Appwrite-Project") projectId: String,
         @Header("Cookie") cookieHeader: String
     ): AppwriteUserResponse
 
     // Delete session (logout) — use "current" as sessionId path
     @DELETE("v1/account/sessions/{sessionId}")
     suspend fun deleteSession(
-        @Header("X-Appwrite-Project") projectId: String,
         @Header("Cookie") cookieHeader: String,
         @Path("sessionId") sessionIdPath: String
     )
@@ -54,20 +49,19 @@ object AppwriteAuthClient {
     const val APPWRITE_ENDPOINT   = "https://nyc.cloud.appwrite.io/"
     const val APPWRITE_PROJECT_ID = "6a72f5d6002eeff78bc2"
 
-    // Google OAuth URL — opens in browser, redirects back via deep link
-    // Appwrite requires the scheme: appwrite-callback-{projectId}://
-    fun googleOAuthUrl(): String =
-        "${APPWRITE_ENDPOINT}v1/account/sessions/oauth2/google" +
-        "?project=${APPWRITE_PROJECT_ID}" +
-        "&success=appwrite-callback-${APPWRITE_PROJECT_ID}://auth/oauth2/success" +
-        "&failure=appwrite-callback-${APPWRITE_PROJECT_ID}://auth/oauth2/failure"
-
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .addInterceptor(HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
         })
+        // Inject X-Appwrite-Project on every request — avoids broken default params in Retrofit interfaces
+        .addInterceptor { chain ->
+            val request = chain.request().newBuilder()
+                .addHeader("X-Appwrite-Project", APPWRITE_PROJECT_ID)
+                .build()
+            chain.proceed(request)
+        }
         .build()
 
     val authService: AppwriteAuthService by lazy {
