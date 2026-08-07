@@ -15,7 +15,8 @@ data class AppwriteUserResponse(
 
 data class AppwriteSessionResponse(
     val `$id`: String,
-    val userId: String
+    val userId: String,
+    val secret: String? = null
 )
 
 data class AppwriteEmailLoginBody(

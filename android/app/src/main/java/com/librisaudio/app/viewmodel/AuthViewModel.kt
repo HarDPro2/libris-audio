@@ -186,10 +186,12 @@ class AuthViewModel : ViewModel() {
                         secret = secret
                     )
                 )
-                Log.d("AuthViewModel", "Session created id=${sessionResp.`$id`}")
+                Log.d("AuthViewModel", "Session created id=${sessionResp.`$id`} hasSecret=${!sessionResp.secret.isNullOrBlank()}")
 
-                // 2. Fetch account info with the session cookie
-                val cookieValue = "a_session_${AppwriteAuthClient.APPWRITE_PROJECT_ID}=${sessionResp.`$id`}"
+                // 2. Fetch account info with the session cookie.
+                // The token flow returns a `secret` — that's the actual cookie value.
+                val cookieToken = sessionResp.secret?.takeIf { it.isNotBlank() } ?: sessionResp.`$id`
+                val cookieValue = "a_session_${AppwriteAuthClient.APPWRITE_PROJECT_ID}=${cookieToken}"
                 val userResp = AppwriteAuthClient.authService.getAccount(cookieHeader = cookieValue)
                 Log.d("AuthViewModel", "OAuth account OK: ${userResp.email}")
 
@@ -197,7 +199,7 @@ class AuthViewModel : ViewModel() {
                     userId    = userResp.`$id`,
                     email     = userResp.email,
                     name      = userResp.name.ifBlank { userResp.email.substringBefore("@") },
-                    sessionId = sessionResp.`$id`
+                    sessionId = cookieToken
                 )
                 saveSession(session)
                 _authState.value = AuthState.Authenticated(session)
