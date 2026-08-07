@@ -57,6 +57,22 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _isTextLoading = MutableStateFlow(false)
     val isTextLoading: StateFlow<Boolean> = _isTextLoading.asStateFlow()
 
+    // ── Tiempos de palabra (karaoke / resaltado sincronizado) ─────────────
+    private val _wordTimings = MutableStateFlow<List<com.librisaudio.app.data.model.WordTiming>>(emptyList())
+    val wordTimings: StateFlow<List<com.librisaudio.app.data.model.WordTiming>> = _wordTimings.asStateFlow()
+
+    /** Carga los tiempos de palabra de una parte para la voz actual. */
+    fun loadTiming(bookId: String, partIndex: Int, voice: String) {
+        viewModelScope.launch {
+            _wordTimings.value = emptyList()
+            try {
+                _wordTimings.value = ApiClient.backendService.getTiming(bookId, partIndex, voice)
+            } catch (e: Exception) {
+                _wordTimings.value = emptyList()  // sin karaoke si falla — el texto se muestra normal
+            }
+        }
+    }
+
     // ── Listening stats ───────────────────────────────────────────────────
     /** Today's listening minutes (persisted by calendar date). */
     val todayMinutes: Int
@@ -140,6 +156,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         player.prepare()
         player.seekTo(pos)
         if (wasPlaying) player.play()
+        // Los tiempos cambian con la voz — recargar
+        loadTiming(book.bookId, _currentPartIndex.value, voiceId)
     }
 
     init {
@@ -255,8 +273,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             else it
         }
 
-        // Load text for Libro 3D mode (non-blocking, runs in background)
+        // Load text + word timings for Libro 3D / karaoke (non-blocking)
         loadPartText(book.bookId, partIndex)
+        loadTiming(book.bookId, partIndex, _selectedVoice.value)
 
         val audioUrl = book.getAudioUrl(partIndex, _selectedVoice.value)
         val mediaItem = MediaItem.Builder()

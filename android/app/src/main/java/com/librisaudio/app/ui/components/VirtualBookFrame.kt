@@ -5,6 +5,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -22,12 +23,17 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.librisaudio.app.data.model.Book
+import com.librisaudio.app.data.model.WordTiming
 
 /**
  * Estilos de encuadernación por género. Cada uno con degradado de tapa,
@@ -124,6 +130,9 @@ fun VirtualBookFrame(
     currentPartIndex: Int,
     isPlaying: Boolean,
     isTextLoading: Boolean = false,
+    currentPositionMs: Long = 0L,
+    wordTimings: List<WordTiming> = emptyList(),
+    onSeekTo: (Long) -> Unit = {},
     onNextPart: () -> Unit,
     onPreviousPart: () -> Unit,
     modifier: Modifier = Modifier
@@ -131,6 +140,7 @@ fun VirtualBookFrame(
     var selectedStyle by remember { mutableStateOf(BookBindingStyle.CLASSIC) }
     var fontSizeSp by remember { mutableStateOf(16) }
     var isSerifFont by remember { mutableStateOf(true) }
+    var highlightOn by remember { mutableStateOf(true) }
 
     var flipAngle by remember { mutableStateOf(0f) }
     val animatedAngle by animateFloatAsState(
@@ -186,6 +196,18 @@ fun VirtualBookFrame(
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Resaltado sincronizado (karaoke) on/off
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (highlightOn) selectedStyle.accentColor else Color(0x33FFFFFF))
+                        .clickable { highlightOn = !highlightOn }
+                        .padding(horizontal = 8.dp, vertical = 5.dp)
+                ) {
+                    Text("✨ Sync", fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                        color = if (highlightOn) Color.White else Color(0xFF94A3B8))
+                }
+                Spacer(Modifier.width(6.dp))
                 IconButton(onClick = { if (fontSizeSp > 12) fontSizeSp -= 2 }) {
                     Text("A-", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold)
                 }
@@ -245,7 +267,6 @@ fun VirtualBookFrame(
                         rotationY = animatedAngle
                         cameraDistance = 12 * density
                     }
-                    .verticalScroll(rememberScrollState())
             ) {
                 // Placa ornamental con emblema + género
                 Box(
@@ -300,30 +321,32 @@ fun VirtualBookFrame(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
 
-                if (isTextLoading) {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().height(200.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            CircularProgressIndicator(color = selectedStyle.accentColor, modifier = Modifier.size(32.dp))
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text("Cargando texto...", fontSize = 13.sp,
-                                color = selectedStyle.textColor.copy(alpha = 0.6f), textAlign = TextAlign.Center)
+                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    if (isTextLoading) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator(color = selectedStyle.accentColor, modifier = Modifier.size(32.dp))
+                                Spacer(Modifier.height(12.dp))
+                                Text("Cargando texto...", fontSize = 13.sp,
+                                    color = selectedStyle.textColor.copy(alpha = 0.6f), textAlign = TextAlign.Center)
+                            }
                         }
+                    } else {
+                        ReadingText(
+                            text = textPart,
+                            timings = wordTimings,
+                            currentPositionMs = currentPositionMs,
+                            highlightOn = highlightOn,
+                            accent = selectedStyle.accentColor,
+                            textColor = selectedStyle.textColor,
+                            fontSizeSp = fontSizeSp,
+                            isSerif = isSerifFont,
+                            onSeekTo = onSeekTo
+                        )
                     }
-                } else {
-                    Text(
-                        text = textPart.ifEmpty { "Selecciona un libro y pulsa reproducir para ver el texto aquí." },
-                        fontSize = fontSizeSp.sp,
-                        fontFamily = if (isSerifFont) FontFamily.Serif else FontFamily.Default,
-                        lineHeight = (fontSizeSp * 1.6).sp,
-                        color = selectedStyle.textColor,
-                        modifier = Modifier.fillMaxWidth()
-                    )
                 }
 
-                Spacer(modifier = Modifier.height(28.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Text("❧ ${currentPartIndex + 1} ❧", fontSize = 12.sp,
                         color = selectedStyle.accentColor, fontWeight = FontWeight.Bold)
@@ -346,6 +369,128 @@ fun VirtualBookFrame(
                 Icon(Icons.Default.NavigateNext, contentDescription = "Siguiente página", tint = selectedStyle.textColor)
             }
         }
+    }
+}
+
+// ── Texto de lectura con resaltado sincronizado (karaoke) ──────────────────
+private data class WordSpan(val start: Int, val end: Int, val timeStart: Long)
+
+private fun buildWordSpans(text: String, timings: List<WordTiming>): List<WordSpan> {
+    val out = ArrayList<WordSpan>(timings.size)
+    var cursor = 0
+    for (t in timings) {
+        val w = t.w
+        if (w.isBlank()) continue
+        val idx = text.indexOf(w, cursor)
+        if (idx >= 0) {
+            out.add(WordSpan(idx, idx + w.length, t.s))
+            cursor = idx + w.length
+        }
+    }
+    return out
+}
+
+private fun currentSpanIndex(spans: List<WordSpan>, posMs: Long): Int {
+    if (spans.isEmpty()) return -1
+    var lo = 0; var hi = spans.size - 1; var ans = -1
+    while (lo <= hi) {
+        val m = (lo + hi) / 2
+        if (spans[m].timeStart <= posMs) { ans = m; lo = m + 1 } else hi = m - 1
+    }
+    return ans
+}
+
+@Composable
+private fun ReadingText(
+    text: String,
+    timings: List<WordTiming>,
+    currentPositionMs: Long,
+    highlightOn: Boolean,
+    accent: Color,
+    textColor: Color,
+    fontSizeSp: Int,
+    isSerif: Boolean,
+    onSeekTo: (Long) -> Unit
+) {
+    if (text.isEmpty()) {
+        Text(
+            "Selecciona un libro y pulsa reproducir para ver el texto aquí.",
+            fontSize = fontSizeSp.sp,
+            fontFamily = if (isSerif) FontFamily.Serif else FontFamily.Default,
+            color = textColor.copy(alpha = 0.7f)
+        )
+        return
+    }
+
+    // Sin karaoke (sin tiempos o desactivado): texto plano scrolleable
+    if (timings.isEmpty() || !highlightOn) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+            Text(
+                text = text,
+                fontSize = fontSizeSp.sp,
+                fontFamily = if (isSerif) FontFamily.Serif else FontFamily.Default,
+                lineHeight = (fontSizeSp * 1.6).sp,
+                color = textColor,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        return
+    }
+
+    val spans = remember(text, timings) { buildWordSpans(text, timings) }
+    val currentIndex = remember(spans, currentPositionMs) { currentSpanIndex(spans, currentPositionMs) }
+    var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
+    val scroll = rememberScrollState()
+
+    val annotated = remember(text, spans, currentIndex, accent, textColor) {
+        buildAnnotatedString {
+            append(text)
+            if (currentIndex in spans.indices) {
+                val sp = spans[currentIndex]
+                addStyle(
+                    SpanStyle(
+                        background = accent.copy(alpha = 0.30f),
+                        color = textColor,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    sp.start.coerceIn(0, text.length),
+                    sp.end.coerceIn(0, text.length)
+                )
+            }
+        }
+    }
+
+    // Auto-scroll: mantener la palabra actual visible
+    LaunchedEffect(currentIndex) {
+        val l = layout ?: return@LaunchedEffect
+        if (currentIndex in spans.indices) {
+            val cs = spans[currentIndex].start.coerceIn(0, (text.length - 1).coerceAtLeast(0))
+            val line = l.getLineForOffset(cs)
+            val top = l.getLineTop(line).toInt()
+            scroll.animateScrollTo((top - 160).coerceAtLeast(0))
+        }
+    }
+
+    Box(Modifier.fillMaxSize().verticalScroll(scroll)) {
+        Text(
+            text = annotated,
+            fontSize = fontSizeSp.sp,
+            fontFamily = if (isSerif) FontFamily.Serif else FontFamily.Default,
+            lineHeight = (fontSizeSp * 1.6).sp,
+            color = textColor,
+            onTextLayout = { layout = it },
+            modifier = Modifier
+                .fillMaxWidth()
+                .pointerInput(spans) {
+                    detectTapGestures { pos ->
+                        val l = layout ?: return@detectTapGestures
+                        val off = l.getOffsetForPosition(pos)
+                        val sp = spans.firstOrNull { off >= it.start && off < it.end }
+                            ?: spans.lastOrNull { it.start <= off }
+                        if (sp != null) onSeekTo(sp.timeStart)
+                    }
+                }
+        )
     }
 }
 

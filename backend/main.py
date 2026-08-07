@@ -285,33 +285,48 @@ def _split_for_tts(text: str, max_chars: int = 1200) -> list[str]:
     return [seg for seg in segments if seg]
 
 
-async def _edge_tts_bytes(text: str, voice: str) -> bytes:
+async def _edge_tts_bytes_and_words(text: str, voice: str):
+    """Genera audio y captura los tiempos de cada palabra (WordBoundary).
+    Devuelve (audio_bytes, words) con words = [{"w":str,"s":ms,"e":ms}, ...]
+    en milisegundos relativos al inicio de este segmento."""
     communicate = edge_tts.Communicate(text, voice)
     audio = bytearray()
+    words = []
     async for chunk in communicate.stream():
-        if chunk.get("type") == "audio" and chunk.get("data"):
+        ctype = chunk.get("type")
+        if ctype == "audio" and chunk.get("data"):
             audio.extend(chunk["data"])
-    return bytes(audio)
+        elif ctype == "WordBoundary":
+            start_ms = chunk.get("offset", 0) / 10000.0    # ticks de 100 ns -> ms
+            dur_ms   = chunk.get("duration", 0) / 10000.0
+            words.append({"w": chunk.get("text", ""), "s": start_ms, "e": start_ms + dur_ms})
+    return bytes(audio), words
 
 
-async def text_to_mp3(text: str, output_path: Path, voice: str = "es-MX-JorgeNeural"):
-    """Genera MP3 completo con reintentos y fallback a gTTS por segmento."""
+async def text_to_mp3(text: str, output_path: Path, voice: str = "es-MX-JorgeNeural",
+                      timing_path: Path | None = None):
+    """Genera MP3 completo con reintentos y fallback a gTTS por segmento.
+    Si timing_path se indica, guarda un JSON con los tiempos de cada palabra
+    (para el resaltado sincronizado tipo karaoke en la app)."""
     segments = _split_for_tts(text)
     if not segments:
         segments = [(text or ".").strip() or "."]
 
     out = bytearray()
+    timings = []
+    base_ms = 0.0   # desplazamiento acumulado por segmentos previos
 
     for seg in segments:
         min_expected = max(800, len(seg) * 8)
         seg_bytes = b""
+        seg_words = []
 
         for attempt in range(3):
             try:
-                seg_bytes = await _edge_tts_bytes(seg, voice)
+                seg_bytes, seg_words = await _edge_tts_bytes_and_words(seg, voice)
             except Exception as e:
                 print(f"[TTS] edge-tts error (intento {attempt + 1}/3): {e}")
-                seg_bytes = b""
+                seg_bytes, seg_words = b"", []
             if len(seg_bytes) >= min_expected:
                 break
             print(f"[TTS] Segmento muy corto ({len(seg_bytes)}B < {min_expected}B); reintento {attempt + 1}/3")
@@ -326,9 +341,18 @@ async def text_to_mp3(text: str, output_path: Path, voice: str = "es-MX-JorgeNeu
                 return buf.getvalue()
             try:
                 seg_bytes = await asyncio.to_thread(generate_gtts_bytes)
+                seg_words = []   # gTTS no entrega tiempos de palabra
             except Exception as e:
                 print(f"[TTS] gTTS fallback también falló: {e}")
-                seg_bytes = b""
+                seg_bytes, seg_words = b"", []
+
+        # Acumular tiempos desplazados por la duración de segmentos anteriores
+        for w in seg_words:
+            timings.append({"w": w["w"], "s": int(w["s"] + base_ms), "e": int(w["e"] + base_ms)})
+        if seg_words:
+            base_ms += seg_words[-1]["e"] + 120.0    # pequeño gap entre segmentos
+        else:
+            base_ms += max(600.0, len(seg) * 55.0)   # estimación si no hubo tiempos
 
         out.extend(seg_bytes)
 
@@ -337,6 +361,13 @@ async def text_to_mp3(text: str, output_path: Path, voice: str = "es-MX-JorgeNeu
 
     with open(output_path, "wb") as f:
         f.write(out)
+
+    if timing_path is not None:
+        try:
+            with open(timing_path, "w", encoding="utf-8") as f:
+                json.dump(timings, f, ensure_ascii=False)
+        except Exception as e:
+            print(f"[TTS] No se pudo escribir el archivo de tiempos: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -568,9 +599,11 @@ async def get_book_audio(book_id: str, part_index: int, voice: str = "es-MX-Jorg
             raise HTTPException(status_code=404, detail="Parte de texto no encontrada en R2")
 
         print(f"[Audio] Generando MP3: {mp3_key}")
-        local_mp3 = Path(f"/tmp/{book_id}_part_{part_index}_{safe_voice}.mp3")
+        local_mp3    = Path(f"/tmp/{book_id}_part_{part_index}_{safe_voice}.mp3")
+        local_timing = Path(f"/tmp/{book_id}_part_{part_index}_{safe_voice}.json")
+        timing_key   = f"{book_id}/timing/part_{part_index}_{safe_voice}.json"
         try:
-            await text_to_mp3(text, local_mp3, voice=voice)
+            await text_to_mp3(text, local_mp3, voice=voice, timing_path=local_timing)
         except Exception as exc:
             import traceback; traceback.print_exc()
             raise HTTPException(status_code=500, detail=f"Error al generar audio: {exc}")
@@ -578,13 +611,18 @@ async def get_book_audio(book_id: str, part_index: int, voice: str = "es-MX-Jorg
         try:
             with open(local_mp3, "rb") as f:
                 await asyncio.to_thread(r2_upload, mp3_key, f.read(), "audio/mpeg")
+            # Subir también los tiempos de palabra (karaoke)
+            if local_timing.exists():
+                with open(local_timing, "rb") as f:
+                    await asyncio.to_thread(r2_upload, timing_key, f.read(), "application/json")
         except Exception as e:
-            print(f"[Audio] Error subiendo MP3 a R2: {e}")
+            print(f"[Audio] Error subiendo a R2: {e}")
         finally:
-            try:
-                local_mp3.unlink()
-            except Exception:
-                pass
+            for p in (local_mp3, local_timing):
+                try:
+                    p.unlink()
+                except Exception:
+                    pass
 
     try:
         def stream_r2():
@@ -603,6 +641,59 @@ async def get_book_audio(book_id: str, part_index: int, voice: str = "es-MX-Jorg
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Error al transmitir audio: {exc}")
+
+
+# ---------------------------------------------------------------------------
+# Tiempos de palabra (para resaltado sincronizado / karaoke en la app)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/timing/{book_id}/{part_index}")
+async def get_book_timing(book_id: str, part_index: int, voice: str = "es-MX-JorgeNeural"):
+    """Devuelve [{"w":palabra,"s":inicio_ms,"e":fin_ms}, ...] para resaltar
+    cada palabra mientras suena el audio. Genera el JSON (y el MP3) si falta."""
+    if not R2_ENDPOINT_URL:
+        raise HTTPException(status_code=500, detail="Cloudflare R2 no configurado")
+
+    safe_voice = sanitize_filename(voice)
+    timing_key = f"{book_id}/timing/part_{part_index}_{safe_voice}.json"
+
+    exists = await asyncio.to_thread(r2_exists, timing_key)
+    if not exists:
+        txt_key = f"{book_id}/text/part_{part_index}.txt"
+        try:
+            txt_bytes = await asyncio.to_thread(r2_download, txt_key)
+            text = txt_bytes.decode("utf-8")
+        except Exception:
+            raise HTTPException(status_code=404, detail="Parte de texto no encontrada en R2")
+
+        local_mp3    = Path(f"/tmp/{book_id}_t{part_index}_{safe_voice}.mp3")
+        local_timing = Path(f"/tmp/{book_id}_t{part_index}_{safe_voice}.json")
+        try:
+            await text_to_mp3(text, local_mp3, voice=voice, timing_path=local_timing)
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Error generando tiempos: {exc}")
+
+        mp3_key = f"{book_id}/audio/part_{part_index}_{safe_voice}.mp3"
+        try:
+            if not await asyncio.to_thread(r2_exists, mp3_key):
+                with open(local_mp3, "rb") as f:
+                    await asyncio.to_thread(r2_upload, mp3_key, f.read(), "audio/mpeg")
+            with open(local_timing, "rb") as f:
+                await asyncio.to_thread(r2_upload, timing_key, f.read(), "application/json")
+        except Exception as e:
+            print(f"[Timing] Error subiendo a R2: {e}")
+        finally:
+            for p in (local_mp3, local_timing):
+                try:
+                    p.unlink()
+                except Exception:
+                    pass
+
+    try:
+        data = await asyncio.to_thread(r2_download, timing_key)
+        return JSONResponse(content=json.loads(data.decode("utf-8")))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Error al leer los tiempos: {exc}")
 
 
 # ---------------------------------------------------------------------------

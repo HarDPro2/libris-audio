@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.librisaudio.app.data.model.Book
 import com.librisaudio.app.data.model.MusicTrack
+import com.librisaudio.app.data.model.WordTiming
 import com.librisaudio.app.ui.components.AnimatedBackground
 import com.librisaudio.app.ui.components.AudioVisualizer
 import com.librisaudio.app.ui.components.BookmarkDialog
@@ -89,6 +90,7 @@ fun PlayerScreen(
     totalHours: Double = 0.0,
     selectedVoice: String = "es-MX-JorgeNeural",
     onSelectVoice: (String) -> Unit = {},
+    wordTimings: List<WordTiming> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     var viewMode by remember { mutableStateOf(PlayerViewMode.CLASSIC_PLAYER) }
@@ -221,6 +223,9 @@ fun PlayerScreen(
                     isTextLoading = isTextLoading,
                     currentPartIndex = currentPartIndex,
                     isPlaying = isPlaying,
+                    currentPositionMs = currentPositionMs,
+                    wordTimings = wordTimings,
+                    onSeekTo = onSeekTo,
                     onNextPart = onNextPart,
                     onPreviousPart = onPreviousPart,
                     modifier = Modifier.weight(1f)

@@ -2,6 +2,7 @@ package com.librisaudio.app.data.api
 
 import com.librisaudio.app.data.model.GlobalBookDto
 import com.librisaudio.app.data.model.UserBookDto
+import com.librisaudio.app.data.model.WordTiming
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.RequestBody
@@ -24,6 +25,14 @@ interface LibrisApiService {
         @Path("bookId") bookId: String,
         @Path("partIndex") partIndex: Int
     ): ResponseBody
+
+    /** Tiempos de cada palabra para el resaltado sincronizado (karaoke). */
+    @GET("api/timing/{bookId}/{partIndex}")
+    suspend fun getTiming(
+        @Path("bookId") bookId: String,
+        @Path("partIndex") partIndex: Int,
+        @Query("voice") voice: String
+    ): List<WordTiming>
 
     @DELETE("api/books/{bookId}")
     suspend fun deleteBook(

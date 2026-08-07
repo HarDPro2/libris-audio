@@ -125,6 +125,7 @@ class MainActivity : ComponentActivity() {
                 // Libro 3D text state
                 val currentPartText by playerViewModel.currentPartText.collectAsState()
                 val isTextLoading   by playerViewModel.isTextLoading.collectAsState()
+                val wordTimings     by playerViewModel.wordTimings.collectAsState()
 
                 val books by playerViewModel.books.collectAsState()
                 val currentBook by playerViewModel.currentBook.collectAsState()
@@ -290,6 +291,7 @@ class MainActivity : ComponentActivity() {
                                 totalHours = playerViewModel.totalHours,
                                 selectedVoice = playerViewModel.selectedVoice.collectAsState().value,
                                 onSelectVoice = { voiceId -> playerViewModel.setVoice(voiceId) },
+                                wordTimings = wordTimings,
                                 onSelectMusicTrack = { track -> playerViewModel.setBackgroundTrack(track) },
                                 onBackgroundVolumeChange = { vol -> playerViewModel.setBackgroundVolume(vol) },
                                 onTogglePlay = { playerViewModel.togglePlayPause() },
