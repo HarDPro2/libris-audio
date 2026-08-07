@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.QueryStats
+import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.*
@@ -48,6 +49,7 @@ import com.librisaudio.app.ui.components.SleepTimerDialog
 import com.librisaudio.app.ui.components.StatsDialog
 import com.librisaudio.app.ui.components.SleepTimerOption
 import com.librisaudio.app.ui.components.VirtualBookFrame
+import com.librisaudio.app.ui.components.VoiceSelectorDialog
 import com.librisaudio.app.ui.theme.AppThemePreset
 import com.librisaudio.app.ui.theme.CardSurface
 import com.librisaudio.app.ui.theme.CyanAccent
@@ -85,6 +87,8 @@ fun PlayerScreen(
     todayMinutes: Int = 0,
     streakDays: Int = 0,
     totalHours: Double = 0.0,
+    selectedVoice: String = "es-MX-JorgeNeural",
+    onSelectVoice: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var viewMode by remember { mutableStateOf(PlayerViewMode.CLASSIC_PLAYER) }
@@ -93,6 +97,7 @@ fun PlayerScreen(
     var isBookmarkVisible by remember { mutableStateOf(false) }
     var isAiChatVisible by remember { mutableStateOf(false) }
     var isStatsVisible by remember { mutableStateOf(false) }
+    var isVoiceDialogVisible by remember { mutableStateOf(false) }
 
     var selectedSleepTimer by remember { mutableStateOf(SleepTimerOption.OFF) }
     var sleepTimerSeconds by remember { mutableStateOf(0L) }
@@ -182,6 +187,9 @@ fun PlayerScreen(
 
                 // Top Action Icons (AI Chat, Car Mode, Sleep Timer, Bookmarks, Music)
                 Row {
+                    IconButton(onClick = { isVoiceDialogVisible = true }) {
+                        Icon(Icons.Default.RecordVoiceOver, contentDescription = "Voz del narrador", tint = Color.White)
+                    }
                     IconButton(onClick = { isStatsVisible = true }) {
                         Icon(Icons.Default.QueryStats, contentDescription = "Estadísticas", tint = Color.White)
                     }
@@ -380,6 +388,14 @@ fun PlayerScreen(
         }
 
         // Dialogs
+        if (isVoiceDialogVisible) {
+            VoiceSelectorDialog(
+                selectedVoiceId = selectedVoice,
+                onSelectVoice = onSelectVoice,
+                onDismiss = { isVoiceDialogVisible = false }
+            )
+        }
+
         if (isStatsVisible) {
             StatsDialog(
                 todayMinutes = todayMinutes,

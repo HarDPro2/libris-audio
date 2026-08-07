@@ -111,6 +111,37 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _backgroundVolume = MutableStateFlow(0.25f)
     val backgroundVolume: StateFlow<Float> = _backgroundVolume.asStateFlow()
 
+    // ── Voz del narrador (Edge TTS) ────────────────────────────────────────
+    private val _selectedVoice = MutableStateFlow(
+        prefs.getString("voice", com.librisaudio.app.data.model.VoiceCatalog.DEFAULT)
+            ?: com.librisaudio.app.data.model.VoiceCatalog.DEFAULT
+    )
+    val selectedVoice: StateFlow<String> = _selectedVoice.asStateFlow()
+
+    fun setVoice(voiceId: String) {
+        if (voiceId == _selectedVoice.value) return
+        _selectedVoice.value = voiceId
+        prefs.edit().putString("voice", voiceId).apply()
+        // Recargar la parte actual con la nueva voz, conservando la posición
+        val book = _currentBook.value ?: return
+        val player = mediaController ?: return
+        val pos = player.currentPosition.coerceAtLeast(0L)
+        val wasPlaying = player.isPlaying
+        val mediaItem = MediaItem.Builder()
+            .setUri(book.getAudioUrl(_currentPartIndex.value, voiceId))
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle("${book.title} (Parte ${_currentPartIndex.value + 1})")
+                    .setArtist(book.category)
+                    .build()
+            )
+            .build()
+        player.setMediaItem(mediaItem)
+        player.prepare()
+        player.seekTo(pos)
+        if (wasPlaying) player.play()
+    }
+
     init {
         loadBooks()
         startPositionTracker()
@@ -227,7 +258,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         // Load text for Libro 3D mode (non-blocking, runs in background)
         loadPartText(book.bookId, partIndex)
 
-        val audioUrl = book.getAudioUrl(partIndex)
+        val audioUrl = book.getAudioUrl(partIndex, _selectedVoice.value)
         val mediaItem = MediaItem.Builder()
             .setUri(audioUrl)
             .setMediaMetadata(

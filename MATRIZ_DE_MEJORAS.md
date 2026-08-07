@@ -95,6 +95,34 @@
 
 ---
 
+## SESIÓN 2026-08-07 — RECUPERACIÓN DE CATÁLOGO + OAuth + DISEÑO + VOZ
+
+| # | Mejora | Descripción detallada | Archivos afectados | Estado |
+|:--|:-------|:----------------------|:-------------------|:-------|
+| 65 | **Fix OAuth Google (flujo token)** | El login usaba `sessions/oauth2` (cookie de navegador, no sirve en apps nativas). Cambiado a `tokens/oauth2` + intercambio `sessions/token`. Scheme correcto `appwrite-callback-{projectId}://`. CookieJar en OkHttp para persistir sesión. | `AppwriteAuthClient.kt`, `AuthViewModel.kt`, `MainActivity.kt`, `AndroidManifest.xml`, `build.gradle` | ✅ |
+| 66 | **Fix registro email (Retrofit)** | Parámetros con default en interfaz Retrofit no funcionan → header `X-Appwrite-Project` movido a interceptor OkHttp. | `AppwriteAuthClient.kt`, `AuthViewModel.kt` | ✅ |
+| 67 | **Recuperación de 97 libros huérfanos** | Los archivos (texto+portadas) migraron de Supabase a R2, pero el índice quedó en Supabase (pausado por egress). Catálogo re-importado a Appwrite `global_books` vía script REST. | `migrar_catalogo_appwrite.py`, `respaldo_libros_supabase.json` | ✅ |
+| 68 | **Fix credenciales R2 en Cloud Run** | `SignatureDoesNotMatch` al subir/generar audio: variables R2 actualizadas en Cloud Run con las credenciales correctas. | Cloud Run env vars | ✅ |
+| 69 | **Fix backend: leer Appwrite vía REST** | SDK nuevo devuelve objeto `DocumentList` (no dict) → `res.get()` fallaba → siempre fallback a 2 mocks. Reescrito con helper `_appwrite_list_documents()` (httpx REST, queries en JSON). | `backend/main.py` | ✅ |
+| 70 | **Categorías dinámicas + sin mocks** | `LibraryScreen` genera pills desde las categorías reales de los libros. Eliminado `getDefaultCatalog()` (2 mocks). `BookCategories` ampliado a las categorías reales. | `LibraryScreen.kt`, `PlayerViewModel.kt`, `BookCategories.kt` | ✅ |
+| 71 | **Música de fondo: solo pistas reales** | Catálogo recortado de 24 (19 rotas) a las 5 pistas que existen en R2. | `BackgroundMusicCatalog.kt` | ✅ |
+| 72 | **Chat IA: timeout 10s→60s** | Modelos gratuitos de OpenRouter tardan; OkHttp default cortaba a 10s. | `ChatWithBookDialog.kt` | ✅ |
+| 73 | **12 temas animados** | Cada tema con su animación Canvas: Red Neuronal, Campo Cuántico, Matrix, Retro Wave, Aurora, Biblioteca Cósmica, Tinta y Pergamino, Brasa + mesh. Selector con tarjetas de degradado. | `Theme.kt`, `AnimatedBackground.kt`, `SettingsScreen.kt` | ✅ |
+| 74 | **12 marcos por género** | Modo Libro 3D: Clásico, Medieval, Espiritual, Guerra, Romance, Paranormal, Científico, Comedia, Fantasía, Poesía, Noir, Cósmico — degradados, emblemas, ornamentos, borde con brillo. | `VirtualBookFrame.kt` | ✅ |
+| 75 | **Selección de voz del narrador** | 12 voces neurales (Elvira, Álvaro, Dalia, Jorge, Elena, Tomás, Salomé, Paola, Aria, Guy, Francisca, Denise). Persistida; se aplica al instante recargando la parte con la posición conservada. | `VoiceCatalog.kt`, `VoiceSelectorDialog.kt`, `PlayerViewModel.kt`, `PlayerScreen.kt`, `MainActivity.kt` | ✅ |
+
+---
+
+## BACKLOG — PRÓXIMAS MEJORAS (planeadas)
+
+| # | Mejora | Descripción | Prioridad |
+|:--|:-------|:------------|:----------|
+| B1 | **Descarga offline + inventario** | Descargar partes de un libro a almacenamiento local para escuchar sin conexión. Registro de lo descargado (libro + nº de partes). Sección de gestión donde el usuario ve qué está descargado, elige qué conservar y puede borrar todo para liberar espacio. Reproducción con fallback a archivo local. **Su propio push dedicado** (feature grande). | Alta |
+| B2 | **Música por género tipo emisoras** | Carpetas de música en R2 por ambiente: relajante, guerra, romance, misterio, etc. El usuario (o el sistema) ajusta la emisora al género del libro que escucha/lee. Programable como estaciones. | Media |
+| B3 | **Animación de fondo en el reproductor** | Extender `AnimatedBackground` al PlayerScreen (hoy solo Biblioteca y Ajustes). | Baja |
+
+---
+
 ## BACKLOG — PENDIENTE
 
 | # | Mejora | Prioridad | Notas |

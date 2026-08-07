@@ -288,6 +288,8 @@ class MainActivity : ComponentActivity() {
                                 todayMinutes = playerViewModel.todayMinutes,
                                 streakDays = playerViewModel.streakDays,
                                 totalHours = playerViewModel.totalHours,
+                                selectedVoice = playerViewModel.selectedVoice.collectAsState().value,
+                                onSelectVoice = { voiceId -> playerViewModel.setVoice(voiceId) },
                                 onSelectMusicTrack = { track -> playerViewModel.setBackgroundTrack(track) },
                                 onBackgroundVolumeChange = { vol -> playerViewModel.setBackgroundVolume(vol) },
                                 onTogglePlay = { playerViewModel.togglePlayPause() },

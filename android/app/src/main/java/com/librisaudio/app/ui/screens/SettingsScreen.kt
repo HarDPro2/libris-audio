@@ -1,6 +1,7 @@
 package com.librisaudio.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -22,7 +23,21 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.librisaudio.app.ui.components.AnimatedBackground
 import com.librisaudio.app.ui.theme.AppThemePreset
+import com.librisaudio.app.ui.theme.ThemeAnimation
 import com.librisaudio.app.ui.theme.TextMuted
+
+/** Emoji representativo de cada estilo de animación de tema. */
+private fun animationIcon(preset: AppThemePreset): String = when (preset.animation) {
+    ThemeAnimation.NEURAL    -> "🧠"
+    ThemeAnimation.QUANTUM   -> "⚛️"
+    ThemeAnimation.MATRIX    -> "💊"
+    ThemeAnimation.RETRO     -> "🌆"
+    ThemeAnimation.AURORA    -> "🌌"
+    ThemeAnimation.STARFIELD -> "✨"
+    ThemeAnimation.INK       -> "🖋️"
+    ThemeAnimation.EMBERS    -> "🔥"
+    ThemeAnimation.MESH      -> "🎨"
+}
 
 @Composable
 fun SettingsScreen(
@@ -103,41 +118,54 @@ fun SettingsScreen(
 
             // ─── Theme Section ────────────────────────────────────────────
             SectionTitle("🎨 Tema Visual")
-            Spacer(modifier = Modifier.height(10.dp))
+            Text("Cada tema tiene su propia animación de fondo", fontSize = 11.sp, color = TextMuted)
+            Spacer(modifier = Modifier.height(12.dp))
 
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(AppThemePreset.values()) { preset ->
                     val isSelected = currentTheme == preset
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(if (isSelected) preset.primary.copy(alpha = 0.25f) else Color(0x221E293B))
+                            .width(112.dp)
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(
+                                androidx.compose.ui.graphics.Brush.verticalGradient(
+                                    listOf(preset.primary.copy(alpha = 0.30f), preset.surface.copy(alpha = 0.6f))
+                                )
+                            )
+                            .then(
+                                if (isSelected)
+                                    Modifier.border(2.dp, preset.primary, RoundedCornerShape(18.dp))
+                                else Modifier
+                            )
                             .clickable { onSelectTheme(preset) }
-                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                            .padding(vertical = 14.dp, horizontal = 8.dp)
                     ) {
+                        // Preview: swatch con gradiente primario→secundario + ícono de animación
                         Box(
                             modifier = Modifier
-                                .size(28.dp)
-                                .clip(CircleShape)
-                                .background(preset.primary)
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
+                                .size(46.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    androidx.compose.ui.graphics.Brush.linearGradient(
+                                        listOf(preset.primary, preset.secondary)
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(animationIcon(preset), fontSize = 20.sp)
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = preset.title,
-                            fontSize = 12.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isSelected) Color.White else TextMuted
+                            fontSize = 11.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSelected) Color.White else Color(0xFFCBD5E1),
+                            maxLines = 2,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            lineHeight = 13.sp
                         )
-                        if (isSelected) {
-                            Spacer(modifier = Modifier.height(3.dp))
-                            Box(
-                                modifier = Modifier
-                                    .size(6.dp)
-                                    .clip(CircleShape)
-                                    .background(currentTheme.primary)
-                            )
-                        }
                     }
                 }
             }
