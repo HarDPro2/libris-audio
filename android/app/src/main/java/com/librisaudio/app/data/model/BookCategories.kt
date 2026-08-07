@@ -1,22 +1,23 @@
 package com.librisaudio.app.data.model
 
 object BookCategories {
+    // Categorías reales usadas por la biblioteca + opciones estándar para subir.
     val ALL = listOf(
-        "Clásicos",
+        "Novela",
         "Ficción",
-        "Ciencia",
-        "Historia",
+        "Ciencia Ficción",
+        "Fantasía",
         "Filosofía",
-        "Aventura",
-        "Romance",
-        "Misterio",
+        "Psicología",
+        "Religión y Espiritualidad",
+        "Poesía",
+        "Cuentos y Relatos",
+        "Teatro / Drama",
+        "Autoayuda / Desarrollo",
+        "Clásicos",
+        "Historia",
+        "Ciencia",
         "Biografía",
-        "Autoayuda",
-        "Infantil",
-        "Terror",
-        "Política",
-        "Economía",
-        "Arte",
         "General"
     )
 }

@@ -47,10 +47,13 @@ fun LibraryScreen(
     // Source books depend on active tab
     val sourceBooks = if (activeTab == LibraryTab.EXPLORAR) books else personalBooks
 
-    // Categories dynamically from source
+    // Categories dynamically from the actual books (any category, sorted)
     val usedCategories = remember(sourceBooks) {
-        val used = sourceBooks.mapNotNull { it.category.takeIf { c -> c.isNotBlank() } }.toSet()
-        listOf("Todas") + BookCategories.ALL.filter { it in used }
+        val used = sourceBooks
+            .mapNotNull { it.category.takeIf { c -> c.isNotBlank() } }
+            .distinct()
+            .sorted()
+        listOf("Todas") + used
     }
 
     // Filter by category then by search

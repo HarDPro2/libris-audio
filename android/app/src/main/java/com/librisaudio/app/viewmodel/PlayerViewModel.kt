@@ -176,10 +176,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         addedBy         = dto.addedBy ?: ""
                     )
                 }
-                _books.value = if (mapped.isNotEmpty()) mapped else getDefaultCatalog()
+                _books.value = mapped
             } catch (e: Exception) {
                 e.printStackTrace()
-                _books.value = getDefaultCatalog()
+                _books.value = emptyList()
             }
         }
     }
@@ -206,27 +206,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             .putInt("part_$bookId", partIndex)
             .putInt("pct_$bookId", progressPct)
             .apply()
-    }
-
-    private fun getDefaultCatalog(): List<Book> {
-        return listOf(
-            Book(
-                id = "1",
-                bookId = "9780140449136",
-                title = "La Odisea",
-                category = "Clásicos",
-                coverUrl = "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=300&h=400&fit=crop",
-                partsCount = 5
-            ),
-            Book(
-                id = "2",
-                bookId = "9788437604947",
-                title = "Don Quijote de la Mancha",
-                category = "Ficción",
-                coverUrl = "https://images.unsplash.com/photo-1512820790803-83ca734da794?w=300&h=400&fit=crop",
-                partsCount = 8
-            )
-        )
     }
 
     fun playBook(book: Book, partIndex: Int = 0) {
