@@ -81,7 +81,11 @@ fun ChatWithBookDialog(
         coroutineScope.launch {
             try {
                 val replyText = withContext(Dispatchers.IO) {
-                    val client = OkHttpClient()
+                    val client = OkHttpClient.Builder()
+                        .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                        .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+                        .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                        .build()
                     val json = JSONObject()
                     json.put("book_id", bookId)
                     json.put("part_index", currentPartIndex)
