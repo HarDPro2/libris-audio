@@ -380,11 +380,13 @@ def health_check():
 
 async def _appwrite_list_documents(collection: str, queries=None):
     """Lista documentos vía la API REST de Appwrite (JSON predecible,
-    independiente de la versión del SDK de Python)."""
+    independiente de la versión del SDK de Python).
+    `queries` es una lista de dicts en formato de query de Appwrite, p.ej.
+    {"method": "limit", "values": [500]}."""
     url = f"{APPWRITE_ENDPOINT}/databases/{APPWRITE_DB_ID}/collections/{collection}/documents"
     params = []
     for q in (queries or []):
-        params.append(("queries[]", q))
+        params.append(("queries[]", json.dumps(q)))
     headers = {
         "X-Appwrite-Project": APPWRITE_PROJECT_ID,
         "X-Appwrite-Key": APPWRITE_API_KEY or "",
@@ -400,7 +402,10 @@ async def get_all_books():
     """Catálogo global desde Appwrite con fallback a libros de ejemplo."""
     books = []
     try:
-        documents = await _appwrite_list_documents("global_books", queries=["limit(500)"])
+        documents = await _appwrite_list_documents(
+            "global_books",
+            queries=[{"method": "limit", "values": [500]}]
+        )
         for doc in documents:
             books.append({
                 "id":         doc.get("$id") or doc.get("book_id"),
@@ -646,7 +651,7 @@ async def delete_book(book_id_hex: str, authorization: str = Header(default=None
     try:
         docs = await _appwrite_list_documents(
             "global_books",
-            queries=[f'equal("book_id", "{book_id_hex}")']
+            queries=[{"method": "equal", "attribute": "book_id", "values": [book_id_hex]}]
         )
         if not docs:
             raise HTTPException(status_code=404, detail="Libro no encontrado")
@@ -703,7 +708,7 @@ async def patch_book(
     try:
         docs = await _appwrite_list_documents(
             "global_books",
-            queries=[f'equal("book_id", "{book_id_hex}")']
+            queries=[{"method": "equal", "attribute": "book_id", "values": [book_id_hex]}]
         )
         if not docs:
             raise HTTPException(status_code=404, detail="Libro no encontrado")
