@@ -38,16 +38,16 @@ interface AppwriteAuthService {
         @Body body: AppwriteTokenSessionBody
     ): AppwriteSessionResponse
 
-    // Get current account info — requires session cookie
+    // Get current account info — requires session secret in X-Appwrite-Session header
     @GET("v1/account")
     suspend fun getAccount(
-        @Header("Cookie") cookieHeader: String
+        @Header("X-Appwrite-Session") sessionSecret: String
     ): AppwriteUserResponse
 
     // Delete session (logout) — use "current" as sessionId path
     @DELETE("v1/account/sessions/{sessionId}")
     suspend fun deleteSession(
-        @Header("Cookie") cookieHeader: String,
+        @Header("X-Appwrite-Session") sessionSecret: String,
         @Path("sessionId") sessionIdPath: String
     )
 }
