@@ -166,10 +166,17 @@ class AuthViewModel : ViewModel() {
 
         _authState.value = AuthState.Loading
 
-        val secret = uri.getQueryParameter("secret") ?: ""
+        // Also check fragment — some OAuth flows put tokens after #
+        val fragment = uri.fragment ?: ""
+        Log.d("AuthViewModel", "OAuth fragment: $fragment")
+
+        val secret = uri.getQueryParameter("secret")
+            ?: fragment.split("&").firstOrNull { it.startsWith("secret=") }?.substringAfter("=")
+            ?: ""
+
         if (secret.isBlank()) {
-            Log.e("AuthViewModel", "No secret in OAuth callback. Params: $allParams")
-            _authState.value = AuthState.Error("Google no devolvió un token. Params: $allParams")
+            Log.e("AuthViewModel", "No secret found. URI=$uri params=$allParams fragment=$fragment")
+            _authState.value = AuthState.Error("URI: $uri | params: $allParams | frag: $fragment")
             return
         }
 

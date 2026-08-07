@@ -78,12 +78,9 @@ class MainActivity : ComponentActivity() {
                   "&success=${Uri.encode(successUri)}" +
                   "&failure=${Uri.encode(failureUri)}"
         Log.d("MainActivity", "Opening OAuth URL: $url")
-        try {
-            val customTab = CustomTabsIntent.Builder().build()
-            customTab.launchUrl(this, Uri.parse(url))
-        } catch (_: Exception) {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-        }
+        // Use regular browser instead of Custom Tab — BlueStacks/some devices
+        // don't forward query params correctly from Custom Tabs deep links
+        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
