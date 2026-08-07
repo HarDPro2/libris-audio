@@ -286,20 +286,47 @@ def _split_for_tts(text: str, max_chars: int = 1200) -> list[str]:
 
 
 async def _edge_tts_bytes_and_words(text: str, voice: str):
-    """Genera audio y captura los tiempos de cada palabra (WordBoundary).
-    Devuelve (audio_bytes, words) con words = [{"w":str,"s":ms,"e":ms}, ...]
-    en milisegundos relativos al inicio de este segmento."""
+    """Genera audio y captura los tiempos de cada palabra.
+    Robusto a cambios de formato de edge-tts: acepta chunks como dict u objeto,
+    y trata como 'palabra' cualquier metadato con texto + offset (WordBoundary,
+    SentenceBoundary, etc.). Devuelve (audio_bytes, words) con
+    words = [{"w":str,"s":ms,"e":ms}, ...] relativos al inicio del segmento."""
     communicate = edge_tts.Communicate(text, voice)
     audio = bytearray()
     words = []
+    type_counts = {}
+
     async for chunk in communicate.stream():
-        ctype = chunk.get("type")
-        if ctype == "audio" and chunk.get("data"):
-            audio.extend(chunk["data"])
-        elif ctype == "WordBoundary":
-            start_ms = chunk.get("offset", 0) / 10000.0    # ticks de 100 ns -> ms
-            dur_ms   = chunk.get("duration", 0) / 10000.0
-            words.append({"w": chunk.get("text", ""), "s": start_ms, "e": start_ms + dur_ms})
+        if isinstance(chunk, dict):
+            ctype = chunk.get("type")
+            def get(k, d=None, _c=chunk): return _c.get(k, d)
+        else:
+            ctype = getattr(chunk, "type", None)
+            def get(k, d=None, _c=chunk): return getattr(_c, k, d)
+
+        type_counts[ctype] = type_counts.get(ctype, 0) + 1
+
+        if ctype == "audio":
+            data = get("data")
+            if data:
+                audio.extend(data)
+            continue
+
+        # Cualquier metadato con texto y offset lo tratamos como palabra.
+        txt = get("text")
+        offset = get("offset")
+        if txt and offset is not None:
+            try:
+                start_ms = float(offset) / 10000.0            # ticks de 100 ns -> ms
+                dur_ms   = float(get("duration", 0) or 0) / 10000.0
+                words.append({"w": str(txt), "s": start_ms, "e": start_ms + dur_ms})
+            except Exception:
+                pass
+
+    if not words:
+        # Diagnóstico: qué tipos de chunk emitió edge-tts (para ver el formato real)
+        print(f"[TTS] Sin tiempos de palabra. Tipos de chunk vistos: {type_counts}", flush=True)
+
     return bytes(audio), words
 
 
@@ -601,7 +628,7 @@ async def get_book_audio(book_id: str, part_index: int, voice: str = "es-MX-Jorg
         print(f"[Audio] Generando MP3: {mp3_key}")
         local_mp3    = Path(f"/tmp/{book_id}_part_{part_index}_{safe_voice}.mp3")
         local_timing = Path(f"/tmp/{book_id}_part_{part_index}_{safe_voice}.json")
-        timing_key   = f"{book_id}/timing/part_{part_index}_{safe_voice}.json"
+        timing_key   = f"{book_id}/timing/part_{part_index}_{safe_voice}_v2.json"
         try:
             await text_to_mp3(text, local_mp3, voice=voice, timing_path=local_timing)
         except Exception as exc:
@@ -655,7 +682,7 @@ async def get_book_timing(book_id: str, part_index: int, voice: str = "es-MX-Jor
         raise HTTPException(status_code=500, detail="Cloudflare R2 no configurado")
 
     safe_voice = sanitize_filename(voice)
-    timing_key = f"{book_id}/timing/part_{part_index}_{safe_voice}.json"
+    timing_key = f"{book_id}/timing/part_{part_index}_{safe_voice}_v2.json"
 
     exists = await asyncio.to_thread(r2_exists, timing_key)
     if not exists:
