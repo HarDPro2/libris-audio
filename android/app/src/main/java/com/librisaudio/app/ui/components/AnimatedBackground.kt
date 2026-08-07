@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.nativeCanvas
 import com.librisaudio.app.ui.theme.AppThemePreset
 import com.librisaudio.app.ui.theme.ThemeAnimation
@@ -58,6 +59,10 @@ fun AnimatedBackground(
             ThemeAnimation.STARFIELD -> drawStarfield(t, tFast, p, s)
             ThemeAnimation.INK       -> drawInk(t, tFast, p, s)
             ThemeAnimation.EMBERS    -> drawEmbers(t, p, s)
+            ThemeAnimation.PETALS    -> drawPetals(t, p, s)
+            ThemeAnimation.FOG       -> drawFog(t, p, s)
+            ThemeAnimation.FIREFLIES -> drawFireflies(t, tFast, p, s)
+            ThemeAnimation.DUST      -> drawDust(t, tFast, p, s)
         }
     }
 }
@@ -314,5 +319,86 @@ private fun DrawScope.drawEmbers(t: Float, p: Color, s: Color) {
         val alpha = sin(yNorm * PI.toFloat()).coerceIn(0f, 1f) * flick
         drawCircle(col.copy(alpha = alpha * 0.9f), r, Offset(x, by))
         drawCircle(col.copy(alpha = alpha * 0.25f), r * 2.5f, Offset(x, by))
+    }
+}
+
+// ── PETALS: pétalos de rosa cayendo (Romance) ──────────────────────────────
+private fun DrawScope.drawPetals(t: Float, p: Color, s: Color) {
+    drawRect(Brush.verticalGradient(listOf(p.copy(alpha = 0.06f), Color.Transparent),
+        startY = 0f, endY = size.height * 0.5f))
+    val rnd = Random(41)
+    for (i in 0 until 24) {
+        val bx = rnd.nextFloat() * size.width
+        val speed = 0.4f + rnd.nextFloat() * 0.7f
+        val yNorm = (t * speed + rnd.nextFloat()) % 1f
+        val y = yNorm * (size.height + 40f) - 20f
+        val sway = sin(t * 6.28f * (0.4f + rnd.nextFloat()) + i) * 30f
+        val x = bx + sway
+        val sz = 8f + rnd.nextFloat() * 10f
+        val rot = (t * 300f * (0.3f + rnd.nextFloat()) + i * 30f) % 360f
+        val col = if (i % 3 == 0) s else p
+        rotate(rot, Offset(x, y)) {
+            drawOval(col.copy(alpha = 0.55f),
+                topLeft = Offset(x - sz * 0.35f, y - sz * 0.6f),
+                size = Size(sz * 0.7f, sz * 1.2f))
+        }
+    }
+}
+
+// ── FOG: niebla desplazándose (Misterio / Noir) ────────────────────────────
+private fun DrawScope.drawFog(t: Float, p: Color, s: Color) {
+    val rnd = Random(53)
+    for (i in 0 until 7) {
+        val baseY = (i / 7f) * size.height
+        val speed = 0.2f + rnd.nextFloat() * 0.4f
+        val dir = if (i % 2 == 0) 1f else -1f
+        val x = ((t * speed * dir + rnd.nextFloat()) % 1.4f) * (size.width + 400f) - 200f
+        val r = size.width * (0.4f + rnd.nextFloat() * 0.4f)
+        drawCircle(Brush.radialGradient(listOf(s.copy(alpha = 0.08f), Color.Transparent),
+            Offset(x, baseY), r), r, Offset(x, baseY))
+    }
+    // Farol tenue (acento cálido)
+    val c = Offset(size.width * 0.5f, size.height * 0.2f)
+    drawCircle(Brush.radialGradient(listOf(p.copy(alpha = 0.10f), Color.Transparent), c, size.width * 0.4f),
+        size.width * 0.4f, c)
+}
+
+// ── FIREFLIES: luciérnagas (Fantasía) ──────────────────────────────────────
+private fun DrawScope.drawFireflies(t: Float, tFast: Float, p: Color, s: Color) {
+    val nb = Offset(size.width * 0.3f, size.height * 0.7f)
+    drawCircle(Brush.radialGradient(listOf(p.copy(alpha = 0.10f), Color.Transparent), nb, size.width * 0.7f),
+        size.width * 0.7f, nb)
+    val rnd = Random(59)
+    for (i in 0 until 34) {
+        val bx = rnd.nextFloat() * size.width
+        val speed = 0.2f + rnd.nextFloat() * 0.5f
+        val yNorm = (1f - (t * speed + rnd.nextFloat()) % 1f)
+        val y = yNorm * size.height
+        val sway = sin(t * 6.28f * (0.5f + rnd.nextFloat()) + i) * 20f
+        val x = bx + sway
+        val ph = rnd.nextFloat() * 6.28f
+        val glow = 0.3f + 0.7f * (0.5f + 0.5f * sin(tFast * 6.28f + ph))
+        val col = if (i % 4 == 0) s else p
+        drawCircle(col.copy(alpha = 0.5f * glow), 8f, Offset(x, y))
+        drawCircle(Color.White.copy(alpha = 0.9f * glow), 1.6f, Offset(x, y))
+    }
+}
+
+// ── DUST: motas de polvo dorado en luz cálida (Biblioteca Antigua) ─────────
+private fun DrawScope.drawDust(t: Float, tFast: Float, p: Color, s: Color) {
+    drawRect(Brush.verticalGradient(listOf(p.copy(alpha = 0.10f), Color.Transparent),
+        startY = 0f, endY = size.height * 0.7f))
+    val rnd = Random(61)
+    for (i in 0 until 46) {
+        val bx = rnd.nextFloat() * size.width
+        val speed = 0.15f + rnd.nextFloat() * 0.35f
+        val yNorm = (t * speed + rnd.nextFloat()) % 1f
+        val y = yNorm * size.height
+        val sway = sin(t * 6.28f * 0.5f + i) * 16f
+        val x = bx + sway
+        val ph = rnd.nextFloat() * 6.28f
+        val tw = 0.3f + 0.7f * (0.5f + 0.5f * sin(tFast * 6.28f + ph))
+        val r = 0.8f + rnd.nextFloat() * 1.8f
+        drawCircle(s.copy(alpha = tw * 0.5f), r, Offset(x, y))
     }
 }

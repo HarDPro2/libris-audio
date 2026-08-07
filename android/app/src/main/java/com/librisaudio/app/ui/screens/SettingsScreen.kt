@@ -36,6 +36,10 @@ private fun animationIcon(preset: AppThemePreset): String = when (preset.animati
     ThemeAnimation.STARFIELD -> "✨"
     ThemeAnimation.INK       -> "🖋️"
     ThemeAnimation.EMBERS    -> "🔥"
+    ThemeAnimation.PETALS    -> "🌹"
+    ThemeAnimation.FOG       -> "🌫️"
+    ThemeAnimation.FIREFLIES -> "🧚"
+    ThemeAnimation.DUST      -> "🕯️"
     ThemeAnimation.MESH      -> "🎨"
 }
 

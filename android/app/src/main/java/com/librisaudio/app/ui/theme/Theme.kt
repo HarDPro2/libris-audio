@@ -15,7 +15,11 @@ enum class ThemeAnimation {
     AURORA,     // cortinas de aurora boreal
     STARFIELD,  // estrellas titilando + destellos (biblioteca cósmica)
     INK,        // tinta ascendente + letras flotando (pergamino)
-    EMBERS      // brasas / chispas ascendentes
+    EMBERS,     // brasas / chispas ascendentes
+    PETALS,     // pétalos de rosa cayendo (romance)
+    FOG,        // niebla que se desplaza (misterio / noir)
+    FIREFLIES,  // luciérnagas titilando y ascendiendo (fantasía)
+    DUST        // motas de polvo dorado en luz cálida (biblioteca antigua)
 }
 
 enum class AppThemePreset(
@@ -90,6 +94,40 @@ enum class AppThemePreset(
         background = Color(0xFF16070A),
         surface = Color(0xFF2A0E10),
         animation = ThemeAnimation.EMBERS
+    ),
+
+    // ── Por género literario (animados) ────────────────────────────────────
+    ROMANCE(
+        title = "Romance",
+        primary = Color(0xFFF472B6),
+        secondary = Color(0xFFFBBF24),
+        background = Color(0xFF1A0A12),
+        surface = Color(0xFF2A0F1E),
+        animation = ThemeAnimation.PETALS
+    ),
+    MYSTERY(
+        title = "Niebla Noir",
+        primary = Color(0xFFF59E0B),
+        secondary = Color(0xFF94A3B8),
+        background = Color(0xFF0A0C10),
+        surface = Color(0xFF12161C),
+        animation = ThemeAnimation.FOG
+    ),
+    ENCHANTED(
+        title = "Bosque Encantado",
+        primary = Color(0xFF2DD4BF),
+        secondary = Color(0xFFA78BFA),
+        background = Color(0xFF05130F),
+        surface = Color(0xFF0A1F1A),
+        animation = ThemeAnimation.FIREFLIES
+    ),
+    LIBRARY(
+        title = "Biblioteca Antigua",
+        primary = Color(0xFFD4A574),
+        secondary = Color(0xFFF0C987),
+        background = Color(0xFF140F08),
+        surface = Color(0xFF221A0D),
+        animation = ThemeAnimation.DUST
     ),
 
     // ── Suaves (mesh de gradiente) ─────────────────────────────────────────

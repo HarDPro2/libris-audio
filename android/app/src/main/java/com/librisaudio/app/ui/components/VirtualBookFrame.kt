@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -34,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.librisaudio.app.data.model.Book
 import com.librisaudio.app.data.model.WordTiming
+import com.librisaudio.app.util.PageTurnSound
 
 /**
  * Estilos de encuadernación por género. Cada uno con degradado de tapa,
@@ -137,6 +139,7 @@ fun VirtualBookFrame(
     onPreviousPart: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val ctx = LocalContext.current
     var selectedStyle by remember { mutableStateOf(BookBindingStyle.CLASSIC) }
     var fontSizeSp by remember { mutableStateOf(16) }
     var isSerifFont by remember { mutableStateOf(true) }
@@ -355,14 +358,14 @@ fun VirtualBookFrame(
 
             // Navegación
             IconButton(
-                onClick = { flipAngle = -30f; onPreviousPart(); flipAngle = 0f },
+                onClick = { PageTurnSound.play(ctx); flipAngle = -30f; onPreviousPart(); flipAngle = 0f },
                 modifier = Modifier.align(Alignment.CenterStart).padding(4.dp)
                     .background(Color(0x22000000), RoundedCornerShape(16.dp))
             ) {
                 Icon(Icons.Default.NavigateBefore, contentDescription = "Página anterior", tint = selectedStyle.textColor)
             }
             IconButton(
-                onClick = { flipAngle = 30f; onNextPart(); flipAngle = 0f },
+                onClick = { PageTurnSound.play(ctx); flipAngle = 30f; onNextPart(); flipAngle = 0f },
                 modifier = Modifier.align(Alignment.CenterEnd).padding(4.dp)
                     .background(Color(0x22000000), RoundedCornerShape(16.dp))
             ) {

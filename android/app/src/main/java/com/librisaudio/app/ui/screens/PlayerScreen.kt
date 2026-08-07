@@ -421,6 +421,17 @@ fun PlayerScreen(
             ) {
                 Icon(Icons.Default.FullscreenExit, contentDescription = "Salir de pantalla completa", tint = Color.White)
             }
+            IconButton(
+                onClick = { isMusicDialogVisible = true },
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(12.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color(0x66000000))
+            ) {
+                Icon(Icons.Default.MusicNote, contentDescription = "Música de fondo",
+                    tint = if (selectedMusicTrack != null) CyanAccent else Color.White)
+            }
             Row(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
