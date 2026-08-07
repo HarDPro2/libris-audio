@@ -25,11 +25,13 @@
             </intent-filter>
 
             <!-- Deep link for Appwrite Google OAuth callback -->
-            <intent-filter android:autoVerify="false">
+            <!-- Appwrite redirects to: appwrite-callback-{projectId}://?userId=X&secret=Y&expire=Z -->
+            <!-- No host/path — Appwrite SDK format uses scheme:// with empty host -->
+            <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="appwrite-callback-6a72f5d6002eeff78bc2" android:host="auth" />
+                <data android:scheme="appwrite-callback-6a72f5d6002eeff78bc2" />
             </intent-filter>
 
         </activity>
