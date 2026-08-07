@@ -4,6 +4,7 @@ import com.librisaudio.app.data.model.AppwriteSessionResponse
 import com.librisaudio.app.data.model.AppwriteUserResponse
 import com.librisaudio.app.data.model.AppwriteEmailLoginBody
 import com.librisaudio.app.data.model.AppwriteRegisterBody
+import com.librisaudio.app.data.model.AppwriteTokenSessionBody
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -30,6 +31,12 @@ interface AppwriteAuthService {
     suspend fun registerAccount(
         @Body body: AppwriteRegisterBody
     ): AppwriteUserResponse
+
+    // Exchange an OAuth2 token (userId + secret) for a session
+    @POST("v1/account/sessions/token")
+    suspend fun createSessionFromToken(
+        @Body body: AppwriteTokenSessionBody
+    ): AppwriteSessionResponse
 
     // Get current account info — requires session cookie
     @GET("v1/account")

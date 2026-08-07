@@ -73,7 +73,9 @@ class MainActivity : ComponentActivity() {
         // (no host, no path). Appwrite appends ?userId=X&secret=Y&expire=Z to it.
         val successUri = "appwrite-callback-${AppwriteAuthClient.APPWRITE_PROJECT_ID}://"
         val failureUri = "appwrite-callback-${AppwriteAuthClient.APPWRITE_PROJECT_ID}://"
-        val url = "${AppwriteAuthClient.APPWRITE_ENDPOINT}v1/account/sessions/oauth2/google" +
+        // Use the TOKEN flow (not session) — returns userId+secret in the redirect
+        // URL, which works for native apps. The session flow uses browser cookies.
+        val url = "${AppwriteAuthClient.APPWRITE_ENDPOINT}v1/account/tokens/oauth2/google" +
                   "?project=${AppwriteAuthClient.APPWRITE_PROJECT_ID}" +
                   "&success=${Uri.encode(successUri)}" +
                   "&failure=${Uri.encode(failureUri)}"

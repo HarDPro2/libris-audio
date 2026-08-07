@@ -155,52 +155,58 @@ class AuthViewModel : ViewModel() {
 
     /**
      * Called when the OAuth deep link returns to the app.
-     * Appwrite puts userId + secret as query params in the callback URL:
-     *   appwrite-callback-{projectId}://auth/oauth2/success?userId=X&secret=Y&expire=Z
-     * We use secret as the session cookie to fetch the account via Retrofit.
+     * TOKEN flow: Appwrite redirects to
+     *   appwrite-callback-{projectId}://?userId=X&secret=Y
+     * We exchange (userId, secret) for a session via POST /v1/account/sessions/token,
+     * then fetch the account with the resulting session cookie.
      */
     fun handleOAuthCallback(uri: android.net.Uri) {
         val allParams = uri.queryParameterNames.joinToString { "$it=${uri.getQueryParameter(it)}" }
-        Log.d("AuthViewModel", "OAuth callback URI: $uri")
-        Log.d("AuthViewModel", "OAuth params: $allParams")
+        Log.d("AuthViewModel", "OAuth callback URI: $uri | params: $allParams")
 
         _authState.value = AuthState.Loading
 
-        // Also check fragment — some OAuth flows put tokens after #
-        val fragment = uri.fragment ?: ""
-        Log.d("AuthViewModel", "OAuth fragment: $fragment")
+        val userId = uri.getQueryParameter("userId") ?: ""
+        val secret = uri.getQueryParameter("secret") ?: ""
 
-        val secret = uri.getQueryParameter("secret")
-            ?: fragment.split("&").firstOrNull { it.startsWith("secret=") }?.substringAfter("=")
-            ?: ""
-
-        if (secret.isBlank()) {
-            Log.e("AuthViewModel", "No secret found. URI=$uri params=$allParams fragment=$fragment")
-            _authState.value = AuthState.Error("URI: $uri | params: $allParams | frag: $fragment")
+        if (userId.isBlank() || secret.isBlank()) {
+            // Empty callback = OAuth failed at Appwrite/Google level
+            Log.e("AuthViewModel", "OAuth failed — no userId/secret. URI=$uri")
+            _authState.value = AuthState.Error("Login con Google falló. Verifica la configuración del proveedor en Appwrite.")
             return
         }
 
         viewModelScope.launch {
             try {
-                val cookieValue = "a_session_${AppwriteAuthClient.APPWRITE_PROJECT_ID}=${secret}"
-                Log.d("AuthViewModel", "Fetching account with cookie session...")
+                // 1. Exchange token for a real session
+                Log.d("AuthViewModel", "Exchanging OAuth token for session...")
+                val sessionResp = AppwriteAuthClient.authService.createSessionFromToken(
+                    body = com.librisaudio.app.data.model.AppwriteTokenSessionBody(
+                        userId = userId,
+                        secret = secret
+                    )
+                )
+                Log.d("AuthViewModel", "Session created id=${sessionResp.`$id`}")
+
+                // 2. Fetch account info with the session cookie
+                val cookieValue = "a_session_${AppwriteAuthClient.APPWRITE_PROJECT_ID}=${sessionResp.`$id`}"
                 val userResp = AppwriteAuthClient.authService.getAccount(cookieHeader = cookieValue)
-                Log.d("AuthViewModel", "Account OK: ${userResp.email}")
+                Log.d("AuthViewModel", "OAuth account OK: ${userResp.email}")
 
                 val session = AppwriteSession(
                     userId    = userResp.`$id`,
                     email     = userResp.email,
                     name      = userResp.name.ifBlank { userResp.email.substringBefore("@") },
-                    sessionId = secret
+                    sessionId = sessionResp.`$id`
                 )
                 saveSession(session)
                 _authState.value = AuthState.Authenticated(session)
             } catch (e: HttpException) {
                 val body = parseAppwriteError(e)
-                Log.e("AuthViewModel", "getAccount failed ${e.code()}: $body")
+                Log.e("AuthViewModel", "OAuth token exchange failed ${e.code()}: $body")
                 _authState.value = AuthState.Error("Error Google ${e.code()}: $body")
             } catch (e: Exception) {
-                Log.e("AuthViewModel", "getAccount exception: ${e.message}", e)
+                Log.e("AuthViewModel", "OAuth exception: ${e.message}", e)
                 _authState.value = AuthState.Error("Error red OAuth: ${e.javaClass.simpleName}: ${e.message?.take(80)}")
             }
         }

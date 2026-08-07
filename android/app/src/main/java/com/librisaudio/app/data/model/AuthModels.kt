@@ -29,3 +29,9 @@ data class AppwriteRegisterBody(
     val password: String,
     val name: String
 )
+
+// Exchange an OAuth2 token (userId + secret) for a real session
+data class AppwriteTokenSessionBody(
+    val userId: String,
+    val secret: String
+)
