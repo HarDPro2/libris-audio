@@ -311,6 +311,9 @@ class MainActivity : ComponentActivity() {
                                 onSelectSpeed = { speed -> playerViewModel.setSpeed(speed) },
                                 onOpenCarMode = { isCarModeOpen = true },
                                 onStopPlayback = { playerViewModel.stopPlayback(); isFullPlayerOpen = false },
+                                onReadNextPart = { playerViewModel.readNextPart() },
+                                onReadPreviousPart = { playerViewModel.readPreviousPart() },
+                                onPauseVoice = { playerViewModel.pauseVoice() },
                                 onClose = { isFullPlayerOpen = false }
                             )
                         }

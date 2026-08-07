@@ -330,6 +330,25 @@ async def _edge_tts_bytes_and_words(text: str, voice: str):
     return bytes(audio), words
 
 
+def _split_entry_to_words(text, s, e):
+    """Divide un tramo de tiempo (frase o palabra) en palabras individuales,
+    repartiendo [s, e] proporcional al largo de cada palabra. Así el resaltado
+    avanza palabra por palabra aunque edge-tts entregue límites por frase."""
+    parts = str(text).split()
+    if len(parts) <= 1:
+        return [{"w": str(text).strip(), "s": int(s), "e": int(e)}]
+    total = sum(len(p) for p in parts) or 1
+    out = []
+    cur = float(s)
+    span = max(0.0, float(e) - float(s))
+    for p in parts:
+        frac = len(p) / total
+        w_end = cur + span * frac
+        out.append({"w": p, "s": int(cur), "e": int(w_end)})
+        cur = w_end
+    return out
+
+
 async def text_to_mp3(text: str, output_path: Path, voice: str = "es-MX-JorgeNeural",
                       timing_path: Path | None = None):
     """Genera MP3 completo con reintentos y fallback a gTTS por segmento.
@@ -373,9 +392,11 @@ async def text_to_mp3(text: str, output_path: Path, voice: str = "es-MX-JorgeNeu
                 print(f"[TTS] gTTS fallback también falló: {e}")
                 seg_bytes, seg_words = b"", []
 
-        # Acumular tiempos desplazados por la duración de segmentos anteriores
+        # Acumular tiempos desplazados por la duración de segmentos anteriores,
+        # dividiendo cada tramo (frase) en palabras individuales.
         for w in seg_words:
-            timings.append({"w": w["w"], "s": int(w["s"] + base_ms), "e": int(w["e"] + base_ms)})
+            for ww in _split_entry_to_words(w["w"], w["s"] + base_ms, w["e"] + base_ms):
+                timings.append(ww)
         if seg_words:
             base_ms += seg_words[-1]["e"] + 120.0    # pequeño gap entre segmentos
         else:
@@ -628,7 +649,7 @@ async def get_book_audio(book_id: str, part_index: int, voice: str = "es-MX-Jorg
         print(f"[Audio] Generando MP3: {mp3_key}")
         local_mp3    = Path(f"/tmp/{book_id}_part_{part_index}_{safe_voice}.mp3")
         local_timing = Path(f"/tmp/{book_id}_part_{part_index}_{safe_voice}.json")
-        timing_key   = f"{book_id}/timing/part_{part_index}_{safe_voice}_v2.json"
+        timing_key   = f"{book_id}/timing/part_{part_index}_{safe_voice}_v3.json"
         try:
             await text_to_mp3(text, local_mp3, voice=voice, timing_path=local_timing)
         except Exception as exc:
@@ -682,7 +703,7 @@ async def get_book_timing(book_id: str, part_index: int, voice: str = "es-MX-Jor
         raise HTTPException(status_code=500, detail="Cloudflare R2 no configurado")
 
     safe_voice = sanitize_filename(voice)
-    timing_key = f"{book_id}/timing/part_{part_index}_{safe_voice}_v2.json"
+    timing_key = f"{book_id}/timing/part_{part_index}_{safe_voice}_v3.json"
 
     exists = await asyncio.to_thread(r2_exists, timing_key)
     if not exists:

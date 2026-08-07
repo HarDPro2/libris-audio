@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -43,6 +45,7 @@ private fun animationIcon(preset: AppThemePreset): String = when (preset.animati
     ThemeAnimation.MESH      -> "🎨"
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
     currentTheme: AppThemePreset,
@@ -125,8 +128,12 @@ fun SettingsScreen(
             Text("Cada tema tiene su propia animación de fondo", fontSize = 11.sp, color = TextMuted)
             Spacer(modifier = Modifier.height(12.dp))
 
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(AppThemePreset.values()) { preset ->
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                AppThemePreset.values().forEach { preset ->
                     val isSelected = currentTheme == preset
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,

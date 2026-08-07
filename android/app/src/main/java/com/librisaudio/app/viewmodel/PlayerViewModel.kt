@@ -306,6 +306,40 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /** Pausa la voz (para entrar al modo Solo Lectura). */
+    fun pauseVoice() {
+        mediaController?.pause()
+        _isPlaying.value = false
+    }
+
+    /** Solo Lectura: carga el texto de una parte SIN reproducir audio ni karaoke. */
+    private fun readPart(book: Book, partIndex: Int) {
+        _currentPartIndex.value = partIndex
+        val progressPct = if (book.partsCount > 0)
+            ((partIndex.toFloat() / book.partsCount) * 100).toInt() else 0
+        saveProgress(book.bookId, partIndex, progressPct)
+        markStarted(book.bookId)
+        savePosition(book.bookId, 0L)
+        _books.value = _books.value.map {
+            if (it.bookId == book.bookId)
+                it.copy(currentPartIndex = partIndex, progressPercent = progressPct.coerceAtLeast(1))
+            else it
+        }
+        loadPartText(book.bookId, partIndex)
+    }
+
+    fun readNextPart() {
+        val book = _currentBook.value ?: return
+        val next = _currentPartIndex.value + 1
+        if (next < book.partsCount) readPart(book, next)
+    }
+
+    fun readPreviousPart() {
+        val book = _currentBook.value ?: return
+        val prev = _currentPartIndex.value - 1
+        if (prev >= 0) readPart(book, prev)
+    }
+
     /** Reanuda un libro desde la última parte y posición guardadas (continuar donde quedó). */
     fun resumeBook(book: Book) {
         val part = prefs.getInt("part_${book.bookId}", 0)

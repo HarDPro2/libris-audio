@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.StopCircle
 import androidx.compose.material.icons.filled.Pause
@@ -65,8 +66,9 @@ import com.librisaudio.app.ui.theme.PurpleAccent
 import com.librisaudio.app.ui.theme.TextMuted
 
 enum class PlayerViewMode {
-    CLASSIC_PLAYER,
-    VIRTUAL_BOOK_3D
+    CLASSIC_PLAYER,   // solo audio
+    VIRTUAL_BOOK_3D,  // audio + texto con karaoke
+    READ_ONLY         // solo lectura, sin voz
 }
 
 @Composable
@@ -98,6 +100,9 @@ fun PlayerScreen(
     onSelectVoice: (String) -> Unit = {},
     wordTimings: List<WordTiming> = emptyList(),
     onStopPlayback: () -> Unit = {},
+    onReadNextPart: () -> Unit = {},
+    onReadPreviousPart: () -> Unit = {},
+    onPauseVoice: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var viewMode by remember { mutableStateOf(PlayerViewMode.CLASSIC_PLAYER) }
@@ -149,12 +154,13 @@ fun PlayerScreen(
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Top Navigation Bar
-            if (!isImmersive) Row(
+            // Top Navigation Bar (dos filas: controles+modos arriba, acciones abajo)
+            if (!isImmersive) Column(modifier = Modifier.fillMaxWidth()) {
+              Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
-            ) {
+              ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onClose) {
                         Icon(Icons.Default.Home, contentDescription = "Inicio", tint = Color.White)
@@ -195,17 +201,39 @@ fun PlayerScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Book, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Libro 3D", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text("Libro", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (viewMode == PlayerViewMode.READ_ONLY) currentTheme.primary else Color.Transparent)
+                            .clickable { viewMode = PlayerViewMode.READ_ONLY; onPauseVoice() }
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.MenuBook, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Leer", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
                         }
                     }
                 }
 
-                // Top Action Icons — scroll horizontal para que no corten el marco
-                Row(modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.End) {
-                    IconButton(onClick = { isImmersive = true }) {
-                        Icon(Icons.Default.Fullscreen, contentDescription = "Pantalla completa", tint = CyanAccent)
-                    }
+                // Pantalla completa (cierra la fila superior)
+                IconButton(onClick = { isImmersive = true }) {
+                    Icon(Icons.Default.Fullscreen, contentDescription = "Pantalla completa", tint = CyanAccent)
+                }
+              }
+
+              Spacer(modifier = Modifier.height(4.dp))
+
+              // Segunda fila: TODAS las acciones visibles, sin scroll
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+              ) {
                     IconButton(onClick = { isVoiceDialogVisible = true }) {
                         Icon(Icons.Default.RecordVoiceOver, contentDescription = "Voz del narrador", tint = Color.White)
                     }
@@ -227,13 +255,14 @@ fun PlayerScreen(
                     IconButton(onClick = { isMusicDialogVisible = true }) {
                         Icon(Icons.Default.MusicNote, contentDescription = "Música de Fondo", tint = if (selectedMusicTrack != null) CyanAccent else Color.White)
                     }
-                }
+              }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            if (viewMode == PlayerViewMode.VIRTUAL_BOOK_3D) {
-                // 3D Virtual Book Frame Mode
+            if (viewMode != PlayerViewMode.CLASSIC_PLAYER) {
+                // Modo lectura: Libro (con audio+karaoke) o Solo Lectura (sin voz)
+                val readOnly = viewMode == PlayerViewMode.READ_ONLY
                 VirtualBookFrame(
                     book = book,
                     textPart = currentPartText,
@@ -241,10 +270,10 @@ fun PlayerScreen(
                     currentPartIndex = currentPartIndex,
                     isPlaying = isPlaying,
                     currentPositionMs = currentPositionMs,
-                    wordTimings = wordTimings,
+                    wordTimings = if (readOnly) emptyList() else wordTimings,
                     onSeekTo = onSeekTo,
-                    onNextPart = onNextPart,
-                    onPreviousPart = onPreviousPart,
+                    onNextPart = if (readOnly) onReadNextPart else onNextPart,
+                    onPreviousPart = if (readOnly) onReadPreviousPart else onPreviousPart,
                     modifier = Modifier.weight(1f)
                 )
             } else {
@@ -311,8 +340,8 @@ fun PlayerScreen(
                 }
             }
 
-            // Bottom Audio Control Panel
-            if (!isImmersive) Column(modifier = Modifier.fillMaxWidth()) {
+            // Bottom Audio Control Panel (oculto en Solo Lectura — no hay voz)
+            if (!isImmersive && viewMode != PlayerViewMode.READ_ONLY) Column(modifier = Modifier.fillMaxWidth()) {
                 val posSec = currentPositionMs / 1000
                 val durSec = durationMs / 1000
                 val sliderValue = if (durationMs > 0) currentPositionMs.toFloat() / durationMs else 0f

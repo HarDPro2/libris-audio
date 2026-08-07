@@ -60,19 +60,13 @@ class AudioService : MediaLibraryService() {
         // 4. Build MediaSession
         mediaSession = MediaLibrarySession.Builder(this, voicePlayer, LibraryCallback()).build()
 
-        // 5. Sync background music play/pause with voice playback
+        // 5. WakeLock ligado a la voz (la música de fondo suena independiente)
         voicePlayer.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 if (isPlaying) {
                     if (wakeLock?.isHeld == false) wakeLock?.acquire(3 * 60 * 60 * 1000L)
-                    if (backgroundMusicPlayer.mediaItemCount > 0 && !backgroundMusicPlayer.isPlaying) {
-                        backgroundMusicPlayer.play()
-                    }
                 } else {
                     if (wakeLock?.isHeld == true) wakeLock?.release()
-                    if (backgroundMusicPlayer.isPlaying) {
-                        backgroundMusicPlayer.pause()
-                    }
                 }
             }
         })
@@ -83,9 +77,10 @@ class AudioService : MediaLibraryService() {
         backgroundMusicPlayer.setMediaItem(item)
         backgroundMusicPlayer.volume = volume
         backgroundMusicPlayer.prepare()
-        if (voicePlayer.isPlaying) {
-            backgroundMusicPlayer.play()
-        }
+        // Arranca siempre al seleccionar (ambiente independiente de la voz —
+        // así también suena en el modo lectura con la voz en pausa).
+        backgroundMusicPlayer.playWhenReady = true
+        backgroundMusicPlayer.play()
     }
 
     fun stopBackgroundTrack() {
