@@ -5,7 +5,9 @@ import com.librisaudio.app.data.model.AppwriteUserResponse
 import com.librisaudio.app.data.model.AppwriteEmailLoginBody
 import com.librisaudio.app.data.model.AppwriteRegisterBody
 import com.librisaudio.app.data.model.AppwriteTokenSessionBody
-import okhttp3.JavaNetCookieJar
+import okhttp3.Cookie
+import okhttp3.CookieJar
+import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -15,8 +17,6 @@ import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Path
-import java.net.CookieManager
-import java.net.CookiePolicy
 import java.util.concurrent.TimeUnit
 
 interface AppwriteAuthService {
@@ -54,21 +54,25 @@ object AppwriteAuthClient {
     const val APPWRITE_ENDPOINT   = "https://nyc.cloud.appwrite.io/"
     const val APPWRITE_PROJECT_ID = "6a72f5d6002eeff78bc2"
 
-    // Persists cookies (incl. the session cookie) across requests in this client
-    private val cookieManager = CookieManager().apply {
-        setCookiePolicy(CookiePolicy.ACCEPT_ALL)
+    // Simple in-memory cookie jar — persists cookies across requests in this client
+    private val cookieStore = mutableMapOf<String, Cookie>()
+
+    private val cookieJar = object : CookieJar {
+        override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
+            for (c in cookies) cookieStore[c.name] = c
+        }
+        override fun loadForRequest(url: HttpUrl): List<Cookie> =
+            cookieStore.values.toList()
     }
 
     /** Reads the current Appwrite session secret from the cookie jar, if any. */
     fun currentSessionSecret(): String? =
-        cookieManager.cookieStore.cookies
-            .firstOrNull { it.name == "a_session_$APPWRITE_PROJECT_ID" }
-            ?.value
+        cookieStore["a_session_$APPWRITE_PROJECT_ID"]?.value
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
-        .cookieJar(JavaNetCookieJar(cookieManager))
+        .cookieJar(cookieJar)
         .addInterceptor(HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
         })
