@@ -155,28 +155,46 @@ class AuthViewModel : ViewModel() {
 
     /**
      * Called when the OAuth deep link returns to the app.
-     * Uses the Appwrite Android SDK to fetch the current session —
-     * the SDK stored the cookie during the OAuth redirect automatically.
+     * Appwrite puts userId + secret as query params in the callback URL:
+     *   appwrite-callback-{projectId}://auth/oauth2/success?userId=X&secret=Y&expire=Z
+     * We use secret as the session cookie to fetch the account via Retrofit.
      */
     fun handleOAuthCallback(uri: android.net.Uri) {
+        val allParams = uri.queryParameterNames.joinToString { "$it=${uri.getQueryParameter(it)}" }
         Log.d("AuthViewModel", "OAuth callback URI: $uri")
-        Log.d("AuthViewModel", "OAuth params: ${uri.queryParameterNames.joinToString { "$it=${uri.getQueryParameter(it)}" }}")
+        Log.d("AuthViewModel", "OAuth params: $allParams")
+
         _authState.value = AuthState.Loading
+
+        val secret = uri.getQueryParameter("secret") ?: ""
+        if (secret.isBlank()) {
+            Log.e("AuthViewModel", "No secret in OAuth callback. Params: $allParams")
+            _authState.value = AuthState.Error("Google no devolvió un token. Params: $allParams")
+            return
+        }
+
         viewModelScope.launch {
             try {
-                val user = AppwriteSdkClient.account.get()
-                Log.d("AuthViewModel", "OAuth account.get() OK userId=${user.id} email=${user.email}")
+                val cookieValue = "a_session_${AppwriteAuthClient.APPWRITE_PROJECT_ID}=${secret}"
+                Log.d("AuthViewModel", "Fetching account with cookie session...")
+                val userResp = AppwriteAuthClient.authService.getAccount(cookieHeader = cookieValue)
+                Log.d("AuthViewModel", "Account OK: ${userResp.email}")
+
                 val session = AppwriteSession(
-                    userId    = user.id,
-                    email     = user.email,
-                    name      = user.name.ifBlank { user.email.substringBefore("@") },
-                    sessionId = user.id
+                    userId    = userResp.`$id`,
+                    email     = userResp.email,
+                    name      = userResp.name.ifBlank { userResp.email.substringBefore("@") },
+                    sessionId = secret
                 )
                 saveSession(session)
                 _authState.value = AuthState.Authenticated(session)
+            } catch (e: HttpException) {
+                val body = parseAppwriteError(e)
+                Log.e("AuthViewModel", "getAccount failed ${e.code()}: $body")
+                _authState.value = AuthState.Error("Error Google ${e.code()}: $body")
             } catch (e: Exception) {
-                Log.e("AuthViewModel", "OAuth account.get() failed: ${e.message}", e)
-                _authState.value = AuthState.Error("No se pudo verificar la sesión de Google. Intenta de nuevo.")
+                Log.e("AuthViewModel", "getAccount exception: ${e.message}", e)
+                _authState.value = AuthState.Error("Error red OAuth: ${e.javaClass.simpleName}: ${e.message?.take(80)}")
             }
         }
     }
