@@ -177,38 +177,52 @@ class AuthViewModel : ViewModel() {
         }
 
         viewModelScope.launch {
-            try {
-                // 1. Exchange token for a real session
+            // ── Step 1: exchange token for session ──
+            val sessionResp = try {
                 Log.d("AuthViewModel", "Exchanging OAuth token for session...")
-                val sessionResp = AppwriteAuthClient.authService.createSessionFromToken(
+                AppwriteAuthClient.authService.createSessionFromToken(
                     body = com.librisaudio.app.data.model.AppwriteTokenSessionBody(
                         userId = userId,
                         secret = secret
                     )
                 )
-                Log.d("AuthViewModel", "Session created id=${sessionResp.`$id`} hasSecret=${!sessionResp.secret.isNullOrBlank()}")
-
-                // 2. Fetch account with the session secret in X-Appwrite-Session header
-                val sessionSecret = sessionResp.secret?.takeIf { it.isNotBlank() } ?: sessionResp.`$id`
-                val userResp = AppwriteAuthClient.authService.getAccount(sessionSecret = sessionSecret)
-                Log.d("AuthViewModel", "OAuth account OK: ${userResp.email}")
-
-                val session = AppwriteSession(
-                    userId    = userResp.`$id`,
-                    email     = userResp.email,
-                    name      = userResp.name.ifBlank { userResp.email.substringBefore("@") },
-                    sessionId = sessionSecret
-                )
-                saveSession(session)
-                _authState.value = AuthState.Authenticated(session)
             } catch (e: HttpException) {
                 val body = parseAppwriteError(e)
-                Log.e("AuthViewModel", "OAuth token exchange failed ${e.code()}: $body")
-                _authState.value = AuthState.Error("Error Google ${e.code()}: $body")
+                Log.e("AuthViewModel", "createSession failed ${e.code()}: $body")
+                _authState.value = AuthState.Error("PASO1 createSession ${e.code()}: $body")
+                return@launch
             } catch (e: Exception) {
-                Log.e("AuthViewModel", "OAuth exception: ${e.message}", e)
-                _authState.value = AuthState.Error("Error red OAuth: ${e.javaClass.simpleName}: ${e.message?.take(80)}")
+                Log.e("AuthViewModel", "createSession exception: ${e.message}", e)
+                _authState.value = AuthState.Error("PASO1 red: ${e.javaClass.simpleName}: ${e.message?.take(60)}")
+                return@launch
             }
+
+            val sessionSecret = sessionResp.secret?.takeIf { it.isNotBlank() } ?: sessionResp.`$id`
+            Log.d("AuthViewModel", "Session id=${sessionResp.`$id`} secretLen=${sessionResp.secret?.length ?: 0}")
+
+            // ── Step 2: fetch account with session secret ──
+            val userResp = try {
+                AppwriteAuthClient.authService.getAccount(sessionSecret = sessionSecret)
+            } catch (e: HttpException) {
+                val body = parseAppwriteError(e)
+                Log.e("AuthViewModel", "getAccount failed ${e.code()}: $body")
+                _authState.value = AuthState.Error("PASO2 getAccount ${e.code()} secretLen=${sessionResp.secret?.length ?: 0}: $body")
+                return@launch
+            } catch (e: Exception) {
+                Log.e("AuthViewModel", "getAccount exception: ${e.message}", e)
+                _authState.value = AuthState.Error("PASO2 red: ${e.javaClass.simpleName}: ${e.message?.take(60)}")
+                return@launch
+            }
+
+            val session = AppwriteSession(
+                userId    = userResp.`$id`,
+                email     = userResp.email,
+                name      = userResp.name.ifBlank { userResp.email.substringBefore("@") },
+                sessionId = sessionSecret
+            )
+            saveSession(session)
+            _authState.value = AuthState.Authenticated(session)
+            Log.d("AuthViewModel", "OAuth OK: ${userResp.email}")
         }
     }
 
