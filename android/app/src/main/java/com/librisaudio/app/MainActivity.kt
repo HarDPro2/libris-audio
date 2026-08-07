@@ -20,9 +20,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.platform.LocalContext
 import com.librisaudio.app.data.api.AppwriteAuthClient
 import com.librisaudio.app.data.api.AppwriteSdkClient
+import com.librisaudio.app.data.model.ProfileManager
+import com.librisaudio.app.data.model.UserProfile
 import com.librisaudio.app.ui.components.BottomPlayerBar
+import com.librisaudio.app.ui.components.ProfileAvatar
+import com.librisaudio.app.ui.components.ProfileDialog
 import com.librisaudio.app.ui.screens.*
 import com.librisaudio.app.ui.theme.AppThemePreset
 import com.librisaudio.app.ui.theme.LibrisAudioTheme
@@ -115,6 +121,10 @@ class MainActivity : ComponentActivity() {
                 // ── Authenticated App ──────────────────────────────────────
                 val session = (authState as? AuthState.Authenticated)?.session
 
+                val context = LocalContext.current
+                var userProfile by remember { mutableStateOf(ProfileManager.load(context)) }
+                var showProfileDialog by remember { mutableStateOf(false) }
+
                 var selectedTab by remember { mutableStateOf(MainTab.LIBRARY) }
                 var isCarModeOpen by remember { mutableStateOf(false) }
 
@@ -143,10 +153,10 @@ class MainActivity : ComponentActivity() {
                         if (!isFullPlayerOpen && !isCarModeOpen) {
                             TopAppBar(
                                 title = {
-                                    Column {
+                                    Column(modifier = Modifier.clickable { showProfileDialog = true }) {
                                         Text(
-                                            text = "Libris Audio",
-                                            fontSize = 18.sp,
+                                            text = userProfile.displayName.ifBlank { "Tu perfil" },
+                                            fontSize = 16.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = Color.White
                                         )
@@ -160,12 +170,12 @@ class MainActivity : ComponentActivity() {
                                     }
                                 },
                                 navigationIcon = {
-                                    Icon(
-                                        Icons.Default.AutoStories,
-                                        contentDescription = "Logo",
-                                        tint = currentTheme.primary,
-                                        modifier = Modifier.padding(start = 12.dp).size(28.dp)
-                                    )
+                                    Box(modifier = Modifier
+                                        .padding(start = 10.dp)
+                                        .clickable { showProfileDialog = true }
+                                    ) {
+                                        ProfileAvatar(userProfile, 34.dp)
+                                    }
                                 },
                                 actions = {
                                     IconButton(onClick = { authViewModel.logout() }) {
@@ -244,7 +254,7 @@ class MainActivity : ComponentActivity() {
                                 personalBooks = books.filter { it.progressPercent > 0 },
                                 currentTheme = currentTheme,
                                 currentUserId = session?.userId ?: "",
-                                onBookSelect = { selectedBook -> playerViewModel.playBook(selectedBook) },
+                                onBookSelect = { selectedBook -> playerViewModel.resumeBook(selectedBook) },
                                 onDeleteBook = { book -> playerViewModel.deleteBook(book, session?.sessionId ?: "") },
                                 onEditBook  = { book, newTitle, newCat -> playerViewModel.editBook(book, newTitle, newCat, session?.sessionId ?: "") }
                             )
@@ -252,7 +262,7 @@ class MainActivity : ComponentActivity() {
                                 books = books,
                                 currentTheme = currentTheme,
                                 onBookSelect = { selectedBook ->
-                                    playerViewModel.playBook(selectedBook)
+                                    playerViewModel.resumeBook(selectedBook)
                                     selectedTab = MainTab.LIBRARY
                                 }
                             )
@@ -267,7 +277,7 @@ class MainActivity : ComponentActivity() {
                             MainTab.SETTINGS -> SettingsScreen(
                                 currentTheme = currentTheme,
                                 onSelectTheme = { newTheme -> playerViewModel.setTheme(newTheme) },
-                                userName = session?.name ?: "",
+                                userName = userProfile.displayName.ifBlank { session?.name ?: "" },
                                 userEmail = session?.email ?: "",
                                 onLogout = { authViewModel.logout() }
                             )
@@ -300,6 +310,7 @@ class MainActivity : ComponentActivity() {
                                 onSeekTo = { posMs -> playerViewModel.seekTo(posMs) },
                                 onSelectSpeed = { speed -> playerViewModel.setSpeed(speed) },
                                 onOpenCarMode = { isCarModeOpen = true },
+                                onStopPlayback = { playerViewModel.stopPlayback(); isFullPlayerOpen = false },
                                 onClose = { isFullPlayerOpen = false }
                             )
                         }
@@ -314,6 +325,16 @@ class MainActivity : ComponentActivity() {
                                 onForward15 = { playerViewModel.seekTo(currentPositionMs + 15000) },
                                 onNextPart = { playerViewModel.nextPart() },
                                 onCloseCarMode = { isCarModeOpen = false }
+                            )
+                        }
+
+                        if (showProfileDialog) {
+                            ProfileDialog(
+                                initial = userProfile,
+                                email = session?.email ?: "",
+                                primary = currentTheme.primary,
+                                onSave = { p -> userProfile = p; ProfileManager.save(context, p) },
+                                onDismiss = { showProfileDialog = false }
                             )
                         }
                     }

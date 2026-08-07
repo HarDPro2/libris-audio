@@ -4,7 +4,9 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.runtime.LaunchedEffect
@@ -15,8 +17,12 @@ import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.StopCircle
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.QueryStats
@@ -91,9 +97,11 @@ fun PlayerScreen(
     selectedVoice: String = "es-MX-JorgeNeural",
     onSelectVoice: (String) -> Unit = {},
     wordTimings: List<WordTiming> = emptyList(),
+    onStopPlayback: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var viewMode by remember { mutableStateOf(PlayerViewMode.CLASSIC_PLAYER) }
+    var isImmersive by remember { mutableStateOf(false) }
     var isMusicDialogVisible by remember { mutableStateOf(false) }
     var isSleepTimerVisible by remember { mutableStateOf(false) }
     var isBookmarkVisible by remember { mutableStateOf(false) }
@@ -142,13 +150,18 @@ fun PlayerScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Top Navigation Bar
-            Row(
+            if (!isImmersive) Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onClose) {
-                    Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = Color.White)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onClose) {
+                        Icon(Icons.Default.Home, contentDescription = "Inicio", tint = Color.White)
+                    }
+                    IconButton(onClick = onStopPlayback) {
+                        Icon(Icons.Default.StopCircle, contentDescription = "Detener reproducción", tint = Color.White)
+                    }
                 }
 
                 // View Mode Switcher Pills (Cl�sico vs Libro 3D)
@@ -187,8 +200,12 @@ fun PlayerScreen(
                     }
                 }
 
-                // Top Action Icons (AI Chat, Car Mode, Sleep Timer, Bookmarks, Music)
-                Row {
+                // Top Action Icons — scroll horizontal para que no corten el marco
+                Row(modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.End) {
+                    IconButton(onClick = { isImmersive = true }) {
+                        Icon(Icons.Default.Fullscreen, contentDescription = "Pantalla completa", tint = CyanAccent)
+                    }
                     IconButton(onClick = { isVoiceDialogVisible = true }) {
                         Icon(Icons.Default.RecordVoiceOver, contentDescription = "Voz del narrador", tint = Color.White)
                     }
@@ -295,7 +312,7 @@ fun PlayerScreen(
             }
 
             // Bottom Audio Control Panel
-            Column(modifier = Modifier.fillMaxWidth()) {
+            if (!isImmersive) Column(modifier = Modifier.fillMaxWidth()) {
                 val posSec = currentPositionMs / 1000
                 val durSec = durationMs / 1000
                 val sliderValue = if (durationMs > 0) currentPositionMs.toFloat() / durationMs else 0f
@@ -388,6 +405,47 @@ fun PlayerScreen(
                             )
                         }
                     }
+                }
+            }
+        }
+
+        // Controles flotantes en modo inmersivo (pantalla completa)
+        if (isImmersive) {
+            IconButton(
+                onClick = { isImmersive = false },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(12.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color(0x66000000))
+            ) {
+                Icon(Icons.Default.FullscreenExit, contentDescription = "Salir de pantalla completa", tint = Color.White)
+            }
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 24.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(18.dp)
+            ) {
+                IconButton(onClick = onPreviousPart) {
+                    Icon(Icons.Default.SkipPrevious, contentDescription = "Anterior", tint = Color.White, modifier = Modifier.size(30.dp))
+                }
+                IconButton(
+                    onClick = onTogglePlay,
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(28.dp))
+                        .background(Brush.linearGradient(listOf(currentTheme.primary, currentTheme.secondary)))
+                ) {
+                    Icon(
+                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = if (isPlaying) "Pausar" else "Reproducir",
+                        tint = Color.White, modifier = Modifier.size(32.dp)
+                    )
+                }
+                IconButton(onClick = onNextPart) {
+                    Icon(Icons.Default.SkipNext, contentDescription = "Siguiente", tint = Color.White, modifier = Modifier.size(30.dp))
                 }
             }
         }

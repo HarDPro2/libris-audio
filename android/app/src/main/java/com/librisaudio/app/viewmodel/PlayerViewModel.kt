@@ -206,11 +206,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             try {
                 val dtos = ApiClient.backendService.getBooksFromBackend()
+                val started = prefs.getStringSet("started_books", emptySet()) ?: emptySet()
                 val mapped = dtos.map { dto ->
                     val bookId = dto.bookId ?: dto.id ?: "1"
                     // Restore persisted progress from SharedPreferences
                     val savedPartIndex    = prefs.getInt("part_$bookId", 0)
                     val savedProgressPct  = prefs.getInt("pct_$bookId", 0)
+                    // Un libro empezado siempre muestra ≥1% para aparecer en "Mi Biblioteca"
+                    val effectivePct = if (bookId in started) savedProgressPct.coerceAtLeast(1) else savedProgressPct
                     Book(
                         id              = dto.id ?: bookId,
                         bookId          = bookId,
@@ -221,7 +224,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                                           else "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=300&h=400&fit=crop",
                         partsCount      = dto.partsCount ?: 1,
                         currentPartIndex = savedPartIndex,
-                        progressPercent  = savedProgressPct,
+                        progressPercent  = effectivePct,
                         addedBy         = dto.addedBy ?: ""
                     )
                 }
@@ -257,7 +260,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             .apply()
     }
 
-    fun playBook(book: Book, partIndex: Int = 0) {
+    fun playBook(book: Book, partIndex: Int = 0, seekToMs: Long = 0L) {
         _currentBook.value = book
         _currentPartIndex.value = partIndex
 
@@ -266,16 +269,22 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             ((partIndex.toFloat() / book.partsCount) * 100).toInt()
         else 0
         saveProgress(book.bookId, partIndex, progressPct)
+        markStarted(book.bookId)
+        savePosition(book.bookId, seekToMs)
 
-        // Update progress in the in-memory list so HistoryScreen updates immediately
+        // El libro aparece en "Mi Biblioteca" al instante (min 1% aunque sea parte 0)
         _books.value = _books.value.map {
-            if (it.bookId == book.bookId) it.copy(currentPartIndex = partIndex, progressPercent = progressPct)
+            if (it.bookId == book.bookId)
+                it.copy(currentPartIndex = partIndex, progressPercent = progressPct.coerceAtLeast(1))
             else it
         }
 
         // Load text + word timings for Libro 3D / karaoke (non-blocking)
         loadPartText(book.bookId, partIndex)
         loadTiming(book.bookId, partIndex, _selectedVoice.value)
+        // Predescarga: el backend genera y cachea la SIGUIENTE parte (una sola,
+        // para no saturar) → al avanzar no hay espera ni cortes.
+        prefetchNextPart(book, partIndex, _selectedVoice.value)
 
         val audioUrl = book.getAudioUrl(partIndex, _selectedVoice.value)
         val mediaItem = MediaItem.Builder()
@@ -291,9 +300,44 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         mediaController?.let { player ->
             player.setMediaItem(mediaItem)
             player.prepare()
+            if (seekToMs > 0) player.seekTo(seekToMs)
             player.play()
             _isPlaying.value = true
         }
+    }
+
+    /** Reanuda un libro desde la última parte y posición guardadas (continuar donde quedó). */
+    fun resumeBook(book: Book) {
+        val part = prefs.getInt("part_${book.bookId}", 0)
+        val pos  = prefs.getLong("pos_${book.bookId}", 0L)
+        playBook(book, part, pos)
+    }
+
+    /** Detiene por completo la reproducción y cierra el libro actual. */
+    fun stopPlayback() {
+        mediaController?.stop()
+        _isPlaying.value = false
+        _currentBook.value = null
+    }
+
+    /** Warm-up de la siguiente parte en el backend (genera+cachea MP3 y tiempos). */
+    private fun prefetchNextPart(book: Book, partIndex: Int, voice: String) {
+        val next = partIndex + 1
+        if (next >= book.partsCount) return
+        viewModelScope.launch {
+            try {
+                ApiClient.backendService.getTiming(book.bookId, next, voice)
+            } catch (_: Exception) { /* silencioso — es solo pre-carga */ }
+        }
+    }
+
+    private fun markStarted(bookId: String) {
+        val set = (prefs.getStringSet("started_books", emptySet()) ?: emptySet()).toMutableSet()
+        if (set.add(bookId)) prefs.edit().putStringSet("started_books", set).apply()
+    }
+
+    private fun savePosition(bookId: String, positionMs: Long) {
+        prefs.edit().putLong("pos_${bookId}", positionMs.coerceAtLeast(0L)).apply()
     }
 
     fun togglePlayPause() {
@@ -350,6 +394,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         // Every 60 ticks = 30 seconds of real playback → add 1 minute to stats
                         if (ticksPlaying % 60 == 0) {
                             addListeningMinutes(1)
+                        }
+                        // Cada 10 ticks (~5s) guardar la posición para poder reanudar
+                        if (ticksPlaying % 10 == 0) {
+                            _currentBook.value?.let { savePosition(it.bookId, player.currentPosition) }
                         }
                     }
                 }
