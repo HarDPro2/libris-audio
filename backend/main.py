@@ -378,26 +378,42 @@ def health_check():
     return {"status": "ok", "message": "LibrisAudio Backend activo en Google Cloud Run"}
 
 
+async def _appwrite_list_documents(collection: str, queries=None):
+    """Lista documentos vía la API REST de Appwrite (JSON predecible,
+    independiente de la versión del SDK de Python)."""
+    url = f"{APPWRITE_ENDPOINT}/databases/{APPWRITE_DB_ID}/collections/{collection}/documents"
+    params = []
+    for q in (queries or []):
+        params.append(("queries[]", q))
+    headers = {
+        "X-Appwrite-Project": APPWRITE_PROJECT_ID,
+        "X-Appwrite-Key": APPWRITE_API_KEY or "",
+    }
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.get(url, params=params, headers=headers)
+        r.raise_for_status()
+        return r.json().get("documents", [])
+
+
 @app.get("/api/books")
 async def get_all_books():
     """Catálogo global desde Appwrite con fallback a libros de ejemplo."""
     books = []
-    if appwrite_db:
-        try:
-            res = appwrite_db.list_documents(APPWRITE_DB_ID, "global_books")
-            for doc in res.get("documents", []):
-                books.append({
-                    "id":         doc.get("$id") or doc.get("book_id"),
-                    "book_id":    doc.get("book_id"),
-                    "title":      doc.get("title", "Sin título"),
-                    "author":     doc.get("author", "Autor Desconocido"),
-                    "parts_count":doc.get("parts_count", 1),
-                    "category":   doc.get("category", "General"),
-                    "cover_url":  doc.get("cover_url", ""),
-                    "added_by":   doc.get("added_by", ""),
-                })
-        except Exception as ex:
-            print(f"[Books] Error listando desde Appwrite: {ex}")
+    try:
+        documents = await _appwrite_list_documents("global_books", queries=["limit(500)"])
+        for doc in documents:
+            books.append({
+                "id":         doc.get("$id") or doc.get("book_id"),
+                "book_id":    doc.get("book_id"),
+                "title":      doc.get("title", "Sin título"),
+                "author":     doc.get("author", "Autor Desconocido"),
+                "parts_count":doc.get("parts_count", 1),
+                "category":   doc.get("category", "General"),
+                "cover_url":  doc.get("cover_url", ""),
+                "added_by":   doc.get("added_by", ""),
+            })
+    except Exception as ex:
+        print(f"[Books] Error listando desde Appwrite: {ex}")
 
     if not books:
         books = [
@@ -628,11 +644,10 @@ async def delete_book(book_id_hex: str, authorization: str = Header(default=None
 
     # Verificar propiedad en Appwrite
     try:
-        result = appwrite_db.list_documents(
-            APPWRITE_DB_ID, "global_books",
+        docs = await _appwrite_list_documents(
+            "global_books",
             queries=[f'equal("book_id", "{book_id_hex}")']
         )
-        docs = result.get("documents", [])
         if not docs:
             raise HTTPException(status_code=404, detail="Libro no encontrado")
         book_doc = docs[0]
@@ -686,11 +701,10 @@ async def patch_book(
 
     # Verificar propiedad en Appwrite
     try:
-        result = appwrite_db.list_documents(
-            APPWRITE_DB_ID, "global_books",
+        docs = await _appwrite_list_documents(
+            "global_books",
             queries=[f'equal("book_id", "{book_id_hex}")']
         )
-        docs = result.get("documents", [])
         if not docs:
             raise HTTPException(status_code=404, detail="Libro no encontrado")
         book_doc = docs[0]
