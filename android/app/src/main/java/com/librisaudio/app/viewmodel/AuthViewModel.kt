@@ -65,19 +65,17 @@ class AuthViewModel : ViewModel() {
                 val sessionResp = AppwriteAuthClient.authService.loginWithEmail(
                     body = AppwriteEmailLoginBody(email = email.trim(), password = password)
                 )
-                Log.d("AuthViewModel", "Login: sesión obtenida id=${sessionResp.`$id`} hasSecret=${!sessionResp.secret.isNullOrBlank()}")
+                Log.d("AuthViewModel", "Login: sesión obtenida id=${sessionResp.`$id`}")
 
-                val sessionSecret = sessionResp.secret?.takeIf { it.isNotBlank() } ?: sessionResp.`$id`
-                val userResp = AppwriteAuthClient.authService.getAccount(
-                    sessionSecret = sessionSecret
-                )
+                // Cookie jar now holds the session cookie — getAccount uses it automatically
+                val userResp = AppwriteAuthClient.authService.getAccount()
                 Log.d("AuthViewModel", "Login: cuenta obtenida userId=${userResp.`$id`} email=${userResp.email}")
 
                 val session = AppwriteSession(
                     userId    = userResp.`$id`,
                     email     = userResp.email,
                     name      = userResp.name.ifBlank { userResp.email.substringBefore("@") },
-                    sessionId = sessionSecret
+                    sessionId = AppwriteAuthClient.currentSessionSecret() ?: sessionResp.`$id`
                 )
                 saveSession(session)
                 _authState.value = AuthState.Authenticated(session)
@@ -197,16 +195,15 @@ class AuthViewModel : ViewModel() {
                 return@launch
             }
 
-            val sessionSecret = sessionResp.secret?.takeIf { it.isNotBlank() } ?: sessionResp.`$id`
-            Log.d("AuthViewModel", "Session id=${sessionResp.`$id`} secretLen=${sessionResp.secret?.length ?: 0}")
+            Log.d("AuthViewModel", "Session created id=${sessionResp.`$id`}")
 
-            // ── Step 2: fetch account with session secret ──
+            // ── Step 2: fetch account — cookie jar sends the session cookie ──
             val userResp = try {
-                AppwriteAuthClient.authService.getAccount(sessionSecret = sessionSecret)
+                AppwriteAuthClient.authService.getAccount()
             } catch (e: HttpException) {
                 val body = parseAppwriteError(e)
                 Log.e("AuthViewModel", "getAccount failed ${e.code()}: $body")
-                _authState.value = AuthState.Error("PASO2 getAccount ${e.code()} secretLen=${sessionResp.secret?.length ?: 0}: $body")
+                _authState.value = AuthState.Error("PASO2 getAccount ${e.code()}: $body")
                 return@launch
             } catch (e: Exception) {
                 Log.e("AuthViewModel", "getAccount exception: ${e.message}", e)
@@ -218,7 +215,7 @@ class AuthViewModel : ViewModel() {
                 userId    = userResp.`$id`,
                 email     = userResp.email,
                 name      = userResp.name.ifBlank { userResp.email.substringBefore("@") },
-                sessionId = sessionSecret
+                sessionId = AppwriteAuthClient.currentSessionSecret() ?: sessionResp.`$id`
             )
             saveSession(session)
             _authState.value = AuthState.Authenticated(session)
@@ -230,10 +227,7 @@ class AuthViewModel : ViewModel() {
         val session = (_authState.value as? AuthState.Authenticated)?.session ?: return
         viewModelScope.launch {
             try {
-                AppwriteAuthClient.authService.deleteSession(
-                    sessionSecret = session.sessionId,
-                    sessionIdPath = "current"
-                )
+                AppwriteAuthClient.authService.deleteSession(sessionIdPath = "current")
             } catch (_: Exception) { /* ignora error de red en logout */ }
             clearSession()
             _authState.value = AuthState.Unauthenticated
