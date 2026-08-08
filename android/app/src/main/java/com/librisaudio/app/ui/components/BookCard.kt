@@ -7,6 +7,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -34,6 +36,8 @@ fun BookCard(
     onBookClick: () -> Unit,
     onDeleteBook: ((Book) -> Unit)? = null,
     onEditBook: ((Book, String, String) -> Unit)? = null,
+    isFavorite: Boolean = false,
+    onToggleFavorite: ((Book) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val isOwner = currentUserId.isNotBlank() && book.addedBy == currentUserId
@@ -88,35 +92,47 @@ fun BookCard(
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
                     )
                 }
-                // Owner menu button
-                if (isOwner) {
-                    Box(modifier = Modifier.align(Alignment.TopEnd)) {
-                        IconButton(
-                            onClick = { showMenu = true },
-                            modifier = Modifier.size(36.dp)
-                        ) {
+                // Top-right actions: favorito + (menú del propietario)
+                Row(
+                    modifier = Modifier.align(Alignment.TopEnd),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (onToggleFavorite != null) {
+                        IconButton(onClick = { onToggleFavorite(book) }, modifier = Modifier.size(36.dp)) {
                             Icon(
-                                Icons.Default.MoreVert,
-                                contentDescription = "Opciones",
-                                tint = Color.White,
+                                imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                contentDescription = "Favorito",
+                                tint = if (isFavorite) Color(0xFFEF4444) else Color.White,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
-                        DropdownMenu(
-                            expanded = showMenu,
-                            onDismissRequest = { showMenu = false },
-                            modifier = Modifier.background(Color(0xFF1E293B))
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("Editar nombre/categoría", color = Color.White) },
-                                onClick = { showMenu = false; showEditDialog = true },
-                                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = currentTheme.primary) }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Eliminar libro", color = Color(0xFFEF4444)) },
-                                onClick = { showMenu = false; showDeleteConfirm = true },
-                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFEF4444)) }
-                            )
+                    }
+                    if (isOwner) {
+                        Box {
+                            IconButton(onClick = { showMenu = true }, modifier = Modifier.size(36.dp)) {
+                                Icon(
+                                    Icons.Default.MoreVert,
+                                    contentDescription = "Opciones",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = showMenu,
+                                onDismissRequest = { showMenu = false },
+                                modifier = Modifier.background(Color(0xFF1E293B))
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Editar nombre/categoría", color = Color.White) },
+                                    onClick = { showMenu = false; showEditDialog = true },
+                                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = currentTheme.primary) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Eliminar libro", color = Color(0xFFEF4444)) },
+                                    onClick = { showMenu = false; showDeleteConfirm = true },
+                                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFEF4444)) }
+                                )
+                            }
                         }
                     }
                 }

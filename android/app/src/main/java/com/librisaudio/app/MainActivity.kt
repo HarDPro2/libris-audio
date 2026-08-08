@@ -263,7 +263,9 @@ class MainActivity : ComponentActivity() {
                                 onDeleteBook = { book -> playerViewModel.deleteBook(book, session?.sessionId ?: "") },
                                 onEditBook  = { book, newTitle, newCat -> playerViewModel.editBook(book, newTitle, newCat, session?.sessionId ?: "") },
                                 lastBookId = playerViewModel.lastBookId.collectAsState().value,
-                                onContinue = { book -> playerViewModel.resumeBook(book) }
+                                onContinue = { book -> playerViewModel.resumeBook(book) },
+                                favorites = playerViewModel.favorites.collectAsState().value,
+                                onToggleFavorite = { book -> playerViewModel.toggleFavorite(book.bookId) }
                             )
                             MainTab.HISTORY -> HistoryScreen(
                                 books = books,

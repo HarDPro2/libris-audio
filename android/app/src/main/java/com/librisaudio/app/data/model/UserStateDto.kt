@@ -19,5 +19,6 @@ data class UserStateDto(
     val voice: String? = null,
     val progress: Map<String, PartPos>? = null,
     val started: List<String>? = null,
+    val favorites: List<String>? = null,
     val stats: StatsDto? = null
 )

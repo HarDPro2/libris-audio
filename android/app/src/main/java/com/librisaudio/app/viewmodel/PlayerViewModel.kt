@@ -160,6 +160,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     editor.putInt("stats_total_min", s.totalMin)
                     editor.putString("stats_last_day", s.lastDay)
                 }
+                state.favorites?.let {
+                    editor.putStringSet("favorites", it.toSet())
+                    _favorites.value = it.toSet()
+                }
                 editor.apply()
                 loadBooks()   // refleja el progreso restaurado en "Mi Biblioteca"
             } catch (_: Exception) { /* sin conexión → sigue con lo local */ }
@@ -185,6 +189,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     voice = _selectedVoice.value,
                     progress = progress,
                     started = started.toList(),
+                    favorites = _favorites.value.toList(),
                     stats = com.librisaudio.app.data.model.StatsDto(
                         streak = prefs.getInt("stats_streak", 0),
                         totalMin = prefs.getInt("stats_total_min", 0),
@@ -217,6 +222,20 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private fun markLastBook(bookId: String) {
         _lastBookId.value = bookId
         prefs.edit().putString("last_book_id", bookId).apply()
+    }
+
+    // ── Favoritos ──────────────────────────────────────────────────────────
+    private val _favorites = MutableStateFlow(
+        prefs.getStringSet("favorites", emptySet())?.toSet() ?: emptySet()
+    )
+    val favorites: StateFlow<Set<String>> = _favorites.asStateFlow()
+
+    fun toggleFavorite(bookId: String) {
+        val set = _favorites.value.toMutableSet()
+        if (!set.add(bookId)) set.remove(bookId)
+        _favorites.value = set
+        prefs.edit().putStringSet("favorites", set).apply()
+        saveToCloud()
     }
 
     fun setVoice(voiceId: String) {

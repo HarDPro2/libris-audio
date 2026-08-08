@@ -45,6 +45,8 @@ fun LibraryScreen(
     onEditBook: (Book, String, String) -> Unit,
     lastBookId: String = "",
     onContinue: (Book) -> Unit = {},
+    favorites: Set<String> = emptySet(),
+    onToggleFavorite: (Book) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var activeTab by remember { mutableStateOf(LibraryTab.EXPLORAR) }
@@ -60,13 +62,16 @@ fun LibraryScreen(
             .mapNotNull { it.category.takeIf { c -> c.isNotBlank() } }
             .distinct()
             .sorted()
-        listOf("Todas") + used
+        listOf("Todas", "❤️ Favoritos") + used
     }
 
     // Filter by category then by search
-    val filteredBooks = remember(sourceBooks, activeCategory, searchQuery) {
-        var result = if (activeCategory == "Todas") sourceBooks
-        else sourceBooks.filter { it.category == activeCategory }
+    val filteredBooks = remember(sourceBooks, activeCategory, searchQuery, favorites) {
+        var result = when (activeCategory) {
+            "Todas"        -> sourceBooks
+            "❤️ Favoritos" -> sourceBooks.filter { it.bookId in favorites }
+            else           -> sourceBooks.filter { it.category == activeCategory }
+        }
 
         if (searchQuery.isNotBlank()) {
             val q = searchQuery.lowercase()
@@ -255,7 +260,9 @@ fun LibraryScreen(
                                 currentUserId = currentUserId,
                                 onBookClick = { onBookSelect(book) },
                                 onDeleteBook = onDeleteBook,
-                                onEditBook = onEditBook
+                                onEditBook = onEditBook,
+                                isFavorite = book.bookId in favorites,
+                                onToggleFavorite = onToggleFavorite
                             )
                         }
                     }
