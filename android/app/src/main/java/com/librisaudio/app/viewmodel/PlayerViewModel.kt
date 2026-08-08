@@ -210,6 +210,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     )
     val selectedVoice: StateFlow<String> = _selectedVoice.asStateFlow()
 
+    // ── Último libro reproducido (para "Continuar escuchando") ─────────────
+    private val _lastBookId = MutableStateFlow(prefs.getString("last_book_id", "") ?: "")
+    val lastBookId: StateFlow<String> = _lastBookId.asStateFlow()
+
+    private fun markLastBook(bookId: String) {
+        _lastBookId.value = bookId
+        prefs.edit().putString("last_book_id", bookId).apply()
+    }
+
     fun setVoice(voiceId: String) {
         if (voiceId == _selectedVoice.value) return
         _selectedVoice.value = voiceId
@@ -347,6 +356,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         else 0
         saveProgress(book.bookId, partIndex, progressPct)
         markStarted(book.bookId)
+        markLastBook(book.bookId)
         savePosition(book.bookId, seekToMs)
         saveToCloud()
 
@@ -397,6 +407,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             ((partIndex.toFloat() / book.partsCount) * 100).toInt() else 0
         saveProgress(book.bookId, partIndex, progressPct)
         markStarted(book.bookId)
+        markLastBook(book.bookId)
         savePosition(book.bookId, 0L)
         saveToCloud()
         _books.value = _books.value.map {

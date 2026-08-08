@@ -8,18 +8,23 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.librisaudio.app.data.model.Book
 import com.librisaudio.app.data.model.BookCategories
 import com.librisaudio.app.ui.components.AnimatedBackground
@@ -38,6 +43,8 @@ fun LibraryScreen(
     onBookSelect: (Book) -> Unit,
     onDeleteBook: (Book) -> Unit,
     onEditBook: (Book, String, String) -> Unit,
+    lastBookId: String = "",
+    onContinue: (Book) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var activeTab by remember { mutableStateOf(LibraryTab.EXPLORAR) }
@@ -140,6 +147,49 @@ fun LibraryScreen(
             )
 
             Spacer(modifier = Modifier.height(10.dp))
+
+            // Continuar escuchando — tarjeta destacada del último libro con progreso
+            val continueBook = remember(books, lastBookId) {
+                books.firstOrNull { it.bookId == lastBookId && it.progressPercent > 0 }
+            }
+            if (activeTab == LibraryTab.EXPLORAR && continueBook != null && searchQuery.isBlank()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(currentTheme.primary.copy(alpha = 0.30f), Color(0x551E293B))
+                            )
+                        )
+                        .clickable { onContinue(continueBook) }
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    AsyncImage(
+                        model = continueBook.coverUrl,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.size(52.dp).clip(RoundedCornerShape(10.dp))
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("CONTINUAR ESCUCHANDO", fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                            color = currentTheme.secondary, letterSpacing = 1.sp)
+                        Text(continueBook.title, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                            color = Color.White, maxLines = 1)
+                        Text("Parte ${continueBook.currentPartIndex + 1} · ${continueBook.progressPercent}%",
+                            fontSize = 11.sp, color = TextMuted)
+                    }
+                    Box(
+                        modifier = Modifier.size(42.dp).clip(CircleShape).background(currentTheme.primary),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = "Continuar", tint = Color.White)
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
 
             // Category pills (horizontal scroll)
             LazyRow(
