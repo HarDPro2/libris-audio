@@ -121,8 +121,7 @@ class MainActivity : ComponentActivity() {
                 // ── Authenticated App ──────────────────────────────────────
                 val session = (authState as? AuthState.Authenticated)?.session
 
-                val context = LocalContext.current
-                var userProfile by remember { mutableStateOf(ProfileManager.load(context)) }
+                val userProfile by playerViewModel.userProfile.collectAsState()
                 var showProfileDialog by remember { mutableStateOf(false) }
 
                 // Al iniciar sesión: restaura progreso + preferencias desde la nube
@@ -323,6 +322,8 @@ class MainActivity : ComponentActivity() {
                                 onReadNextPart = { playerViewModel.readNextPart() },
                                 onReadPreviousPart = { playerViewModel.readPreviousPart() },
                                 onPauseVoice = { playerViewModel.pauseVoice() },
+                                bookmarks = playerViewModel.bookmarks.collectAsState().value,
+                                onAddBookmark = { bid, pi, pos, note -> playerViewModel.addBookmark(bid, pi, pos, note) },
                                 onClose = { isFullPlayerOpen = false }
                             )
                         }
@@ -345,7 +346,7 @@ class MainActivity : ComponentActivity() {
                                 initial = userProfile,
                                 email = session?.email ?: "",
                                 primary = currentTheme.primary,
-                                onSave = { p -> userProfile = p; ProfileManager.save(context, p) },
+                                onSave = { p -> playerViewModel.updateProfile(p) },
                                 onDismiss = { showProfileDialog = false }
                             )
                         }

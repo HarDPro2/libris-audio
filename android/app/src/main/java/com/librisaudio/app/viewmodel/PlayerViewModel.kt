@@ -165,6 +165,21 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     _favorites.value = it.toSet()
                 }
                 editor.apply()
+                // Perfil (nombre + avatar)
+                if (state.displayName != null || state.avatarId != null) {
+                    val cur = _userProfile.value
+                    val merged = cur.copy(
+                        displayName = state.displayName ?: cur.displayName,
+                        avatarId = state.avatarId ?: cur.avatarId
+                    )
+                    _userProfile.value = merged
+                    com.librisaudio.app.data.model.ProfileManager.save(getApplication<android.app.Application>(), merged)
+                }
+                // Marcapáginas
+                state.bookmarks?.let {
+                    _bookmarks.value = it
+                    persistBookmarks()
+                }
                 loadBooks()   // refleja el progreso restaurado en "Mi Biblioteca"
             } catch (_: Exception) { /* sin conexión → sigue con lo local */ }
         }
@@ -190,6 +205,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     progress = progress,
                     started = started.toList(),
                     favorites = _favorites.value.toList(),
+                    displayName = _userProfile.value.displayName,
+                    avatarId = _userProfile.value.avatarId,
+                    bookmarks = _bookmarks.value,
                     stats = com.librisaudio.app.data.model.StatsDto(
                         streak = prefs.getInt("stats_streak", 0),
                         totalMin = prefs.getInt("stats_total_min", 0),
@@ -235,6 +253,50 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         if (!set.add(bookId)) set.remove(bookId)
         _favorites.value = set
         prefs.edit().putStringSet("favorites", set).apply()
+        saveToCloud()
+    }
+
+    // ── Marcapáginas (persistidos + sincronizados) ─────────────────────────
+    private val _bookmarks = MutableStateFlow(loadBookmarks())
+    val bookmarks: StateFlow<List<com.librisaudio.app.ui.components.BookmarkItem>> = _bookmarks.asStateFlow()
+
+    private fun loadBookmarks(): List<com.librisaudio.app.ui.components.BookmarkItem> {
+        val json = prefs.getString("bookmarks_json", null) ?: return emptyList()
+        return try {
+            val type = object : com.google.gson.reflect.TypeToken<List<com.librisaudio.app.ui.components.BookmarkItem>>() {}.type
+            com.google.gson.Gson().fromJson<List<com.librisaudio.app.ui.components.BookmarkItem>>(json, type) ?: emptyList()
+        } catch (_: Exception) { emptyList() }
+    }
+
+    private fun persistBookmarks() {
+        prefs.edit().putString("bookmarks_json", com.google.gson.Gson().toJson(_bookmarks.value)).apply()
+    }
+
+    fun addBookmark(bookId: String, partIndex: Int, positionMs: Long, note: String) {
+        val item = com.librisaudio.app.ui.components.BookmarkItem(
+            id = System.currentTimeMillis().toString(),
+            bookId = bookId, partIndex = partIndex, positionMs = positionMs, note = note
+        )
+        _bookmarks.value = _bookmarks.value + item
+        persistBookmarks()
+        saveToCloud()
+    }
+
+    fun removeBookmark(id: String) {
+        _bookmarks.value = _bookmarks.value.filter { it.id != id }
+        persistBookmarks()
+        saveToCloud()
+    }
+
+    // ── Perfil (nombre + avatar) sincronizable ─────────────────────────────
+    private val _userProfile = MutableStateFlow(
+        com.librisaudio.app.data.model.ProfileManager.load(getApplication<android.app.Application>())
+    )
+    val userProfile: StateFlow<com.librisaudio.app.data.model.UserProfile> = _userProfile.asStateFlow()
+
+    fun updateProfile(profile: com.librisaudio.app.data.model.UserProfile) {
+        _userProfile.value = profile
+        com.librisaudio.app.data.model.ProfileManager.save(getApplication<android.app.Application>(), profile)
         saveToCloud()
     }
 

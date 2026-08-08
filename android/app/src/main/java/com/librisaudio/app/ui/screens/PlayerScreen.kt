@@ -103,6 +103,8 @@ fun PlayerScreen(
     onReadNextPart: () -> Unit = {},
     onReadPreviousPart: () -> Unit = {},
     onPauseVoice: () -> Unit = {},
+    bookmarks: List<BookmarkItem> = emptyList(),
+    onAddBookmark: (String, Int, Long, String) -> Unit = { _, _, _, _ -> },
     modifier: Modifier = Modifier
 ) {
     var viewMode by remember { mutableStateOf(PlayerViewMode.CLASSIC_PLAYER) }
@@ -131,7 +133,6 @@ fun PlayerScreen(
         }
     }
 
-    val bookmarks = remember { mutableStateListOf<BookmarkItem>() }
     val speeds = listOf(1.0f, 1.25f, 1.5f, 1.75f, 2.0f)
 
     val infiniteTransition = rememberInfiniteTransition(label = "AuraPulse")
@@ -551,15 +552,7 @@ fun PlayerScreen(
                 currentPositionMs = currentPositionMs,
                 bookmarks = bookmarks,
                 onAddBookmark = { note ->
-                    bookmarks.add(
-                        BookmarkItem(
-                            id = System.currentTimeMillis().toString(),
-                            bookId = book.bookId,
-                            partIndex = currentPartIndex,
-                            positionMs = currentPositionMs,
-                            note = note
-                        )
-                    )
+                    onAddBookmark(book.bookId, currentPartIndex, currentPositionMs, note)
                 },
                 onJumpToBookmark = { item ->
                     onSeekTo(item.positionMs)

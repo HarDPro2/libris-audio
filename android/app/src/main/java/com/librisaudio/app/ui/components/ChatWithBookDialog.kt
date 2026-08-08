@@ -77,6 +77,7 @@ fun ChatWithBookDialog(
         messages.add(ChatBubble(System.currentTimeMillis().toString(), "user", userMsg))
         inputText = ""
         isLoading = true
+        val priorMessages = messages.dropLast(1).toList()   // memoria: todo lo anterior
 
         coroutineScope.launch {
             try {
@@ -94,6 +95,16 @@ fun ChatWithBookDialog(
                     if (userApiKey.isNotBlank()) {
                         json.put("user_openrouter_key", userApiKey.trim())
                     }
+                    // Memoria: enviar el historial previo para que las repreguntas tengan contexto
+                    val history = org.json.JSONArray()
+                    for (m in priorMessages) {
+                        history.put(
+                            JSONObject()
+                                .put("role", if (m.sender == "user") "user" else "assistant")
+                                .put("content", m.text)
+                        )
+                    }
+                    json.put("history", history)
 
                     val body = json.toString().toRequestBody("application/json".toMediaType())
                     val request = Request.Builder()

@@ -20,5 +20,8 @@ data class UserStateDto(
     val progress: Map<String, PartPos>? = null,
     val started: List<String>? = null,
     val favorites: List<String>? = null,
+    val displayName: String? = null,
+    val avatarId: Int? = null,
+    val bookmarks: List<com.librisaudio.app.ui.components.BookmarkItem>? = null,
     val stats: StatsDto? = null
 )
