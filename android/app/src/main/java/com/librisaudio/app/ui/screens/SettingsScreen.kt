@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.librisaudio.app.ui.components.AchievementsDialog
 import com.librisaudio.app.ui.components.AnimatedBackground
 import com.librisaudio.app.ui.theme.AppThemePreset
 import com.librisaudio.app.ui.theme.ThemeAnimation
@@ -56,6 +57,11 @@ fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
     var showLogoutConfirm by remember { mutableStateOf(false) }
+    var showAchievements by remember { mutableStateOf(false) }
+
+    if (showAchievements) {
+        AchievementsDialog(primary = currentTheme.primary, onDismiss = { showAchievements = false })
+    }
 
     Box(modifier = modifier.fillMaxSize()) {
         AnimatedBackground(preset = currentTheme)
@@ -179,6 +185,23 @@ fun SettingsScreen(
                         )
                     }
                 }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // ─── Achievements Section ─────────────────────────────────────
+            SectionTitle("🏆 Logros")
+            Spacer(modifier = Modifier.height(10.dp))
+            OutlinedButton(
+                onClick = { showAchievements = true },
+                modifier = Modifier.fillMaxWidth().height(50.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = currentTheme.primary),
+                border = androidx.compose.foundation.BorderStroke(1.dp, currentTheme.primary.copy(alpha = 0.4f))
+            ) {
+                Icon(Icons.Default.EmojiEvents, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Ver mis logros", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
             }
 
             Spacer(modifier = Modifier.height(24.dp))
