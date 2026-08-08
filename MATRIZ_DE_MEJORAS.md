@@ -120,6 +120,8 @@
 | B1 | **Descarga offline + inventario** | Descargar partes de un libro a almacenamiento local para escuchar sin conexión. Registro de lo descargado (libro + nº de partes). Sección de gestión donde el usuario ve qué está descargado, elige qué conservar y puede borrar todo para liberar espacio. Reproducción con fallback a archivo local. **Su propio push dedicado** (feature grande). | Alta |
 | B2 | **Música por género tipo emisoras** | Carpetas de música en R2 por ambiente: relajante, guerra, romance, misterio, etc. El usuario (o el sistema) ajusta la emisora al género del libro que escucha/lee. Programable como estaciones. | Media |
 | B3 | **Animación de fondo en el reproductor** | Extender `AnimatedBackground` al PlayerScreen (hoy solo Biblioteca y Ajustes). | Baja |
+| B4 | **Versionado + auto-actualizador** | Hoy cada build es "1.0.0" (sin versión real). Introducir versionado incremental (desde `package.json` o build number), renombrar el APK a nombre **sin versión** (`libris-audio.apk`) en el CI y la landing para que el enlace nunca se rompa, y luego el auto-actualizador in-app (chequea GitHub Releases, descarga e instala vía FileProvider). Los tres dependen de tener versionado decente. | Media |
+| B5 | **Sincronización en la nube (progreso + preferencias)** | Colección `user_state` en Appwrite (un doc por usuario con JSON), endpoints backend GET/PUT, y en la app restaurar al login + guardar al cambiar. Para continuar donde quedó en cualquier dispositivo/reinstalación. **← EN CONSTRUCCIÓN** | Alta |
 
 ---
 

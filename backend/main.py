@@ -476,6 +476,31 @@ async def _appwrite_list_documents(collection: str, queries=None):
         return r.json().get("documents", [])
 
 
+def _appwrite_headers():
+    return {
+        "X-Appwrite-Project": APPWRITE_PROJECT_ID,
+        "X-Appwrite-Key": APPWRITE_API_KEY or "",
+        "Content-Type": "application/json",
+    }
+
+
+async def _appwrite_create_document(collection: str, data: dict):
+    url = f"{APPWRITE_ENDPOINT}/databases/{APPWRITE_DB_ID}/collections/{collection}/documents"
+    payload = {"documentId": uuid.uuid4().hex, "data": data}
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.post(url, json=payload, headers=_appwrite_headers())
+        r.raise_for_status()
+        return r.json()
+
+
+async def _appwrite_update_document(collection: str, doc_id: str, data: dict):
+    url = f"{APPWRITE_ENDPOINT}/databases/{APPWRITE_DB_ID}/collections/{collection}/documents/{doc_id}"
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.patch(url, json={"data": data}, headers=_appwrite_headers())
+        r.raise_for_status()
+        return r.json()
+
+
 @app.get("/api/books")
 async def get_all_books():
     """Catálogo global desde Appwrite con fallback a libros de ejemplo."""
@@ -956,6 +981,45 @@ async def chat_with_book(req: ChatBookRequest):
                 continue
 
     return JSONResponse({"reply": "La IA no está disponible en este momento. Inténtalo de nuevo."})
+
+
+# ---------------------------------------------------------------------------
+# Estado del usuario en la nube (progreso + preferencias) — sincronización
+# ---------------------------------------------------------------------------
+
+@app.get("/api/user-state/{user_id}")
+async def get_user_state(user_id: str):
+    """Devuelve el estado del usuario (progreso, preferencias) como JSON."""
+    try:
+        docs = await _appwrite_list_documents(
+            "user_state",
+            queries=[{"method": "equal", "attribute": "user_id", "values": [user_id]}]
+        )
+        if docs:
+            raw = docs[0].get("data") or "{}"
+            return JSONResponse(content=json.loads(raw))
+    except Exception as e:
+        print(f"[UserState] get error: {e}", flush=True)
+    return JSONResponse(content={})
+
+
+@app.put("/api/user-state/{user_id}")
+async def put_user_state(user_id: str, body: dict = Body(default={})):
+    """Guarda (upsert) el estado del usuario."""
+    data_str = json.dumps(body, ensure_ascii=False)
+    try:
+        docs = await _appwrite_list_documents(
+            "user_state",
+            queries=[{"method": "equal", "attribute": "user_id", "values": [user_id]}]
+        )
+        if docs:
+            await _appwrite_update_document("user_state", docs[0].get("$id"), {"data": data_str})
+        else:
+            await _appwrite_create_document("user_state", {"user_id": user_id, "data": data_str})
+        return JSONResponse(content={"status": "ok"})
+    except Exception as e:
+        print(f"[UserState] put error: {e}", flush=True)
+        return JSONResponse(status_code=500, content={"detail": str(e)})
 
 
 if __name__ == "__main__":
