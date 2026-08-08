@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -142,8 +143,15 @@ fun VirtualBookFrame(
     val ctx = LocalContext.current
     var selectedStyle by remember { mutableStateOf(BookBindingStyle.CLASSIC) }
     var fontSizeSp by remember { mutableStateOf(16) }
-    var isSerifFont by remember { mutableStateOf(true) }
+    var fontMode by remember { mutableStateOf(0) }   // 0 = Género, 1 = Serif, 2 = Sans
     var highlightOn by remember { mutableStateOf(true) }
+
+    val activeFont = when (fontMode) {
+        1 -> FontFamily.Serif
+        2 -> FontFamily.Default
+        else -> resolveGenreFont(ctx, selectedStyle)
+    }
+    val fontLabel = when (fontMode) { 1 -> "Serif"; 2 -> "Sans"; else -> "Género" }
 
     var flipAngle by remember { mutableStateOf(0f) }
     val animatedAngle by animateFloatAsState(
@@ -217,8 +225,8 @@ fun VirtualBookFrame(
                 IconButton(onClick = { if (fontSizeSp < 26) fontSizeSp += 2 }) {
                     Text("A+", fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.Bold)
                 }
-                IconButton(onClick = { isSerifFont = !isSerifFont }) {
-                    Text(if (isSerifFont) "Serif" else "Sans", fontSize = 11.sp, color = Color.White)
+                IconButton(onClick = { fontMode = (fontMode + 1) % 3 }) {
+                    Text(fontLabel, fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -343,7 +351,7 @@ fun VirtualBookFrame(
                             accent = selectedStyle.accentColor,
                             textColor = selectedStyle.textColor,
                             fontSizeSp = fontSizeSp,
-                            isSerif = isSerifFont,
+                            fontFamily = activeFont,
                             onSeekTo = onSeekTo
                         )
                     }
@@ -412,14 +420,14 @@ private fun ReadingText(
     accent: Color,
     textColor: Color,
     fontSizeSp: Int,
-    isSerif: Boolean,
+    fontFamily: FontFamily,
     onSeekTo: (Long) -> Unit
 ) {
     if (text.isEmpty()) {
         Text(
             "Selecciona un libro y pulsa reproducir para ver el texto aquí.",
             fontSize = fontSizeSp.sp,
-            fontFamily = if (isSerif) FontFamily.Serif else FontFamily.Default,
+            fontFamily = fontFamily,
             color = textColor.copy(alpha = 0.7f)
         )
         return
@@ -431,7 +439,7 @@ private fun ReadingText(
             Text(
                 text = text,
                 fontSize = fontSizeSp.sp,
-                fontFamily = if (isSerif) FontFamily.Serif else FontFamily.Default,
+                fontFamily = fontFamily,
                 lineHeight = (fontSizeSp * 1.6).sp,
                 color = textColor,
                 modifier = Modifier.fillMaxWidth()
@@ -478,7 +486,7 @@ private fun ReadingText(
         Text(
             text = annotated,
             fontSize = fontSizeSp.sp,
-            fontFamily = if (isSerif) FontFamily.Serif else FontFamily.Default,
+            fontFamily = fontFamily,
             lineHeight = (fontSizeSp * 1.6).sp,
             color = textColor,
             onTextLayout = { layout = it },
@@ -495,6 +503,31 @@ private fun ReadingText(
                 }
         )
     }
+}
+
+/**
+ * Fuente por género. Si existe un .ttf con el nombre indicado en res/font/,
+ * lo usa (fuente artística). Si no, cae a una familia integrada de Android.
+ * Para las artísticas: descarga la fuente de Google Fonts y ponla como
+ *   android/app/src/main/res/font/<nombre>.ttf   (minúsculas, guiones bajos).
+ */
+private fun resolveGenreFont(ctx: android.content.Context, style: BookBindingStyle): FontFamily {
+    val (name, fallback) = when (style) {
+        BookBindingStyle.CLASSIC    -> "eb_garamond"    to FontFamily.Serif
+        BookBindingStyle.MEDIEVAL   -> "medievalsharp"  to FontFamily.Serif
+        BookBindingStyle.SPIRITUAL  -> "cormorant"      to FontFamily.Serif
+        BookBindingStyle.WAR        -> "oswald"         to FontFamily.SansSerif
+        BookBindingStyle.LOVE       -> "dancing_script" to FontFamily.Cursive
+        BookBindingStyle.PARANORMAL -> "creepster"      to FontFamily.Serif
+        BookBindingStyle.SCIENTIFIC -> "jetbrains_mono" to FontFamily.Monospace
+        BookBindingStyle.COMEDY     -> "comic_neue"     to FontFamily.SansSerif
+        BookBindingStyle.FANTASY    -> "uncial_antiqua" to FontFamily.Serif
+        BookBindingStyle.POETRY     -> "playfair"       to FontFamily.Serif
+        BookBindingStyle.NOIR       -> "special_elite"  to FontFamily.Monospace
+        BookBindingStyle.COSMIC     -> "orbitron"       to FontFamily.SansSerif
+    }
+    val resId = ctx.resources.getIdentifier(name, "font", ctx.packageName)
+    return if (resId != 0) FontFamily(Font(resId)) else fallback
 }
 
 // Helpers para el degradado del borde que se desplaza (shimmer)
