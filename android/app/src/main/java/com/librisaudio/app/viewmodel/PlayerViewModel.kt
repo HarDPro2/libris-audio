@@ -118,6 +118,82 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun setTheme(preset: AppThemePreset) {
         _selectedTheme.value = preset
         prefs.edit().putString("theme", preset.name).apply()
+        saveToCloud()
+    }
+
+    // ── Sincronización en la nube (progreso + preferencias) ────────────────
+    private var cloudUserId: String? = null
+    private var cloudSaveJob: kotlinx.coroutines.Job? = null
+
+    /** Se llama al hacer login: guarda el userId y restaura su estado del servidor. */
+    fun enableCloudSync(userId: String) {
+        if (userId.isBlank() || cloudUserId == userId) return
+        cloudUserId = userId
+        restoreFromCloud()
+    }
+
+    private fun restoreFromCloud() {
+        val uid = cloudUserId ?: return
+        viewModelScope.launch {
+            try {
+                val state = ApiClient.backendService.getUserState(uid)
+                val editor = prefs.edit()
+                state.theme?.let { name ->
+                    runCatching { AppThemePreset.valueOf(name) }.getOrNull()?.let { t ->
+                        _selectedTheme.value = t
+                        editor.putString("theme", t.name)
+                    }
+                }
+                state.voice?.let { v ->
+                    _selectedVoice.value = v
+                    editor.putString("voice", v)
+                }
+                state.progress?.forEach { (bookId, pp) ->
+                    editor.putInt("part_$bookId", pp.part)
+                    editor.putLong("pos_$bookId", pp.pos)
+                }
+                val started = (state.started ?: emptyList()).toMutableSet()
+                state.progress?.keys?.let { started.addAll(it) }
+                editor.putStringSet("started_books", started)
+                state.stats?.let { s ->
+                    editor.putInt("stats_streak", s.streak)
+                    editor.putInt("stats_total_min", s.totalMin)
+                    editor.putString("stats_last_day", s.lastDay)
+                }
+                editor.apply()
+                loadBooks()   // refleja el progreso restaurado en "Mi Biblioteca"
+            } catch (_: Exception) { /* sin conexión → sigue con lo local */ }
+        }
+    }
+
+    /** Guarda el estado completo en la nube (con antirrebote para no saturar). */
+    fun saveToCloud() {
+        val uid = cloudUserId ?: return
+        cloudSaveJob?.cancel()
+        cloudSaveJob = viewModelScope.launch {
+            delay(1500)
+            try {
+                val started = prefs.getStringSet("started_books", emptySet()) ?: emptySet()
+                val progress = started.associateWith { bid ->
+                    com.librisaudio.app.data.model.PartPos(
+                        prefs.getInt("part_$bid", 0),
+                        prefs.getLong("pos_$bid", 0L)
+                    )
+                }
+                val dto = com.librisaudio.app.data.model.UserStateDto(
+                    theme = _selectedTheme.value.name,
+                    voice = _selectedVoice.value,
+                    progress = progress,
+                    started = started.toList(),
+                    stats = com.librisaudio.app.data.model.StatsDto(
+                        streak = prefs.getInt("stats_streak", 0),
+                        totalMin = prefs.getInt("stats_total_min", 0),
+                        lastDay = prefs.getString("stats_last_day", "") ?: ""
+                    )
+                )
+                ApiClient.backendService.putUserState(uid, dto)
+            } catch (_: Exception) { /* reintenta en el próximo cambio */ }
+        }
     }
 
     // ── Background music state ─────────────────────────────────────────────
@@ -138,6 +214,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         if (voiceId == _selectedVoice.value) return
         _selectedVoice.value = voiceId
         prefs.edit().putString("voice", voiceId).apply()
+        saveToCloud()
         // Recargar la parte actual con la nueva voz, conservando la posición
         val book = _currentBook.value ?: return
         val player = mediaController ?: return
@@ -271,6 +348,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         saveProgress(book.bookId, partIndex, progressPct)
         markStarted(book.bookId)
         savePosition(book.bookId, seekToMs)
+        saveToCloud()
 
         // El libro aparece en "Mi Biblioteca" al instante (min 1% aunque sea parte 0)
         _books.value = _books.value.map {
@@ -320,6 +398,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         saveProgress(book.bookId, partIndex, progressPct)
         markStarted(book.bookId)
         savePosition(book.bookId, 0L)
+        saveToCloud()
         _books.value = _books.value.map {
             if (it.bookId == book.bookId)
                 it.copy(currentPartIndex = partIndex, progressPercent = progressPct.coerceAtLeast(1))
@@ -428,6 +507,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         // Every 60 ticks = 30 seconds of real playback → add 1 minute to stats
                         if (ticksPlaying % 60 == 0) {
                             addListeningMinutes(1)
+                            saveToCloud()   // sincroniza posición/progreso periódicamente
                         }
                         // Cada 10 ticks (~5s) guardar la posición para poder reanudar
                         if (ticksPlaying % 10 == 0) {

@@ -2,6 +2,7 @@ package com.librisaudio.app.data.api
 
 import com.librisaudio.app.data.model.GlobalBookDto
 import com.librisaudio.app.data.model.UserBookDto
+import com.librisaudio.app.data.model.UserStateDto
 import com.librisaudio.app.data.model.WordTiming
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
@@ -33,6 +34,16 @@ interface LibrisApiService {
         @Path("partIndex") partIndex: Int,
         @Query("voice") voice: String
     ): List<WordTiming>
+
+    /** Estado del usuario en la nube (progreso + preferencias). */
+    @GET("api/user-state/{userId}")
+    suspend fun getUserState(@Path("userId") userId: String): UserStateDto
+
+    @PUT("api/user-state/{userId}")
+    suspend fun putUserState(
+        @Path("userId") userId: String,
+        @Body body: UserStateDto
+    ): ResponseBody
 
     @DELETE("api/books/{bookId}")
     suspend fun deleteBook(

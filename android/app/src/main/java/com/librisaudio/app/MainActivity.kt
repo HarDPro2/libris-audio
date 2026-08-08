@@ -125,6 +125,11 @@ class MainActivity : ComponentActivity() {
                 var userProfile by remember { mutableStateOf(ProfileManager.load(context)) }
                 var showProfileDialog by remember { mutableStateOf(false) }
 
+                // Al iniciar sesión: restaura progreso + preferencias desde la nube
+                LaunchedEffect(session?.userId) {
+                    session?.userId?.let { playerViewModel.enableCloudSync(it) }
+                }
+
                 var selectedTab by remember { mutableStateOf(MainTab.LIBRARY) }
                 var isCarModeOpen by remember { mutableStateOf(false) }
 
