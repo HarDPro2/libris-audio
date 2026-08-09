@@ -152,6 +152,7 @@ data class Book(
 - **URL permanente:** `https://github.com/HarDPro2/libris-audio/releases/latest/download/libris-audio.apk`
 - **Auto-actualizador:** la app consulta el último release al abrir (`UpdateManager.kt`), compara con `BuildConfig.VERSION_NAME` y ofrece descargar+instalar vía FileProvider
 - **Para publicar nueva versión:** subir el número en `package.json` (ej. `1.0.1` → `1.0.2`) antes del push
+- **Firma ESTABLE:** `android/app/libris-release.keystore` (alias `libris`, pass `librisaudio`) firma TODOS los builds (debug y release) vía `signingConfigs.release` en `build.gradle`. Sin esto, cada build del CI usaba un debug keystore distinto → las actualizaciones fallaban con "conflicto con un paquete existente". El keystore va versionado (app sideload; si se sube a Play, migrar a Play App Signing/secrets).
 
 ---
 

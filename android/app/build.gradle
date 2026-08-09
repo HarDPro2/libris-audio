@@ -23,10 +23,29 @@ android {
         }
     }
 
+    signingConfigs {
+        // Clave de firma ESTABLE, la misma en todos los builds, para que las
+        // actualizaciones instalen sin "conflicto con un paquete existente".
+        // El keystore va versionado en el repo (app de distribución sideload
+        // vía GitHub Releases; no Play Store). Si algún día se sube a Play,
+        // migrar a Play App Signing / secrets.
+        release {
+            storeFile file("libris-release.keystore")
+            storePassword "librisaudio"
+            keyAlias "libris"
+            keyPassword "librisaudio"
+        }
+    }
+
     buildTypes {
+        debug {
+            // El CI compila assembleDebug → lo firmamos con la clave estable
+            signingConfig signingConfigs.release
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
         }
     }
 
