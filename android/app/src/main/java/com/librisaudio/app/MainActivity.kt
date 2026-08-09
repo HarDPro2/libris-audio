@@ -91,6 +91,31 @@ class MainActivity : ComponentActivity() {
         startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
     }
 
+    /** ¿La app está exenta de la optimización de batería? Si NO, los fabricantes
+     *  agresivos (Samsung, Xiaomi/MIUI, Huawei, Oppo…) pueden cortar la reproducción
+     *  con la pantalla apagada. */
+    fun isIgnoringBatteryOptimizations(): Boolean {
+        val pm = getSystemService(POWER_SERVICE) as android.os.PowerManager
+        return pm.isIgnoringBatteryOptimizations(packageName)
+    }
+
+    /** Abre el diálogo del sistema para poner la app en "Sin restricciones". */
+    fun requestIgnoreBatteryOptimizations() {
+        try {
+            startActivity(
+                Intent(
+                    android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    Uri.parse("package:$packageName")
+                )
+            )
+        } catch (_: Exception) {
+            // Fallback: abre la lista de optimización de batería
+            try {
+                startActivity(Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+            } catch (_: Exception) { /* algunos ROMs no exponen ninguno */ }
+        }
+    }
+
     @OptIn(ExperimentalMaterial3Api::class)
     private fun buildUi() {
         setContent {
@@ -127,6 +152,47 @@ class MainActivity : ComponentActivity() {
                 // Al iniciar sesión: restaura progreso + preferencias desde la nube
                 LaunchedEffect(session?.userId) {
                     session?.userId?.let { playerViewModel.enableCloudSync(it) }
+                }
+
+                // ── Aviso de batería: pedir "Sin restricciones" una vez ──────
+                // Sin esto, muchos teléfonos cortan el audio con la pantalla apagada.
+                var showBatteryDialog by remember { mutableStateOf(false) }
+                LaunchedEffect(Unit) {
+                    val prefs = getSharedPreferences("libris_prefs", MODE_PRIVATE)
+                    val alreadyAsked = prefs.getBoolean("asked_battery_opt", false)
+                    if (!isIgnoringBatteryOptimizations() && !alreadyAsked) {
+                        showBatteryDialog = true
+                    }
+                }
+                if (showBatteryDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showBatteryDialog = false },
+                        icon = { Icon(Icons.Filled.BatteryChargingFull, contentDescription = null, tint = currentTheme.primary) },
+                        title = { Text("Reproducción con pantalla apagada") },
+                        text = {
+                            Text(
+                                "Para que el audio no se corte al apagar la pantalla, permite que " +
+                                "Libris funcione sin restricciones de batería. Algunos teléfonos " +
+                                "(Samsung, Xiaomi, Huawei…) detienen las apps en segundo plano por defecto.\n\n" +
+                                "En la siguiente pantalla elige \"Permitir\" o \"Sin restricciones\"."
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                getSharedPreferences("libris_prefs", MODE_PRIVATE)
+                                    .edit().putBoolean("asked_battery_opt", true).apply()
+                                showBatteryDialog = false
+                                requestIgnoreBatteryOptimizations()
+                            }) { Text("Permitir") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = {
+                                getSharedPreferences("libris_prefs", MODE_PRIVATE)
+                                    .edit().putBoolean("asked_battery_opt", true).apply()
+                                showBatteryDialog = false
+                            }) { Text("Ahora no") }
+                        }
+                    )
                 }
 
                 var selectedTab by remember { mutableStateOf(MainTab.LIBRARY) }

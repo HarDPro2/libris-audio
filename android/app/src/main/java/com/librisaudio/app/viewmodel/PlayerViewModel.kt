@@ -310,16 +310,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val player = mediaController ?: return
         val pos = player.currentPosition.coerceAtLeast(0L)
         val wasPlaying = player.isPlaying
-        val mediaItem = MediaItem.Builder()
-            .setUri(book.getAudioUrl(_currentPartIndex.value, voiceId))
-            .setMediaMetadata(
-                MediaMetadata.Builder()
-                    .setTitle("${book.title} (Parte ${_currentPartIndex.value + 1})")
-                    .setArtist(book.category)
-                    .build()
-            )
-            .build()
-        player.setMediaItem(mediaItem)
+        val idx = _currentPartIndex.value
+        player.setMediaItem(buildMediaItem(book, idx, voiceId))
+        // Mantener el prebuffer de la siguiente parte con la nueva voz
+        if (idx + 1 < book.partsCount) {
+            player.addMediaItem(buildMediaItem(book, idx + 1, voiceId))
+        }
         player.prepare()
         player.seekTo(pos)
         if (wasPlaying) player.play()
@@ -357,6 +353,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 if (state == Player.STATE_ENDED) {
                     onPartEnded()
                 }
+            }
+
+            override fun onMediaItemTransition(item: MediaItem?, reason: Int) {
+                // Solo nos interesa el avance AUTOMÁTICO al terminar una parte
+                // (la cola ya tiene la siguiente prebufferizada). Los cambios por
+                // setMediaItem / seek los ignoramos.
+                if (reason != Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) return
+                val newIdx = item?.mediaId?.toIntOrNull() ?: return
+                onAutoAdvanced(newIdx)
             }
 
             override fun onPositionDiscontinuity(
@@ -455,9 +460,29 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         // para no saturar) → al avanzar no hay espera ni cortes.
         prefetchNextPart(book, partIndex, _selectedVoice.value)
 
-        val audioUrl = book.getAudioUrl(partIndex, _selectedVoice.value)
-        val mediaItem = MediaItem.Builder()
-            .setUri(audioUrl)
+        val voice = _selectedVoice.value
+        mediaController?.let { player ->
+            player.setMediaItem(buildMediaItem(book, partIndex, voice))
+            // Prebuffer de la SIGUIENTE parte en la misma cola: ExoPlayer la
+            // descarga mientras suena la actual (pantalla encendida + wifi-lock),
+            // así al terminar avanza a algo ya bajado y NO pide red en el momento
+            // crítico (pantalla apagada / Doze) — que era la causa del corte.
+            if (partIndex + 1 < book.partsCount) {
+                player.addMediaItem(buildMediaItem(book, partIndex + 1, voice))
+            }
+            player.prepare()
+            if (seekToMs > 0) player.seekTo(seekToMs)
+            player.play()
+            _isPlaying.value = true
+        }
+    }
+
+    /** Construye un MediaItem con el índice de parte codificado en el mediaId,
+     *  para poder saber a qué parte avanzó ExoPlayer al reproducir la cola. */
+    private fun buildMediaItem(book: Book, partIndex: Int, voice: String): MediaItem =
+        MediaItem.Builder()
+            .setUri(book.getAudioUrl(partIndex, voice))
+            .setMediaId(partIndex.toString())
             .setMediaMetadata(
                 MediaMetadata.Builder()
                     .setTitle("${book.title} (Parte ${partIndex + 1})")
@@ -466,13 +491,36 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             )
             .build()
 
-        mediaController?.let { player ->
-            player.setMediaItem(mediaItem)
-            player.prepare()
-            if (seekToMs > 0) player.seekTo(seekToMs)
-            player.play()
-            _isPlaying.value = true
+    /** ExoPlayer avanzó solo a la siguiente parte (ya prebufferizada). Actualiza
+     *  el estado y encola la parte siguiente, todo SIN pedir red en el instante
+     *  del cambio (clave para que no se corte con la pantalla apagada). */
+    private fun onAutoAdvanced(newIdx: Int) {
+        val book = _currentBook.value ?: return
+        _currentPartIndex.value = newIdx
+        val progressPct = if (book.partsCount > 0)
+            ((newIdx.toFloat() / book.partsCount) * 100).toInt() else 0
+        saveProgress(book.bookId, newIdx, progressPct)
+        markLastBook(book.bookId)
+        savePosition(book.bookId, 0L)
+        saveToCloud()
+        _books.value = _books.value.map {
+            if (it.bookId == book.bookId)
+                it.copy(currentPartIndex = newIdx, progressPercent = progressPct.coerceAtLeast(1))
+            else it
         }
+        loadPartText(book.bookId, newIdx)
+        loadTiming(book.bookId, newIdx, _selectedVoice.value)
+        // Encola la siguiente-siguiente parte (si no está ya) y precalienta backend
+        val player = mediaController
+        val nextNext = newIdx + 1
+        if (player != null && nextNext < book.partsCount) {
+            val lastIdx = if (player.mediaItemCount > 0)
+                player.getMediaItemAt(player.mediaItemCount - 1).mediaId.toIntOrNull() else null
+            if (lastIdx != nextNext) {
+                player.addMediaItem(buildMediaItem(book, nextNext, _selectedVoice.value))
+            }
+        }
+        prefetchNextPart(book, newIdx, _selectedVoice.value)
     }
 
     /** Pausa la voz (para entrar al modo Solo Lectura). */

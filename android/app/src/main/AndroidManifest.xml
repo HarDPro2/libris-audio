@@ -68,4 +68,8 @@
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
 
+    <!-- Ask the user to exempt the app from battery optimization so aggressive
+         OEMs (Samsung, Xiaomi/MIUI, Huawei, Oppo…) don't kill background playback -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
 </manifest>
