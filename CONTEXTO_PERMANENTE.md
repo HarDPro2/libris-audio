@@ -146,9 +146,12 @@ data class Book(
 
 ### CI/CD — GitHub Actions
 - **Trigger:** push a `main`
-- **Build:** `./gradlew assembleDebug`
-- **Release:** automático en GitHub Releases
-- **URL permanente:** `https://github.com/HarDPro2/libris-audio/releases/latest/download/libris-audio-debug.apk`
+- **Build:** `./gradlew assembleDebug` con `-PlibrisVersionName` (de `package.json`) y `-PlibrisVersionCode` (nº de run)
+- **Release:** automático en GitHub Releases, tag `v{version}` de `package.json`
+- **APK con nombre FIJO** (sin versión) → el enlace de descarga nunca se rompe
+- **URL permanente:** `https://github.com/HarDPro2/libris-audio/releases/latest/download/libris-audio.apk`
+- **Auto-actualizador:** la app consulta el último release al abrir (`UpdateManager.kt`), compara con `BuildConfig.VERSION_NAME` y ofrece descargar+instalar vía FileProvider
+- **Para publicar nueva versión:** subir el número en `package.json` (ej. `1.0.1` → `1.0.2`) antes del push
 
 ---
 

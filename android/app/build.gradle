@@ -9,8 +9,10 @@ android {
         applicationId "com.librisaudio.app"
         minSdk 24
         targetSdk 34
-        versionCode 1
-        versionName "1.0.0"
+        // Versionado: el CI inyecta -PlibrisVersionName (de package.json) y
+        // -PlibrisVersionCode (nº de run). En builds locales usa el fallback.
+        versionCode (project.hasProperty('librisVersionCode') ? project.property('librisVersionCode').toString().toInteger() : 1)
+        versionName (project.hasProperty('librisVersionName') ? project.property('librisVersionName').toString() : "1.0.0")
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary true
@@ -39,6 +41,7 @@ android {
 
     buildFeatures {
         compose true
+        buildConfig true   // expone BuildConfig.VERSION_NAME al auto-actualizador
     }
 
     composeOptions {

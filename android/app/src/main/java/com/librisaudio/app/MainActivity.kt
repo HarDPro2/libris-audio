@@ -32,9 +32,11 @@ import com.librisaudio.app.ui.components.ProfileDialog
 import com.librisaudio.app.ui.screens.*
 import com.librisaudio.app.ui.theme.AppThemePreset
 import com.librisaudio.app.ui.theme.LibrisAudioTheme
+import com.librisaudio.app.util.UpdateManager
 import com.librisaudio.app.viewmodel.AuthState
 import com.librisaudio.app.viewmodel.AuthViewModel
 import com.librisaudio.app.viewmodel.PlayerViewModel
+import kotlinx.coroutines.launch
 
 enum class MainTab {
     LIBRARY, HISTORY, UPLOAD, SETTINGS
@@ -191,6 +193,81 @@ class MainActivity : ComponentActivity() {
                                     .edit().putBoolean("asked_battery_opt", true).apply()
                                 showBatteryDialog = false
                             }) { Text("Ahora no") }
+                        }
+                    )
+                }
+
+                // ── Auto-actualizador: avisar si hay versión nueva en GitHub ──
+                var updateInfo by remember { mutableStateOf<UpdateManager.UpdateInfo?>(null) }
+                var updateDismissed by remember { mutableStateOf(false) }
+                var downloading by remember { mutableStateOf(false) }
+                var downloadProgress by remember { mutableStateOf(0) }
+                val updateScope = rememberCoroutineScope()
+                LaunchedEffect(Unit) {
+                    updateInfo = UpdateManager.checkForUpdate(BuildConfig.VERSION_NAME)
+                }
+                val info = updateInfo
+                if (info != null && !updateDismissed) {
+                    AlertDialog(
+                        onDismissRequest = { if (!downloading) updateDismissed = true },
+                        icon = { Icon(Icons.Filled.SystemUpdate, contentDescription = null, tint = currentTheme.primary) },
+                        title = { Text("Nueva versión disponible") },
+                        text = {
+                            Column {
+                                Text("La versión ${info.versionName} está lista para instalar.")
+                                if (info.notes.isNotBlank()) {
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(
+                                        info.notes,
+                                        fontSize = 12.sp,
+                                        color = Color(0xFF8FA3BF),
+                                        maxLines = 6
+                                    )
+                                }
+                                if (downloading) {
+                                    Spacer(Modifier.height(12.dp))
+                                    if (downloadProgress >= 0) {
+                                        LinearProgressIndicator(
+                                            progress = downloadProgress / 100f,
+                                            modifier = Modifier.fillMaxWidth(),
+                                            color = currentTheme.primary
+                                        )
+                                        Text("Descargando… $downloadProgress%", fontSize = 12.sp, color = Color(0xFF8FA3BF))
+                                    } else {
+                                        LinearProgressIndicator(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            color = currentTheme.primary
+                                        )
+                                        Text("Descargando…", fontSize = 12.sp, color = Color(0xFF8FA3BF))
+                                    }
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(
+                                enabled = !downloading,
+                                onClick = {
+                                    downloading = true
+                                    downloadProgress = 0
+                                    updateScope.launch {
+                                        val apk = UpdateManager.downloadApk(this@MainActivity) { p ->
+                                            downloadProgress = p
+                                        }
+                                        downloading = false
+                                        if (apk != null) {
+                                            UpdateManager.installApk(this@MainActivity, apk)
+                                        } else {
+                                            updateDismissed = true
+                                        }
+                                    }
+                                }
+                            ) { Text(if (downloading) "Descargando…" else "Actualizar") }
+                        },
+                        dismissButton = {
+                            TextButton(
+                                enabled = !downloading,
+                                onClick = { updateDismissed = true }
+                            ) { Text("Ahora no") }
                         }
                     )
                 }

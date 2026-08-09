@@ -229,7 +229,7 @@ export default function LandingPage() {
             ▶ Explorar la Biblioteca
           </button>
           <a
-            href="https://github.com/HarDPro2/libris-audio/releases/latest/download/libris-audio-v1.0.0.apk"
+            href="https://github.com/HarDPro2/libris-audio/releases/latest/download/libris-audio.apk"
             className="btn-android"
             id="hero-android-download"
           >
@@ -336,7 +336,7 @@ export default function LandingPage() {
               La app nativa mantiene el audio activo aunque apagues la pantalla.
             </p>
             <a
-              href="https://github.com/HarDPro2/libris-audio/releases/latest/download/libris-audio-v1.0.0.apk"
+              href="https://github.com/HarDPro2/libris-audio/releases/latest/download/libris-audio.apk"
               className="btn-android"
               id="section-android-download"
             >
