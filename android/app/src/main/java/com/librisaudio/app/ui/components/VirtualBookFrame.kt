@@ -145,6 +145,7 @@ fun VirtualBookFrame(
     var fontSizeSp by remember { mutableStateOf(16) }
     var fontMode by remember { mutableStateOf(0) }   // 0 = Género, 1 = Serif, 2 = Sans
     var highlightOn by remember { mutableStateOf(true) }
+    var fxOn by remember { mutableStateOf(true) }    // capa animada ambiental por género
 
     val activeFont = when (fontMode) {
         1 -> FontFamily.Serif
@@ -219,6 +220,18 @@ fun VirtualBookFrame(
                         color = if (highlightOn) Color.White else Color(0xFF94A3B8))
                 }
                 Spacer(Modifier.width(6.dp))
+                // Toggle de la capa animada ambiental por género
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (fxOn) selectedStyle.accentColor else Color(0x33FFFFFF))
+                        .clickable { fxOn = !fxOn }
+                        .padding(horizontal = 8.dp, vertical = 5.dp)
+                ) {
+                    Text("🎇 FX", fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                        color = if (fxOn) Color.White else Color(0xFF94A3B8))
+                }
+                Spacer(Modifier.width(6.dp))
                 IconButton(onClick = { if (fontSizeSp > 12) fontSizeSp -= 2 }) {
                     Text("A-", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold)
                 }
@@ -263,6 +276,14 @@ fun VirtualBookFrame(
                     .align(Alignment.CenterStart)
                     .background(Brush.horizontalGradient(listOf(Color(0x40000000), Color.Transparent)))
             )
+
+            // Capa animada ambiental por género (detrás del texto, subtema visual)
+            if (fxOn) {
+                GenreFrameOverlay(
+                    style = selectedStyle,
+                    modifier = Modifier.matchParentSize()
+                )
+            }
 
             // Emblemas ornamentales en las esquinas (tenue)
             Text(selectedStyle.emblem, fontSize = 22.sp,
