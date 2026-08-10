@@ -49,4 +49,35 @@
     <string name="hist_empty_sub">Go to the library and start your first read</string>
     <string name="hist_progress">%1$d%% completed • Part %2$d/%3$d</string>
     <string name="hist_resume">▶ Resume</string>
+
+    <!-- Player -->
+    <string name="player_home">Home</string>
+    <string name="player_stop">Stop playback</string>
+    <string name="player_mode_classic">Classic</string>
+    <string name="player_mode_book">Book</string>
+    <string name="player_mode_read">Read</string>
+    <string name="player_fullscreen">Fullscreen</string>
+    <string name="player_voice">Narrator voice</string>
+    <string name="player_stats">Statistics</string>
+    <string name="player_ask_ai">Ask the AI</string>
+    <string name="player_car_mode">Car Mode</string>
+    <string name="player_sleep_timer">Sleep timer</string>
+    <string name="player_bookmarks">Bookmarks</string>
+    <string name="player_bg_music">Background music</string>
+    <string name="player_downloaded">Downloaded</string>
+    <string name="player_download">Download for offline</string>
+    <string name="player_part_of">Part %1$d of %2$d</string>
+    <string name="player_prev_part">Previous part</string>
+    <string name="player_next_part">Next part</string>
+    <string name="player_exit_fullscreen">Exit fullscreen</string>
+    <string name="player_previous">Previous</string>
+    <string name="player_next">Next</string>
+    <string name="player_play">Play</string>
+    <string name="player_pause">Pause</string>
+
+    <!-- Car Mode -->
+    <string name="car_title">CAR MODE</string>
+    <string name="car_exit">Exit Car Mode</string>
+    <string name="car_part_of">PART %1$d OF %2$d</string>
+    <string name="car_next_part">NEXT PART</string>
 </resources>

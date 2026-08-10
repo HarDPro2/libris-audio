@@ -22,8 +22,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.librisaudio.app.R
 import com.librisaudio.app.data.model.Book
 import com.librisaudio.app.ui.theme.CyanAccent
 import com.librisaudio.app.ui.theme.DarkSlate
@@ -59,11 +61,11 @@ fun CarModeScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.DirectionsCar, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(28.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("MODO AUTO", fontSize = 16.sp, fontWeight = FontWeight.Black, color = CyanAccent)
+                Text(stringResource(R.string.car_title), fontSize = 16.sp, fontWeight = FontWeight.Black, color = CyanAccent)
             }
 
             IconButton(onClick = onCloseCarMode) {
-                Icon(Icons.Default.Close, contentDescription = "Salir de Modo Auto", tint = Color.White, modifier = Modifier.size(32.dp))
+                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.car_exit), tint = Color.White, modifier = Modifier.size(32.dp))
             }
         }
 
@@ -83,7 +85,7 @@ fun CarModeScreen(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "PARTE ${currentPartIndex + 1} DE ${book.partsCount}",
+                text = stringResource(R.string.car_part_of, currentPartIndex + 1, book.partsCount),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 color = PurpleAccent
@@ -156,7 +158,7 @@ fun CarModeScreen(
                     .fillMaxWidth()
                     .height(56.dp)
             ) {
-                Text("SIGUIENTE PARTE ??", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text(stringResource(R.string.car_next_part), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
             }
         }
 

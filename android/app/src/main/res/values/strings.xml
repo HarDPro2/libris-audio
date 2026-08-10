@@ -51,4 +51,35 @@
     <string name="hist_empty_sub">Ve a la biblioteca y empieza tu primera lectura</string>
     <string name="hist_progress">%1$d%% completado • Parte %2$d/%3$d</string>
     <string name="hist_resume">▶ Reanudar</string>
+
+    <!-- Reproductor -->
+    <string name="player_home">Inicio</string>
+    <string name="player_stop">Detener reproducción</string>
+    <string name="player_mode_classic">Clásico</string>
+    <string name="player_mode_book">Libro</string>
+    <string name="player_mode_read">Leer</string>
+    <string name="player_fullscreen">Pantalla completa</string>
+    <string name="player_voice">Voz del narrador</string>
+    <string name="player_stats">Estadísticas</string>
+    <string name="player_ask_ai">Pregúntale a la IA</string>
+    <string name="player_car_mode">Modo Auto</string>
+    <string name="player_sleep_timer">Temporizador</string>
+    <string name="player_bookmarks">Marcapáginas</string>
+    <string name="player_bg_music">Música de fondo</string>
+    <string name="player_downloaded">Descargado</string>
+    <string name="player_download">Descargar sin conexión</string>
+    <string name="player_part_of">Parte %1$d de %2$d</string>
+    <string name="player_prev_part">Parte anterior</string>
+    <string name="player_next_part">Siguiente parte</string>
+    <string name="player_exit_fullscreen">Salir de pantalla completa</string>
+    <string name="player_previous">Anterior</string>
+    <string name="player_next">Siguiente</string>
+    <string name="player_play">Reproducir</string>
+    <string name="player_pause">Pausar</string>
+
+    <!-- Modo Auto -->
+    <string name="car_title">MODO AUTO</string>
+    <string name="car_exit">Salir de Modo Auto</string>
+    <string name="car_part_of">PARTE %1$d DE %2$d</string>
+    <string name="car_next_part">SIGUIENTE PARTE</string>
 </resources>

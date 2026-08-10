@@ -33,6 +33,8 @@ import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.*
+import androidx.compose.ui.res.stringResource
+import com.librisaudio.app.R
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -170,10 +172,10 @@ fun PlayerScreen(
               ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onClose) {
-                        Icon(Icons.Default.Home, contentDescription = "Inicio", tint = Color.White)
+                        Icon(Icons.Default.Home, contentDescription = stringResource(R.string.player_home), tint = Color.White)
                     }
                     IconButton(onClick = onStopPlayback) {
-                        Icon(Icons.Default.StopCircle, contentDescription = "Detener reproducción", tint = Color.White)
+                        Icon(Icons.Default.StopCircle, contentDescription = stringResource(R.string.player_stop), tint = Color.White)
                     }
                 }
 
@@ -194,7 +196,7 @@ fun PlayerScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Headphones, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Clásico", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text(stringResource(R.string.player_mode_classic), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
                         }
                     }
 
@@ -208,7 +210,7 @@ fun PlayerScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Book, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Libro", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text(stringResource(R.string.player_mode_book), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
                         }
                     }
 
@@ -222,14 +224,14 @@ fun PlayerScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.MenuBook, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Leer", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text(stringResource(R.string.player_mode_read), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
                         }
                     }
                 }
 
                 // Pantalla completa (cierra la fila superior)
                 IconButton(onClick = { isImmersive = true }) {
-                    Icon(Icons.Default.Fullscreen, contentDescription = "Pantalla completa", tint = CyanAccent)
+                    Icon(Icons.Default.Fullscreen, contentDescription = stringResource(R.string.player_fullscreen), tint = CyanAccent)
                 }
               }
 
@@ -242,25 +244,25 @@ fun PlayerScreen(
                 verticalAlignment = Alignment.CenterVertically
               ) {
                     IconButton(onClick = { isVoiceDialogVisible = true }) {
-                        Icon(Icons.Default.RecordVoiceOver, contentDescription = "Voz del narrador", tint = Color.White)
+                        Icon(Icons.Default.RecordVoiceOver, contentDescription = stringResource(R.string.player_voice), tint = Color.White)
                     }
                     IconButton(onClick = { isStatsVisible = true }) {
-                        Icon(Icons.Default.QueryStats, contentDescription = "Estadísticas", tint = Color.White)
+                        Icon(Icons.Default.QueryStats, contentDescription = stringResource(R.string.player_stats), tint = Color.White)
                     }
                     IconButton(onClick = { isAiChatVisible = true }) {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = "Preguntale a la IA", tint = CyanAccent)
+                        Icon(Icons.Default.AutoAwesome, contentDescription = stringResource(R.string.player_ask_ai), tint = CyanAccent)
                     }
                     IconButton(onClick = onOpenCarMode) {
-                        Icon(Icons.Default.DirectionsCar, contentDescription = "Modo Auto", tint = Color.White)
+                        Icon(Icons.Default.DirectionsCar, contentDescription = stringResource(R.string.player_car_mode), tint = Color.White)
                     }
                     IconButton(onClick = { isSleepTimerVisible = true }) {
-                        Icon(Icons.Default.Bedtime, contentDescription = "Sleep Timer", tint = if (selectedSleepTimer != SleepTimerOption.OFF) CyanAccent else Color.White)
+                        Icon(Icons.Default.Bedtime, contentDescription = stringResource(R.string.player_sleep_timer), tint = if (selectedSleepTimer != SleepTimerOption.OFF) CyanAccent else Color.White)
                     }
                     IconButton(onClick = { isBookmarkVisible = true }) {
-                        Icon(Icons.Default.Bookmark, contentDescription = "Marcapáginas", tint = Color.White)
+                        Icon(Icons.Default.Bookmark, contentDescription = stringResource(R.string.player_bookmarks), tint = Color.White)
                     }
                     IconButton(onClick = { isMusicDialogVisible = true }) {
-                        Icon(Icons.Default.MusicNote, contentDescription = "Música de Fondo", tint = if (selectedMusicTrack != null) CyanAccent else Color.White)
+                        Icon(Icons.Default.MusicNote, contentDescription = stringResource(R.string.player_bg_music), tint = if (selectedMusicTrack != null) CyanAccent else Color.White)
                     }
                     IconButton(
                         onClick = { if (!isDownloading && !isDownloaded) onDownload() },
@@ -273,8 +275,8 @@ fun PlayerScreen(
                                 strokeWidth = 2.dp,
                                 color = CyanAccent
                             )
-                            isDownloaded -> Icon(Icons.Default.DownloadDone, contentDescription = "Descargado", tint = CyanAccent)
-                            else -> Icon(Icons.Default.Download, contentDescription = "Descargar sin conexión", tint = Color.White)
+                            isDownloaded -> Icon(Icons.Default.DownloadDone, contentDescription = stringResource(R.string.player_downloaded), tint = CyanAccent)
+                            else -> Icon(Icons.Default.Download, contentDescription = stringResource(R.string.player_download), tint = Color.White)
                         }
                     }
               }
@@ -354,7 +356,7 @@ fun PlayerScreen(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Parte ${currentPartIndex + 1} de ${book.partsCount}",
+                        text = stringResource(R.string.player_part_of, currentPartIndex + 1, book.partsCount),
                         fontSize = 13.sp,
                         color = currentTheme.secondary,
                         fontWeight = FontWeight.SemiBold
@@ -399,7 +401,7 @@ fun PlayerScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     IconButton(onClick = onPreviousPart, modifier = Modifier.size(44.dp)) {
-                        Icon(Icons.Default.SkipPrevious, contentDescription = "Parte Anterior", tint = Color.White, modifier = Modifier.size(32.dp))
+                        Icon(Icons.Default.SkipPrevious, contentDescription = stringResource(R.string.player_prev_part), tint = Color.White, modifier = Modifier.size(32.dp))
                     }
 
                     Spacer(modifier = Modifier.width(20.dp))
@@ -417,7 +419,7 @@ fun PlayerScreen(
                     ) {
                         Icon(
                             imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            contentDescription = if (isPlaying) "Pausar" else "Reproducir",
+                            contentDescription = if (isPlaying) stringResource(R.string.player_pause) else stringResource(R.string.player_play),
                             tint = Color.White,
                             modifier = Modifier.size(36.dp)
                         )
@@ -426,7 +428,7 @@ fun PlayerScreen(
                     Spacer(modifier = Modifier.width(20.dp))
 
                     IconButton(onClick = onNextPart, modifier = Modifier.size(44.dp)) {
-                        Icon(Icons.Default.SkipNext, contentDescription = "Siguiente Parte", tint = Color.White, modifier = Modifier.size(32.dp))
+                        Icon(Icons.Default.SkipNext, contentDescription = stringResource(R.string.player_next_part), tint = Color.White, modifier = Modifier.size(32.dp))
                     }
                 }
 
@@ -470,7 +472,7 @@ fun PlayerScreen(
                     .clip(RoundedCornerShape(20.dp))
                     .background(Color(0x66000000))
             ) {
-                Icon(Icons.Default.FullscreenExit, contentDescription = "Salir de pantalla completa", tint = Color.White)
+                Icon(Icons.Default.FullscreenExit, contentDescription = stringResource(R.string.player_exit_fullscreen), tint = Color.White)
             }
             IconButton(
                 onClick = { isMusicDialogVisible = true },
@@ -480,7 +482,7 @@ fun PlayerScreen(
                     .clip(RoundedCornerShape(20.dp))
                     .background(Color(0x66000000))
             ) {
-                Icon(Icons.Default.MusicNote, contentDescription = "Música de fondo",
+                Icon(Icons.Default.MusicNote, contentDescription = stringResource(R.string.player_bg_music),
                     tint = if (selectedMusicTrack != null) CyanAccent else Color.White)
             }
             Row(
@@ -491,7 +493,7 @@ fun PlayerScreen(
                 horizontalArrangement = Arrangement.spacedBy(18.dp)
             ) {
                 IconButton(onClick = onPreviousPart) {
-                    Icon(Icons.Default.SkipPrevious, contentDescription = "Anterior", tint = Color.White, modifier = Modifier.size(30.dp))
+                    Icon(Icons.Default.SkipPrevious, contentDescription = stringResource(R.string.player_previous), tint = Color.White, modifier = Modifier.size(30.dp))
                 }
                 IconButton(
                     onClick = onTogglePlay,
@@ -502,12 +504,12 @@ fun PlayerScreen(
                 ) {
                     Icon(
                         imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = if (isPlaying) "Pausar" else "Reproducir",
+                        contentDescription = if (isPlaying) stringResource(R.string.player_pause) else stringResource(R.string.player_play),
                         tint = Color.White, modifier = Modifier.size(32.dp)
                     )
                 }
                 IconButton(onClick = onNextPart) {
-                    Icon(Icons.Default.SkipNext, contentDescription = "Siguiente", tint = Color.White, modifier = Modifier.size(30.dp))
+                    Icon(Icons.Default.SkipNext, contentDescription = stringResource(R.string.player_next), tint = Color.White, modifier = Modifier.size(30.dp))
                 }
             }
         }
