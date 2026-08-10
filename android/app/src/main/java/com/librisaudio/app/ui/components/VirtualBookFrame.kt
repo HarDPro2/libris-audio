@@ -28,7 +28,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -147,10 +146,12 @@ fun VirtualBookFrame(
     var highlightOn by remember { mutableStateOf(true) }
     var fxOn by remember { mutableStateOf(true) }    // capa animada ambiental por género
 
-    val activeFont = when (fontMode) {
-        1 -> FontFamily.Serif
-        2 -> FontFamily.Default
-        else -> resolveGenreFont(ctx, selectedStyle)
+    val activeFont = remember(fontMode, selectedStyle) {
+        when (fontMode) {
+            1 -> FontFamily.Serif
+            2 -> FontFamily.Default
+            else -> resolveGenreFont(ctx, selectedStyle)
+        }
     }
     val fontLabel = when (fontMode) { 1 -> "Serif"; 2 -> "Sans"; else -> "Género" }
 
@@ -527,10 +528,11 @@ private fun ReadingText(
 }
 
 /**
- * Fuente por género. Si existe un .ttf con el nombre indicado en res/font/,
- * lo usa (fuente artística). Si no, cae a una familia integrada de Android.
- * Para las artísticas: descarga la fuente de Google Fonts y ponla como
- *   android/app/src/main/res/font/<nombre>.ttf   (minúsculas, guiones bajos).
+ * Fuente por género. Las 12 .ttf artísticas ya están incluidas en res/font/
+ * (Google Fonts vía Fontsource): EB Garamond, MedievalSharp, Cormorant, Oswald,
+ * Dancing Script, Creepster, JetBrains Mono, Comic Neue, Uncial Antiqua,
+ * Playfair Display, Special Elite, Orbitron. Si por alguna razón faltara alguna,
+ * cae con elegancia a una familia integrada de Android.
  */
 private fun resolveGenreFont(ctx: android.content.Context, style: BookBindingStyle): FontFamily {
     val (name, fallback) = when (style) {
@@ -547,8 +549,8 @@ private fun resolveGenreFont(ctx: android.content.Context, style: BookBindingSty
         BookBindingStyle.NOIR       -> "special_elite"  to FontFamily.Monospace
         BookBindingStyle.COSMIC     -> "orbitron"       to FontFamily.SansSerif
     }
-    val resId = ctx.resources.getIdentifier(name, "font", ctx.packageName)
-    return if (resId != 0) FontFamily(Font(resId)) else fallback
+    // Resolver universal alineado con DIRECTIVA_FUENTES_ARTISTICAS_EMBEBIDAS
+    return com.librisaudio.app.util.ArtisticFonts.resolve(ctx, name, fallback)
 }
 
 // Helpers para el degradado del borde que se desplaza (shimmer)
