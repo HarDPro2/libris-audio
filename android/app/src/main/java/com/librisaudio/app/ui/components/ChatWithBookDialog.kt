@@ -20,6 +20,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import com.librisaudio.app.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -60,15 +62,15 @@ fun ChatWithBookDialog(
     var isLoading by remember { mutableStateOf(false) }
     val messages = remember {
         mutableStateListOf(
-            ChatBubble("1", "ai", "¡Hola! Soy tu asistente de lectura de Libris Audio. ¿Qué duda tienes sobre esta parte del libro?")
+            ChatBubble("1", "ai", context.getString(R.string.chat_greeting))
         )
     }
     val coroutineScope = rememberCoroutineScope()
 
     val quickQuestions = listOf(
-        "¿Quién es el personaje principal?",
-        "Hazme un resumen de esta parte",
-        "Explícame la idea central"
+        stringResource(R.string.chat_q1),
+        stringResource(R.string.chat_q2),
+        stringResource(R.string.chat_q3)
     )
 
     fun sendMessage(msg: String) {
@@ -115,11 +117,11 @@ fun ChatWithBookDialog(
                     val response = client.newCall(request).execute()
                     val respStr = response.body?.string() ?: ""
                     val replyJson = JSONObject(respStr)
-                    replyJson.optString("reply", "No se pudo obtener respuesta de la IA.")
+                    replyJson.optString("reply", context.getString(R.string.chat_err_no_reply))
                 }
                 messages.add(ChatBubble(System.currentTimeMillis().toString(), "ai", replyText))
             } catch (e: Exception) {
-                messages.add(ChatBubble(System.currentTimeMillis().toString(), "ai", "Error de conexión con la IA. Inténtalo de nuevo."))
+                messages.add(ChatBubble(System.currentTimeMillis().toString(), "ai", context.getString(R.string.chat_err_connection)))
             } finally {
                 isLoading = false
             }
@@ -146,7 +148,7 @@ fun ChatWithBookDialog(
                     Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = CyanAccent)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Pregúntale a la IA",
+                        text = stringResource(R.string.chat_title),
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -157,12 +159,12 @@ fun ChatWithBookDialog(
                     IconButton(onClick = { isConfigOpen = !isConfigOpen }) {
                         Icon(
                             Icons.Default.Key,
-                            contentDescription = "Configurar API Key",
+                            contentDescription = stringResource(R.string.chat_config_key),
                             tint = if (userApiKey.isNotBlank()) CyanAccent else TextMuted
                         )
                     }
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = TextMuted)
+                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_close), tint = TextMuted)
                     }
                 }
             }
@@ -178,14 +180,14 @@ fun ChatWithBookDialog(
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Text(
-                            text = "🔑 Tu API Key de OpenRouter",
+                            text = stringResource(R.string.chat_key_title),
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = CyanAccent
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Pega tu clave para usar tu cuota personal en cascada.",
+                            text = stringResource(R.string.chat_key_sub),
                             fontSize = 11.sp,
                             color = TextMuted
                         )
@@ -222,8 +224,8 @@ fun ChatWithBookDialog(
                                 Icon(Icons.Default.Security, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Column {
-                                    Text("Escudo 100% Gratuito", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                    Text("Fuerza solo modelos :free sin tocar tu saldo", fontSize = 10.sp, color = TextMuted)
+                                    Text(stringResource(R.string.chat_shield_title), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    Text(stringResource(R.string.chat_shield_sub), fontSize = 10.sp, color = TextMuted)
                                 }
                             }
                             Switch(
@@ -254,7 +256,7 @@ fun ChatWithBookDialog(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "💡 TRUCO DE CUOTA: Si realizas una compra única de $10 de crédito en OpenRouter, tu límite de peticiones gratuitas aumenta permanentemente de 50 a 1,000 peticiones/día de por vida. El Escudo 100% Gratuito garantiza que tu saldo de $10 NUNCA sea consumido.",
+                                    text = stringResource(R.string.chat_quota_tip),
                                     fontSize = 10.5.sp,
                                     color = Color(0xFFE0F2FE),
                                     lineHeight = 14.sp,
@@ -329,7 +331,7 @@ fun ChatWithBookDialog(
                 OutlinedTextField(
                     value = inputText,
                     onValueChange = { inputText = it },
-                    placeholder = { Text("Haz una pregunta sobre el libro...", fontSize = 12.sp, color = TextMuted) },
+                    placeholder = { Text(stringResource(R.string.chat_input_hint), fontSize = 12.sp, color = TextMuted) },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(16.dp),
                     colors = OutlinedTextFieldDefaults.colors(
@@ -350,7 +352,7 @@ fun ChatWithBookDialog(
                         .size(48.dp)
                         .background(CyanAccent, RoundedCornerShape(24.dp))
                 ) {
-                    Icon(Icons.Default.Send, contentDescription = "Enviar", tint = Color.Black)
+                    Icon(Icons.Default.Send, contentDescription = stringResource(R.string.chat_send), tint = Color.Black)
                 }
             }
         }

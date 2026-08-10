@@ -19,7 +19,9 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import com.librisaudio.app.R
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -45,15 +47,15 @@ fun AchievementsDialog(
         val started = prefs.getStringSet("started_books", emptySet())?.size ?: 0
 
         listOf(
-            Achievement("📖", "Primer paso", "Empieza tu primer libro", started >= 1),
-            Achievement("📚", "Explorador", "Empieza 5 libros", started >= 5),
-            Achievement("🏛️", "Bibliófilo", "Empieza 15 libros", started >= 15),
-            Achievement("🔥", "En racha", "3 días seguidos", streak >= 3),
-            Achievement("⚡", "Imparable", "7 días seguidos", streak >= 7),
-            Achievement("👑", "Leyenda", "30 días seguidos", streak >= 30),
-            Achievement("⏱️", "Maratonista", "10 horas escuchadas", totalHours >= 10),
-            Achievement("🚀", "Devorador", "50 horas escuchadas", totalHours >= 50),
-            Achievement("⭐", "Maestro", "100 horas escuchadas", totalHours >= 100)
+            Achievement("📖", ctx.getString(R.string.ach_first_title), ctx.getString(R.string.ach_first_desc), started >= 1),
+            Achievement("📚", ctx.getString(R.string.ach_explorer_title), ctx.getString(R.string.ach_explorer_desc), started >= 5),
+            Achievement("🏛️", ctx.getString(R.string.ach_biblio_title), ctx.getString(R.string.ach_biblio_desc), started >= 15),
+            Achievement("🔥", ctx.getString(R.string.ach_streak_title), ctx.getString(R.string.ach_streak_desc), streak >= 3),
+            Achievement("⚡", ctx.getString(R.string.ach_unstoppable_title), ctx.getString(R.string.ach_unstoppable_desc), streak >= 7),
+            Achievement("👑", ctx.getString(R.string.ach_legend_title), ctx.getString(R.string.ach_legend_desc), streak >= 30),
+            Achievement("⏱️", ctx.getString(R.string.ach_marathon_title), ctx.getString(R.string.ach_marathon_desc), totalHours >= 10),
+            Achievement("🚀", ctx.getString(R.string.ach_devourer_title), ctx.getString(R.string.ach_devourer_desc), totalHours >= 50),
+            Achievement("⭐", ctx.getString(R.string.ach_master_title), ctx.getString(R.string.ach_master_desc), totalHours >= 100)
         )
     }
     val unlockedCount = achievements.count { it.unlocked }
@@ -63,11 +65,11 @@ fun AchievementsDialog(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.EmojiEvents, contentDescription = null, tint = Color(0xFFFACC15))
                 Spacer(Modifier.width(8.dp))
-                Text("Logros", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text(stringResource(R.string.dlg_achievements_title), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 Spacer(Modifier.weight(1f))
                 Text("$unlockedCount / ${achievements.size}", fontSize = 13.sp, color = primary, fontWeight = FontWeight.Bold)
             }
-            Text("Sigue escuchando para desbloquearlos todos", fontSize = 11.sp,
+            Text(stringResource(R.string.achievements_sub), fontSize = 11.sp,
                 color = Color(0xFF94A3B8), modifier = Modifier.padding(top = 4.dp, bottom = 12.dp))
 
             LazyVerticalGrid(

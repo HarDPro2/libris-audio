@@ -22,9 +22,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.librisaudio.app.R
 import androidx.compose.ui.window.DialogProperties
 import com.librisaudio.app.data.model.AvatarCatalog
 import com.librisaudio.app.data.model.UserProfile
@@ -63,7 +65,7 @@ fun ProfileDialog(
             color = Color(0xFF0F172A)
         ) {
             Column(modifier = Modifier.fillMaxSize().padding(20.dp)) {
-                Text("Mi Perfil", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text(stringResource(R.string.profile_title), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 Spacer(Modifier.height(14.dp))
 
                 // Vista previa
@@ -71,7 +73,7 @@ fun ProfileDialog(
                     ProfileAvatar(UserProfile(name, avatarId, photoUri), 72.dp)
                     Spacer(Modifier.width(14.dp))
                     Column {
-                        Text(name.ifBlank { "Tu nombre" },
+                        Text(name.ifBlank { stringResource(R.string.profile_your_name) },
                             fontSize = 17.sp, fontWeight = FontWeight.Bold,
                             color = if (name.isBlank()) TextMuted else Color.White)
                         Text(email, fontSize = 12.sp, color = TextMuted)
@@ -83,8 +85,8 @@ fun ProfileDialog(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { if (it.length <= 24) name = it },
-                    label = { Text("Nombre para mostrar") },
-                    placeholder = { Text("Ej: HarD P.") },
+                    label = { Text(stringResource(R.string.profile_display_name)) },
+                    placeholder = { Text(stringResource(R.string.profile_name_hint)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
@@ -106,18 +108,18 @@ fun ProfileDialog(
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = primary)
                     ) {
-                        Text("📷 Subir foto", fontSize = 13.sp)
+                        Text(stringResource(R.string.profile_upload_photo), fontSize = 13.sp)
                     }
                     if (photoUri.isNotBlank()) {
                         Spacer(Modifier.width(8.dp))
                         TextButton(onClick = { photoUri = "" }) {
-                            Text("Quitar foto", color = Color(0xFFEF4444), fontSize = 13.sp)
+                            Text(stringResource(R.string.profile_remove_photo), color = Color(0xFFEF4444), fontSize = 13.sp)
                         }
                     }
                 }
 
                 Spacer(Modifier.height(12.dp))
-                Text("O elige un avatar", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text(stringResource(R.string.profile_choose_avatar), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 Spacer(Modifier.height(8.dp))
 
                 LazyVerticalGrid(
@@ -156,7 +158,7 @@ fun ProfileDialog(
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp)) {
-                        Text("Cancelar", color = TextMuted)
+                        Text(stringResource(R.string.action_cancel), color = TextMuted)
                     }
                     Button(
                         onClick = { onSave(UserProfile(name.trim(), avatarId, photoUri)); onDismiss() },
@@ -164,7 +166,7 @@ fun ProfileDialog(
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = primary)
                     ) {
-                        Text("Guardar", fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.action_save), fontWeight = FontWeight.Bold)
                     }
                 }
             }

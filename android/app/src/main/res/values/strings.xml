@@ -115,4 +115,60 @@
     <string name="bookmark_item">Parte %1$d • %2$s</string>
     <string name="bookmark_go">Ir ▶</string>
     <string name="bookmark_default_note">Marca de lectura</string>
+
+    <!-- Diálogo: Chat con la IA -->
+    <string name="chat_title">Pregúntale a la IA</string>
+    <string name="chat_greeting">¡Hola! Soy tu asistente de lectura de Libris Audio. ¿Qué duda tienes sobre esta parte del libro?</string>
+    <string name="chat_config_key">Configurar API Key</string>
+    <string name="chat_key_title">🔑 Tu API Key de OpenRouter</string>
+    <string name="chat_key_sub">Pega tu clave para usar tu cuota personal en cascada.</string>
+    <string name="chat_shield_title">Escudo 100% Gratuito</string>
+    <string name="chat_shield_sub">Fuerza solo modelos :free sin tocar tu saldo</string>
+    <string name="chat_quota_tip">💡 TRUCO DE CUOTA: Si realizas una compra única de $10 de crédito en OpenRouter, tu límite de peticiones gratuitas aumenta permanentemente de 50 a 1,000 peticiones/día de por vida. El Escudo 100% Gratuito garantiza que tu saldo de $10 NUNCA sea consumido.</string>
+    <string name="chat_input_hint">Haz una pregunta sobre el libro...</string>
+    <string name="chat_send">Enviar</string>
+    <string name="chat_q1">¿Quién es el personaje principal?</string>
+    <string name="chat_q2">Hazme un resumen de esta parte</string>
+    <string name="chat_q3">Explícame la idea central</string>
+    <string name="chat_err_no_reply">No se pudo obtener respuesta de la IA.</string>
+    <string name="chat_err_connection">Error de conexión con la IA. Inténtalo de nuevo.</string>
+
+    <!-- Diálogo: Música de fondo -->
+    <string name="music_title">Música de Fondo Clásica</string>
+    <string name="music_volume">Volumen de Música de Fondo</string>
+    <string name="music_choose">Elige una obra maestra:</string>
+    <string name="music_none">🔇 Sin música de fondo</string>
+
+    <!-- Diálogo: Perfil -->
+    <string name="profile_title">Mi Perfil</string>
+    <string name="profile_your_name">Tu nombre</string>
+    <string name="profile_display_name">Nombre para mostrar</string>
+    <string name="profile_name_hint">Ej: HarD P.</string>
+    <string name="profile_upload_photo">📷 Subir foto</string>
+    <string name="profile_remove_photo">Quitar foto</string>
+    <string name="profile_choose_avatar">O elige un avatar</string>
+    <string name="action_cancel">Cancelar</string>
+    <string name="action_save">Guardar</string>
+
+    <!-- Diálogo: Logros -->
+    <string name="dlg_achievements_title">Logros</string>
+    <string name="achievements_sub">Sigue escuchando para desbloquearlos todos</string>
+    <string name="ach_first_title">Primer paso</string>
+    <string name="ach_first_desc">Empieza tu primer libro</string>
+    <string name="ach_explorer_title">Explorador</string>
+    <string name="ach_explorer_desc">Empieza 5 libros</string>
+    <string name="ach_biblio_title">Bibliófilo</string>
+    <string name="ach_biblio_desc">Empieza 15 libros</string>
+    <string name="ach_streak_title">En racha</string>
+    <string name="ach_streak_desc">3 días seguidos</string>
+    <string name="ach_unstoppable_title">Imparable</string>
+    <string name="ach_unstoppable_desc">7 días seguidos</string>
+    <string name="ach_legend_title">Leyenda</string>
+    <string name="ach_legend_desc">30 días seguidos</string>
+    <string name="ach_marathon_title">Maratonista</string>
+    <string name="ach_marathon_desc">10 horas escuchadas</string>
+    <string name="ach_devourer_title">Devorador</string>
+    <string name="ach_devourer_desc">50 horas escuchadas</string>
+    <string name="ach_master_title">Maestro</string>
+    <string name="ach_master_desc">100 horas escuchadas</string>
 </resources>

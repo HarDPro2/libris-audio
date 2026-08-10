@@ -113,4 +113,60 @@
     <string name="bookmark_item">Part %1$d • %2$s</string>
     <string name="bookmark_go">Go ▶</string>
     <string name="bookmark_default_note">Reading mark</string>
+
+    <!-- Dialog: AI Chat -->
+    <string name="chat_title">Ask the AI</string>
+    <string name="chat_greeting">Hi! I\'m your Libris Audio reading assistant. What would you like to know about this part of the book?</string>
+    <string name="chat_config_key">Configure API Key</string>
+    <string name="chat_key_title">🔑 Your OpenRouter API Key</string>
+    <string name="chat_key_sub">Paste your key to use your personal quota in the cascade.</string>
+    <string name="chat_shield_title">100% Free Shield</string>
+    <string name="chat_shield_sub">Forces only :free models without touching your balance</string>
+    <string name="chat_quota_tip">💡 QUOTA TIP: If you make a one-time $10 credit purchase on OpenRouter, your free request limit permanently increases from 50 to 1,000 requests/day for life. The 100% Free Shield guarantees your $10 balance is NEVER consumed.</string>
+    <string name="chat_input_hint">Ask a question about the book...</string>
+    <string name="chat_send">Send</string>
+    <string name="chat_q1">Who is the main character?</string>
+    <string name="chat_q2">Give me a summary of this part</string>
+    <string name="chat_q3">Explain the central idea to me</string>
+    <string name="chat_err_no_reply">Couldn\'t get a response from the AI.</string>
+    <string name="chat_err_connection">Connection error with the AI. Please try again.</string>
+
+    <!-- Dialog: Background music -->
+    <string name="music_title">Classic Background Music</string>
+    <string name="music_volume">Background Music Volume</string>
+    <string name="music_choose">Choose a masterpiece:</string>
+    <string name="music_none">🔇 No background music</string>
+
+    <!-- Dialog: Profile -->
+    <string name="profile_title">My Profile</string>
+    <string name="profile_your_name">Your name</string>
+    <string name="profile_display_name">Display name</string>
+    <string name="profile_name_hint">e.g. HarD P.</string>
+    <string name="profile_upload_photo">📷 Upload photo</string>
+    <string name="profile_remove_photo">Remove photo</string>
+    <string name="profile_choose_avatar">Or choose an avatar</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_save">Save</string>
+
+    <!-- Dialog: Achievements -->
+    <string name="dlg_achievements_title">Achievements</string>
+    <string name="achievements_sub">Keep listening to unlock them all</string>
+    <string name="ach_first_title">First step</string>
+    <string name="ach_first_desc">Start your first book</string>
+    <string name="ach_explorer_title">Explorer</string>
+    <string name="ach_explorer_desc">Start 5 books</string>
+    <string name="ach_biblio_title">Bibliophile</string>
+    <string name="ach_biblio_desc">Start 15 books</string>
+    <string name="ach_streak_title">On a streak</string>
+    <string name="ach_streak_desc">3 days in a row</string>
+    <string name="ach_unstoppable_title">Unstoppable</string>
+    <string name="ach_unstoppable_desc">7 days in a row</string>
+    <string name="ach_legend_title">Legend</string>
+    <string name="ach_legend_desc">30 days in a row</string>
+    <string name="ach_marathon_title">Marathoner</string>
+    <string name="ach_marathon_desc">10 hours listened</string>
+    <string name="ach_devourer_title">Devourer</string>
+    <string name="ach_devourer_desc">50 hours listened</string>
+    <string name="ach_master_title">Master</string>
+    <string name="ach_master_desc">100 hours listened</string>
 </resources>

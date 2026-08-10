@@ -17,8 +17,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.librisaudio.app.R
 import com.librisaudio.app.data.model.BackgroundMusicCatalog
 import com.librisaudio.app.data.model.MusicTrack
 import com.librisaudio.app.ui.theme.CardSurface
@@ -55,14 +57,14 @@ fun MusicSelectorDialog(
                     Icon(Icons.Default.MusicNote, contentDescription = null, tint = PurpleAccent)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Música de Fondo Clásica",
+                        text = stringResource(R.string.music_title),
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
                 }
                 IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = TextMuted)
+                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_close), tint = TextMuted)
                 }
             }
 
@@ -82,7 +84,7 @@ fun MusicSelectorDialog(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.VolumeUp, contentDescription = null, tint = CyanAccent)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Volumen de Música de Fondo", fontSize = 13.sp, color = Color.White)
+                            Text(stringResource(R.string.music_volume), fontSize = 13.sp, color = Color.White)
                         }
                         Text("${(backgroundVolume * 100).toInt()}%", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CyanAccent)
                     }
@@ -102,7 +104,7 @@ fun MusicSelectorDialog(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Text("Elige una obra maestra:", fontSize = 12.sp, color = TextMuted)
+            Text(stringResource(R.string.music_choose), fontSize = 12.sp, color = TextMuted)
             Spacer(modifier = Modifier.height(8.dp))
 
             LazyColumn(
@@ -124,7 +126,7 @@ fun MusicSelectorDialog(
                             modifier = Modifier.padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("🔇 Sin música de fondo", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text(stringResource(R.string.music_none), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
                         }
                     }
                 }

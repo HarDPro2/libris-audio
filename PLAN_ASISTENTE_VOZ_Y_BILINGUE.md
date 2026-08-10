@@ -56,7 +56,8 @@ Documento de planificación. Se trabaja **de lo más sencillo a lo más complejo
 - **✅ Tanda 1 (v1.0.11):** barra de navegación inferior, **Biblioteca** (tabs, búsqueda, continuar escuchando, categorías Todas/Favoritos, estados vacíos), **Historial** (título, vacío, progreso, reanudar) y subtítulo de Ajustes. Las claves de filtro internas se conservan; solo se traduce la etiqueta visible.
 - **✅ Tanda 2 (v1.0.12):** **Reproductor** (barra superior, modos Clásico/Libro/Leer, fila de acciones, "Parte X de Y", controles play/pausa/anterior/siguiente, modo inmersivo) y **Modo Auto** (título, parte, siguiente parte).
 - **✅ Tanda 3a (v1.0.13):** diálogos de **Voz**, **Temporizador de sueño** (incluye opciones del enum), **Estadísticas** y **Marcapáginas**.
-- **Pendiente:** Login · Diálogos restantes (**Chat IA, Música, Perfil, Logros**) · Subir PDF · textos de estado/errores · InfoCard de Ajustes.
+- **✅ Tanda 3b (v1.0.14):** diálogos de **Chat IA** (saludo, preguntas rápidas, panel de API key, escudo, tip de cuota, errores), **Música de fondo**, **Perfil** y **Logros** (9 insignias con nombre+descripción vía `ctx.getString`).
+- **Pendiente:** Login · Subir PDF · textos de estado/errores · InfoCard de Ajustes.
 
 ### Fase B2 — Contenido dinámico bilingüe · esfuerzo **medio**
 - Comandos de voz bilingües (se conecta con la Tarea A1.3).
