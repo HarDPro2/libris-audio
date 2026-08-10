@@ -64,17 +64,18 @@ class AudioService : MediaLibraryService() {
         val powerManager = getSystemService(POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "LibrisAudio::WakeLock")
 
-        // 4. Botones de retroceder/adelantar 30s para la notificación / pantalla
-        //    de bloqueo (así "no escuché bien" se resuelve con un toque, sin voz).
+        // 4. Botones de retroceder/adelantar 30s para la notificación (comandos
+        //    de SESIÓN — patrón más compatible que los player-commands, sobre todo
+        //    en capas de fabricante como MIUI).
         val rewindButton = CommandButton.Builder()
             .setDisplayName("Retroceder 30s")
             .setIconResId(R.drawable.ic_seek_back_30)
-            .setPlayerCommand(Player.COMMAND_SEEK_BACK)
+            .setSessionCommand(SessionCommand(CMD_SEEK_BACK, Bundle.EMPTY))
             .build()
         val forwardButton = CommandButton.Builder()
             .setDisplayName("Adelantar 30s")
             .setIconResId(R.drawable.ic_seek_forward_30)
-            .setPlayerCommand(Player.COMMAND_SEEK_FORWARD)
+            .setSessionCommand(SessionCommand(CMD_SEEK_FORWARD, Bundle.EMPTY))
             .build()
 
         // 5. Build MediaSession con el layout personalizado
@@ -141,7 +142,9 @@ class AudioService : MediaLibraryService() {
             val customCommands = setOf(
                 SessionCommand("SET_BACKGROUND_TRACK",  Bundle.EMPTY),
                 SessionCommand("STOP_BACKGROUND_TRACK", Bundle.EMPTY),
-                SessionCommand("SET_BACKGROUND_VOLUME", Bundle.EMPTY)
+                SessionCommand("SET_BACKGROUND_VOLUME", Bundle.EMPTY),
+                SessionCommand(CMD_SEEK_BACK, Bundle.EMPTY),
+                SessionCommand(CMD_SEEK_FORWARD, Bundle.EMPTY)
             )
             val connectionResult = super.onConnect(session, controller)
             return MediaSession.ConnectionResult.accept(
@@ -170,8 +173,15 @@ class AudioService : MediaLibraryService() {
                     val volume = args.getFloat("volume", 0.25f)
                     setBackgroundVolume(volume)
                 }
+                CMD_SEEK_BACK    -> voicePlayer.seekBack()      // 30s (increment configurado)
+                CMD_SEEK_FORWARD -> voicePlayer.seekForward()   // 30s
             }
             return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
         }
+    }
+
+    companion object {
+        private const val CMD_SEEK_BACK = "SEEK_BACK_30"
+        private const val CMD_SEEK_FORWARD = "SEEK_FORWARD_30"
     }
 }
