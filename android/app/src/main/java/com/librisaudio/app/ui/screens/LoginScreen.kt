@@ -29,6 +29,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.librisaudio.app.ui.components.AnimatedBackground
 import com.librisaudio.app.ui.theme.AppThemePreset
 import com.librisaudio.app.viewmodel.AuthState
 import com.librisaudio.app.viewmodel.AuthViewModel
@@ -70,6 +71,9 @@ fun LoginScreen(
                 )
             )
     ) {
+        // Fondo animado del tema (consistente con el resto de la app)
+        AnimatedBackground(preset = currentTheme)
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
