@@ -38,6 +38,10 @@ class AudioService : MediaLibraryService() {
             .setAudioAttributes(speechAudioAttributes, true)
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_NETWORK)
+            // Incrementos para "retrocede/adelanta" (Assistant, Android Auto,
+            // notificación, botones Bluetooth del volante).
+            .setSeekBackIncrementMs(15_000L)
+            .setSeekForwardIncrementMs(30_000L)
             .build()
 
         // 2. Initialize Background Music ExoPlayer (Music Attributes, Looping)

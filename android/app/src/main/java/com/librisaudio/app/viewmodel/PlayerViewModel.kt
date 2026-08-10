@@ -359,16 +359,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val pos = player.currentPosition.coerceAtLeast(0L)
         val wasPlaying = player.isPlaying
         val idx = _currentPartIndex.value
-        player.setMediaItem(buildMediaItem(book, idx, voiceId))
-        // Mantener el prebuffer de la siguiente parte con la nueva voz
-        if (idx + 1 < book.partsCount) {
-            player.addMediaItem(buildMediaItem(book, idx + 1, voiceId))
-        }
+        // Reconstruir la playlist completa con la nueva voz, en la misma parte/posición
+        val items = (0 until book.partsCount).map { buildMediaItem(book, it, voiceId) }
+        player.setMediaItems(items, idx, pos)
         player.prepare()
-        player.seekTo(pos)
         if (wasPlaying) player.play()
         // Los tiempos cambian con la voz — recargar
-        loadTiming(book.bookId, _currentPartIndex.value, voiceId)
+        loadTiming(book.bookId, idx, voiceId)
     }
 
     init {
@@ -405,12 +402,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             }
 
             override fun onMediaItemTransition(item: MediaItem?, reason: Int) {
-                // Solo nos interesa el avance AUTOMÁTICO al terminar una parte
-                // (la cola ya tiene la siguiente prebufferizada). Los cambios por
-                // setMediaItem / seek los ignoramos.
-                if (reason != Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) return
+                // Cambió la parte activa, ya sea por avance automático (fin de parte)
+                // o por salto manual (UI, notificación, Assistant, Android Auto,
+                // Bluetooth). Ignoramos el cambio inicial de playlist y el repeat.
+                if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED ||
+                    reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT) return
                 val newIdx = item?.mediaId?.toIntOrNull() ?: return
-                onAutoAdvanced(newIdx)
+                if (newIdx != _currentPartIndex.value) applyPartChange(newIdx)
             }
 
             override fun onPositionDiscontinuity(
@@ -517,16 +515,17 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
         val voice = _selectedVoice.value
         mediaController?.let { player ->
-            player.setMediaItem(buildMediaItem(book, partIndex, voice))
-            // Prebuffer de la SIGUIENTE parte en la misma cola: ExoPlayer la
-            // descarga mientras suena la actual (pantalla encendida + wifi-lock),
-            // así al terminar avanza a algo ya bajado y NO pide red en el momento
-            // crítico (pantalla apagada / Doze) — que era la causa del corte.
-            if (partIndex + 1 < book.partsCount) {
-                player.addMediaItem(buildMediaItem(book, partIndex + 1, voice))
-            }
+            // Playlist COMPLETA de todas las partes. Ventajas:
+            //  • El control por sistema (Assistant, Android Auto, notificación,
+            //    Bluetooth del volante) avanza/retrocede de parte de forma NATIVA.
+            //  • ExoPlayer prebufferiza la siguiente ventana → sigue sin cortes con
+            //    la pantalla apagada / Doze / offline (archivos locales).
+            //  • "Ir al capítulo N" se vuelve un simple seekTo(index).
+            // ExoPlayer solo bufferiza la ventana actual y la próxima, no descarga
+            // todas las partes de golpe.
+            val items = (0 until book.partsCount).map { buildMediaItem(book, it, voice) }
+            player.setMediaItems(items, partIndex, seekToMs)
             player.prepare()
-            if (seekToMs > 0) player.seekTo(seekToMs)
             player.play()
             _isPlaying.value = true
         }
@@ -552,10 +551,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             .build()
     }
 
-    /** ExoPlayer avanzó solo a la siguiente parte (ya prebufferizada). Actualiza
-     *  el estado y encola la parte siguiente, todo SIN pedir red en el instante
-     *  del cambio (clave para que no se corte con la pantalla apagada). */
-    private fun onAutoAdvanced(newIdx: Int) {
+    /** Sincroniza el estado de la app cuando cambia la parte activa (por avance
+     *  automático al terminar, o por salto del usuario/sistema). NO toca la cola
+     *  del reproductor — la playlist completa ya está cargada. */
+    private fun applyPartChange(newIdx: Int) {
         val book = _currentBook.value ?: return
         _currentPartIndex.value = newIdx
         val progressPct = if (book.partsCount > 0)
@@ -571,16 +570,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
         loadPartText(book.bookId, newIdx)
         loadTiming(book.bookId, newIdx, _selectedVoice.value)
-        // Encola la siguiente-siguiente parte (si no está ya) y precalienta backend
-        val player = mediaController
-        val nextNext = newIdx + 1
-        if (player != null && nextNext < book.partsCount) {
-            val lastIdx = if (player.mediaItemCount > 0)
-                player.getMediaItemAt(player.mediaItemCount - 1).mediaId.toIntOrNull() else null
-            if (lastIdx != nextNext) {
-                player.addMediaItem(buildMediaItem(book, nextNext, _selectedVoice.value))
-            }
-        }
         prefetchNextPart(book, newIdx, _selectedVoice.value)
     }
 
@@ -666,19 +655,20 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun nextPart() {
-        val book = _currentBook.value ?: return
-        val nextIdx = _currentPartIndex.value + 1
-        if (nextIdx < book.partsCount) {
-            playBook(book, nextIdx)
-        }
+        // Navegación nativa sobre la playlist → el estado se sincroniza vía
+        // onMediaItemTransition (igual que el control por sistema).
+        mediaController?.let { if (it.hasNextMediaItem()) it.seekToNextMediaItem() }
     }
 
     fun previousPart() {
+        mediaController?.let { if (it.hasPreviousMediaItem()) it.seekToPreviousMediaItem() }
+    }
+
+    /** Salta directo a una parte (para "ir al capítulo N" del asistente de voz). */
+    fun goToPart(index: Int) {
         val book = _currentBook.value ?: return
-        val prevIdx = _currentPartIndex.value - 1
-        if (prevIdx >= 0) {
-            playBook(book, prevIdx)
-        }
+        val target = index.coerceIn(0, (book.partsCount - 1).coerceAtLeast(0))
+        mediaController?.seekTo(target, 0L)
     }
 
     fun seekTo(positionMs: Long) {
