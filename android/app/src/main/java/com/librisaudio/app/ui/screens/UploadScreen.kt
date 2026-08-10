@@ -20,9 +20,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.librisaudio.app.R
 import com.librisaudio.app.data.api.ApiClient
 import com.librisaudio.app.data.model.BookCategories
 import com.librisaudio.app.ui.components.AnimatedBackground
@@ -95,8 +97,8 @@ fun UploadScreen(
                 modifier = Modifier.size(52.dp)
             )
             Spacer(modifier = Modifier.height(8.dp))
-            Text("Subir Audiolibro", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            Text("Convierte un PDF en audio neuronal", fontSize = 13.sp, color = TextMuted)
+            Text(stringResource(R.string.upload_title), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text(stringResource(R.string.upload_subtitle), fontSize = 13.sp, color = TextMuted)
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -119,15 +121,15 @@ fun UploadScreen(
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     if (selectedUri != null) {
-                        Text("✓ PDF seleccionado", color = currentTheme.secondary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(stringResource(R.string.upload_pdf_selected), color = currentTheme.secondary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         Text(
                             text = selectedUri!!.lastPathSegment ?: "archivo.pdf",
                             color = TextMuted,
                             fontSize = 12.sp
                         )
                     } else {
-                        Text("Toca para seleccionar un PDF", color = Color.White, fontSize = 14.sp)
-                        Text("Solo archivos PDF con texto extraíble", color = TextMuted, fontSize = 12.sp)
+                        Text(stringResource(R.string.upload_tap_select), color = Color.White, fontSize = 14.sp)
+                        Text(stringResource(R.string.upload_pdf_hint), color = TextMuted, fontSize = 12.sp)
                     }
                 }
             }
@@ -140,7 +142,7 @@ fun UploadScreen(
                 onValueChange = { bookTitle = it },
                 label = {
                     Text(
-                        "Título del libro *",
+                        stringResource(R.string.upload_book_title),
                         color = if (bookTitle.isBlank()) Color(0xFFEF4444) else TextMuted
                     )
                 },
@@ -165,11 +167,11 @@ fun UploadScreen(
                     readOnly = true,
                     label = {
                         Text(
-                            "Categoría *",
+                            stringResource(R.string.upload_category),
                             color = if (selectedCategory.isBlank()) Color(0xFFEF4444) else TextMuted
                         )
                     },
-                    placeholder = { Text("Selecciona una categoría", color = TextMuted) },
+                    placeholder = { Text(stringResource(R.string.upload_select_category), color = TextMuted) },
                     trailingIcon = {
                         Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = TextMuted)
                     },
@@ -215,13 +217,13 @@ fun UploadScreen(
                     onClick = {
                         val uri = selectedUri ?: return@Button
                         isUploading = true
-                        uploadProgress = "Preparando archivo…"
+                        uploadProgress = context.getString(R.string.upload_preparing)
                         uploadError = ""
                         uploadSuccess = false
 
                         coroutineScope.launch(Dispatchers.IO) {
                             try {
-                                withContext(Dispatchers.Main) { uploadProgress = "Subiendo al servidor…" }
+                                withContext(Dispatchers.Main) { uploadProgress = context.getString(R.string.upload_uploading) }
 
                                 val inputStream = context.contentResolver.openInputStream(uri)
                                 val bytes = inputStream?.readBytes() ?: ByteArray(0)
@@ -250,13 +252,13 @@ fun UploadScreen(
                                         selectedCategory = ""
                                         onUploadSuccess()
                                     } else {
-                                        uploadError = "Error del servidor: ${response.code()}"
+                                        uploadError = context.getString(R.string.upload_server_error, response.code())
                                     }
                                 }
                             } catch (e: Exception) {
                                 withContext(Dispatchers.Main) {
                                     isUploading = false
-                                    uploadError = "Error: ${e.localizedMessage}"
+                                    uploadError = context.getString(R.string.upload_error, e.localizedMessage ?: "")
                                 }
                             }
                         }
@@ -274,7 +276,7 @@ fun UploadScreen(
                     Icon(Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        "Procesar y convertir a audiolibro",
+                        stringResource(R.string.upload_process_button),
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp
                     )
@@ -284,8 +286,8 @@ fun UploadScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = buildString {
-                            if (bookTitle.isBlank()) append("• El título es obligatorio\n")
-                            if (selectedCategory.isBlank()) append("• Selecciona una categoría")
+                            if (bookTitle.isBlank()) append(stringResource(R.string.upload_title_required))
+                            if (selectedCategory.isBlank()) append(stringResource(R.string.upload_category_required))
                         }.trim(),
                         color = Color(0xFFEF4444),
                         fontSize = 12.sp
@@ -301,7 +303,7 @@ fun UploadScreen(
                     color = Color(0xFF10B981).copy(alpha = 0.15f)
                 ) {
                     Text(
-                        "✓ ¡Libro procesado con éxito! Ya está disponible en el catálogo.",
+                        stringResource(R.string.upload_success),
                         color = Color(0xFF10B981),
                         modifier = Modifier.padding(12.dp),
                         fontSize = 13.sp

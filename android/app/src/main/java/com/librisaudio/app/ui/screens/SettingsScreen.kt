@@ -238,12 +238,12 @@ fun SettingsScreen(
 
             InfoCard(
                 items = listOf(
-                    "📱 Versión" to com.librisaudio.app.BuildConfig.VERSION_NAME,
+                    stringResource(R.string.info_version) to com.librisaudio.app.BuildConfig.VERSION_NAME,
                     "🔊 Audio" to "Edge TTS Neural (Microsoft Azure)",
-                    "☁️ Almacenamiento" to "Cloudflare R2",
-                    "🗄️ Base de datos" to "Appwrite Cloud",
+                    stringResource(R.string.info_storage) to "Cloudflare R2",
+                    stringResource(R.string.info_database) to "Appwrite Cloud",
                     "⚡ Backend" to "Google Cloud Run",
-                    "🔐 Autenticación" to "Appwrite Auth"
+                    stringResource(R.string.info_auth) to "Appwrite Auth"
                 ),
                 currentTheme = currentTheme
             )

@@ -29,6 +29,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.librisaudio.app.R
 import com.librisaudio.app.ui.components.AnimatedBackground
 import com.librisaudio.app.ui.theme.AppThemePreset
 import com.librisaudio.app.viewmodel.AuthState
@@ -103,7 +105,7 @@ fun LoginScreen(
             )
 
             Text(
-                text = "Tu biblioteca de audiolibros con IA",
+                text = stringResource(R.string.login_tagline),
                 fontSize = 13.sp,
                 color = Color(0xFF8FA3BF),
                 textAlign = TextAlign.Center,
@@ -119,7 +121,7 @@ fun LoginScreen(
                     .fillMaxWidth(0.85f),
                 horizontalArrangement = Arrangement.Center
             ) {
-                listOf("Iniciar sesión" to false, "Crear cuenta" to true).forEach { (label, mode) ->
+                listOf(stringResource(R.string.login_signin) to false, stringResource(R.string.login_signup) to true).forEach { (label, mode) ->
                     val selected = isRegisterMode == mode
                     Box(
                         modifier = Modifier
@@ -165,7 +167,7 @@ fun LoginScreen(
                             AuthTextField(
                                 value         = name,
                                 onValueChange = { name = it },
-                                label         = "Nombre completo",
+                                label         = stringResource(R.string.login_fullname),
                                 icon          = Icons.Default.Person,
                                 imeAction     = ImeAction.Next,
                                 keyboardType  = KeyboardType.Text,
@@ -180,7 +182,7 @@ fun LoginScreen(
                     AuthTextField(
                         value         = email,
                         onValueChange = { email = it },
-                        label         = "Correo electrónico",
+                        label         = stringResource(R.string.login_email),
                         icon          = Icons.Default.Email,
                         imeAction     = ImeAction.Next,
                         keyboardType  = KeyboardType.Email,
@@ -194,7 +196,7 @@ fun LoginScreen(
                     AuthTextField(
                         value         = password,
                         onValueChange = { password = it },
-                        label         = "Contraseña",
+                        label         = stringResource(R.string.login_password),
                         icon          = Icons.Default.Lock,
                         imeAction     = if (isRegisterMode) ImeAction.Next else ImeAction.Done,
                         keyboardType  = KeyboardType.Password,
@@ -219,7 +221,7 @@ fun LoginScreen(
                             AuthTextField(
                                 value         = confirm,
                                 onValueChange = { confirm = it },
-                                label         = "Confirmar contraseña",
+                                label         = stringResource(R.string.login_confirm_password),
                                 icon          = Icons.Default.LockOpen,
                                 imeAction     = ImeAction.Done,
                                 keyboardType  = KeyboardType.Password,
@@ -294,7 +296,7 @@ fun LoginScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = if (isRegisterMode) "Crear cuenta" else "Iniciar sesión",
+                                text = if (isRegisterMode) stringResource(R.string.login_signup) else stringResource(R.string.login_signin),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp
                             )
@@ -310,7 +312,7 @@ fun LoginScreen(
                     ) {
                         HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0x33FFFFFF))
                         Text(
-                            "  o continúa con  ",
+                            "  ${stringResource(R.string.login_or)}  ",
                             color = Color(0xFF4A6080),
                             fontSize = 12.sp
                         )
@@ -342,7 +344,7 @@ fun LoginScreen(
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = "Continuar con Google",
+                            text = stringResource(R.string.login_google),
                             color = Color.White,
                             fontWeight = FontWeight.Medium,
                             fontSize = 15.sp
@@ -355,7 +357,7 @@ fun LoginScreen(
 
             // Footer note
             Text(
-                text = "Tus datos se almacenan de forma segura en Appwrite Cloud.\nNunca compartimos tu información.",
+                text = stringResource(R.string.login_privacy),
                 fontSize = 11.sp,
                 color = Color(0xFF4A6080),
                 textAlign = TextAlign.Center,
@@ -395,7 +397,7 @@ private fun AuthTextField(
                 IconButton(onClick = { onTogglePass?.invoke() }) {
                     Icon(
                         imageVector = if (showPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                        contentDescription = if (showPassword) "Ocultar" else "Mostrar",
+                        contentDescription = if (showPassword) stringResource(R.string.login_hide) else stringResource(R.string.login_show),
                         tint = Color(0xFF8FA3BF)
                     )
                 }

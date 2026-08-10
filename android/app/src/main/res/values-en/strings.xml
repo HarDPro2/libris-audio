@@ -169,4 +169,42 @@
     <string name="ach_devourer_desc">50 hours listened</string>
     <string name="ach_master_title">Master</string>
     <string name="ach_master_desc">100 hours listened</string>
+
+    <!-- Login -->
+    <string name="login_tagline">Your AI-powered audiobook library</string>
+    <string name="login_signin">Sign in</string>
+    <string name="login_signup">Create account</string>
+    <string name="login_fullname">Full name</string>
+    <string name="login_email">Email</string>
+    <string name="login_password">Password</string>
+    <string name="login_confirm_password">Confirm password</string>
+    <string name="login_or">or continue with</string>
+    <string name="login_google">Continue with Google</string>
+    <string name="login_hide">Hide</string>
+    <string name="login_show">Show</string>
+    <string name="login_privacy">Your data is stored securely in Appwrite Cloud.\nWe never share your information.</string>
+
+    <!-- Upload PDF -->
+    <string name="upload_title">Upload Audiobook</string>
+    <string name="upload_subtitle">Turn a PDF into neural audio</string>
+    <string name="upload_pdf_selected">✓ PDF selected</string>
+    <string name="upload_tap_select">Tap to select a PDF</string>
+    <string name="upload_pdf_hint">Only PDF files with extractable text</string>
+    <string name="upload_book_title">Book title *</string>
+    <string name="upload_category">Category *</string>
+    <string name="upload_select_category">Select a category</string>
+    <string name="upload_preparing">Preparing file…</string>
+    <string name="upload_uploading">Uploading to server…</string>
+    <string name="upload_server_error">Server error: %1$d</string>
+    <string name="upload_error">Error: %1$s</string>
+    <string name="upload_process_button">Process and convert to audiobook</string>
+    <string name="upload_title_required">• The title is required\n</string>
+    <string name="upload_category_required">• Select a category</string>
+    <string name="upload_success">✓ Book processed successfully! It\'s now available in the catalog.</string>
+
+    <!-- Settings: system info -->
+    <string name="info_storage">☁️ Storage</string>
+    <string name="info_database">🗄️ Database</string>
+    <string name="info_auth">🔐 Authentication</string>
+    <string name="info_version">📱 Version</string>
 </resources>

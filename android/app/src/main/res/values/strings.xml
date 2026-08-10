@@ -171,4 +171,42 @@
     <string name="ach_devourer_desc">50 horas escuchadas</string>
     <string name="ach_master_title">Maestro</string>
     <string name="ach_master_desc">100 horas escuchadas</string>
+
+    <!-- Login -->
+    <string name="login_tagline">Tu biblioteca de audiolibros con IA</string>
+    <string name="login_signin">Iniciar sesión</string>
+    <string name="login_signup">Crear cuenta</string>
+    <string name="login_fullname">Nombre completo</string>
+    <string name="login_email">Correo electrónico</string>
+    <string name="login_password">Contraseña</string>
+    <string name="login_confirm_password">Confirmar contraseña</string>
+    <string name="login_or">o continúa con</string>
+    <string name="login_google">Continuar con Google</string>
+    <string name="login_hide">Ocultar</string>
+    <string name="login_show">Mostrar</string>
+    <string name="login_privacy">Tus datos se almacenan de forma segura en Appwrite Cloud.\nNunca compartimos tu información.</string>
+
+    <!-- Subir PDF -->
+    <string name="upload_title">Subir Audiolibro</string>
+    <string name="upload_subtitle">Convierte un PDF en audio neuronal</string>
+    <string name="upload_pdf_selected">✓ PDF seleccionado</string>
+    <string name="upload_tap_select">Toca para seleccionar un PDF</string>
+    <string name="upload_pdf_hint">Solo archivos PDF con texto extraíble</string>
+    <string name="upload_book_title">Título del libro *</string>
+    <string name="upload_category">Categoría *</string>
+    <string name="upload_select_category">Selecciona una categoría</string>
+    <string name="upload_preparing">Preparando archivo…</string>
+    <string name="upload_uploading">Subiendo al servidor…</string>
+    <string name="upload_server_error">Error del servidor: %1$d</string>
+    <string name="upload_error">Error: %1$s</string>
+    <string name="upload_process_button">Procesar y convertir a audiolibro</string>
+    <string name="upload_title_required">• El título es obligatorio\n</string>
+    <string name="upload_category_required">• Selecciona una categoría</string>
+    <string name="upload_success">✓ ¡Libro procesado con éxito! Ya está disponible en el catálogo.</string>
+
+    <!-- Ajustes: info del sistema -->
+    <string name="info_storage">☁️ Almacenamiento</string>
+    <string name="info_database">🗄️ Base de datos</string>
+    <string name="info_auth">🔐 Autenticación</string>
+    <string name="info_version">📱 Versión</string>
 </resources>
