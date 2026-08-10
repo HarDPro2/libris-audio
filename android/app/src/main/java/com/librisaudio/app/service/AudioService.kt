@@ -9,12 +9,15 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.CommandButton
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionResult
+import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import com.librisaudio.app.R
 
 class AudioService : MediaLibraryService() {
 
@@ -40,7 +43,7 @@ class AudioService : MediaLibraryService() {
             .setWakeMode(C.WAKE_MODE_NETWORK)
             // Incrementos para "retrocede/adelanta" (Assistant, Android Auto,
             // notificación, botones Bluetooth del volante).
-            .setSeekBackIncrementMs(15_000L)
+            .setSeekBackIncrementMs(30_000L)
             .setSeekForwardIncrementMs(30_000L)
             .build()
 
@@ -61,8 +64,23 @@ class AudioService : MediaLibraryService() {
         val powerManager = getSystemService(POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "LibrisAudio::WakeLock")
 
-        // 4. Build MediaSession
-        mediaSession = MediaLibrarySession.Builder(this, voicePlayer, LibraryCallback()).build()
+        // 4. Botones de retroceder/adelantar 30s para la notificación / pantalla
+        //    de bloqueo (así "no escuché bien" se resuelve con un toque, sin voz).
+        val rewindButton = CommandButton.Builder()
+            .setDisplayName("Retroceder 30s")
+            .setIconResId(R.drawable.ic_seek_back_30)
+            .setPlayerCommand(Player.COMMAND_SEEK_BACK)
+            .build()
+        val forwardButton = CommandButton.Builder()
+            .setDisplayName("Adelantar 30s")
+            .setIconResId(R.drawable.ic_seek_forward_30)
+            .setPlayerCommand(Player.COMMAND_SEEK_FORWARD)
+            .build()
+
+        // 5. Build MediaSession con el layout personalizado
+        mediaSession = MediaLibrarySession.Builder(this, voicePlayer, LibraryCallback())
+            .setCustomLayout(ImmutableList.of(rewindButton, forwardButton))
+            .build()
 
         // 5. WakeLock ligado a la voz (la música de fondo suena independiente)
         voicePlayer.addListener(object : Player.Listener {

@@ -1,0 +1,20 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Libris Audio</string>
+    <string name="title_activity_main">Libris Audio</string>
+
+    <!-- Settings (i18n seed · B0; remaining screens migrate in B1) -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_subtitle">Customize your experience</string>
+    <string name="settings_section_theme">🎨 Visual Theme</string>
+    <string name="settings_section_language">🌐 Language</string>
+    <string name="settings_section_downloads">📥 Downloads</string>
+    <string name="settings_section_achievements">🏆 Achievements</string>
+    <string name="settings_section_system">ℹ️ System Information</string>
+    <string name="settings_section_session">🚪 Session</string>
+
+    <!-- Language selector -->
+    <string name="language_system">Automatic (system)</string>
+    <string name="language_spanish">Español</string>
+    <string name="language_english">English</string>
+</resources>

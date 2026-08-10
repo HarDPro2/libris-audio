@@ -28,6 +28,8 @@ import com.librisaudio.app.ui.components.AnimatedBackground
 import com.librisaudio.app.ui.theme.AppThemePreset
 import com.librisaudio.app.ui.theme.ThemeAnimation
 import com.librisaudio.app.ui.theme.TextMuted
+import androidx.compose.ui.res.stringResource
+import com.librisaudio.app.R
 
 /** Emoji representativo de cada estilo de animación de tema. */
 private fun animationIcon(preset: AppThemePreset): String = when (preset.animation) {
@@ -58,6 +60,8 @@ fun SettingsScreen(
     offlineTotalBytes: Long = 0L,
     onDeleteOffline: (String) -> Unit = {},
     onDeleteAllOffline: () -> Unit = {},
+    currentLang: String = "system",
+    onSelectLanguage: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showLogoutConfirm by remember { mutableStateOf(false) }
@@ -82,9 +86,9 @@ fun SettingsScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Settings, contentDescription = null, tint = currentTheme.primary, modifier = Modifier.size(26.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Ajustes", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text(stringResource(R.string.settings_title), fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)
             }
-            Text("Personaliza tu experiencia", fontSize = 12.sp, color = TextMuted)
+            Text(stringResource(R.string.settings_subtitle), fontSize = 12.sp, color = TextMuted)
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -133,8 +137,14 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
+            // ─── Idioma / Language ────────────────────────────────────────
+            SectionTitle(stringResource(R.string.settings_section_language))
+            Spacer(modifier = Modifier.height(10.dp))
+            LanguageSelector(currentLang = currentLang, currentTheme = currentTheme, onSelect = onSelectLanguage)
+            Spacer(modifier = Modifier.height(24.dp))
+
             // ─── Theme Section ────────────────────────────────────────────
-            SectionTitle("🎨 Tema Visual")
+            SectionTitle(stringResource(R.string.settings_section_theme))
             Text("Cada tema tiene su propia animación de fondo", fontSize = 11.sp, color = TextMuted)
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -194,7 +204,7 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             // ─── Achievements Section ─────────────────────────────────────
-            SectionTitle("🏆 Logros")
+            SectionTitle(stringResource(R.string.settings_section_achievements))
             Spacer(modifier = Modifier.height(10.dp))
             OutlinedButton(
                 onClick = { showAchievements = true },
@@ -212,7 +222,7 @@ fun SettingsScreen(
 
             // ─── Info Section ─────────────────────────────────────────────
             // ─── Descargas offline ────────────────────────────────────────
-            SectionTitle("📥 Descargas")
+            SectionTitle(stringResource(R.string.settings_section_downloads))
             Spacer(modifier = Modifier.height(10.dp))
             OfflineDownloadsCard(
                 books = offlineBooks,
@@ -223,7 +233,7 @@ fun SettingsScreen(
             )
             Spacer(modifier = Modifier.height(24.dp))
 
-            SectionTitle("ℹ️ Información del Sistema")
+            SectionTitle(stringResource(R.string.settings_section_system))
             Spacer(modifier = Modifier.height(10.dp))
 
             InfoCard(
@@ -242,7 +252,7 @@ fun SettingsScreen(
 
             // ─── Logout Button ────────────────────────────────────────────
             if (onLogout != null) {
-                SectionTitle("🚪 Sesión")
+                SectionTitle(stringResource(R.string.settings_section_session))
                 Spacer(modifier = Modifier.height(10.dp))
 
                 OutlinedButton(
@@ -379,4 +389,42 @@ private fun formatBytes(bytes: Long): String {
     if (bytes <= 0) return "0 MB"
     val mb = bytes / (1024.0 * 1024.0)
     return if (mb >= 1) String.format("%.1f MB", mb) else String.format("%.0f KB", bytes / 1024.0)
+}
+
+@Composable
+private fun LanguageSelector(
+    currentLang: String,
+    currentTheme: AppThemePreset,
+    onSelect: (String) -> Unit
+) {
+    val options = listOf(
+        "system" to stringResource(R.string.language_system),
+        "es" to stringResource(R.string.language_spanish),
+        "en" to stringResource(R.string.language_english)
+    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        options.forEach { (tag, label) ->
+            val selected = tag == currentLang
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (selected) currentTheme.primary else Color(0x33FFFFFF))
+                    .clickable { if (!selected) onSelect(tag) }
+                    .padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    label,
+                    color = if (selected) Color.White else TextMuted,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
+                )
+            }
+        }
+    }
 }

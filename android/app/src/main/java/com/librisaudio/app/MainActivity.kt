@@ -48,6 +48,11 @@ class MainActivity : ComponentActivity() {
     private val authViewModel: AuthViewModel by viewModels()
 
     @OptIn(ExperimentalMaterial3Api::class)
+    override fun attachBaseContext(newBase: android.content.Context) {
+        // Aplica el idioma elegido por el usuario (i18n por-app)
+        super.attachBaseContext(com.librisaudio.app.util.LocaleHelper.wrap(newBase))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         playerViewModel.initMediaController(this)
@@ -434,7 +439,12 @@ class MainActivity : ComponentActivity() {
                                 offlineBooks = playerViewModel.offlineBooks.collectAsState().value,
                                 offlineTotalBytes = playerViewModel.offlineTotalBytes.collectAsState().value,
                                 onDeleteOffline = { bookId -> playerViewModel.deleteOffline(bookId) },
-                                onDeleteAllOffline = { playerViewModel.deleteAllOffline() }
+                                onDeleteAllOffline = { playerViewModel.deleteAllOffline() },
+                                currentLang = com.librisaudio.app.util.LocaleHelper.getLang(this@MainActivity),
+                                onSelectLanguage = { tag ->
+                                    com.librisaudio.app.util.LocaleHelper.setLang(this@MainActivity, tag)
+                                    recreate()   // re-aplica el idioma vía attachBaseContext
+                                }
                             )
                         }
 

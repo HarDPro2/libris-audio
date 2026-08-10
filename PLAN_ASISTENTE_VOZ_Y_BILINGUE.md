@@ -42,9 +42,15 @@ Documento de planificación. Se trabaja **de lo más sencillo a lo más complejo
 
 ## 🌐 TAREA B — App bilingüe (ES/EN)
 
-### Fase B0 — Infraestructura i18n · esfuerzo **bajo** · base de todo
-- **B0.1** `res/values/strings.xml` (ES por defecto) + `res/values-en/strings.xml`.
-- **B0.2** Selector de idioma: seguir el **locale del sistema** + override manual en Ajustes (persistido). Implementar con **per-app language** (Android 13 `LocaleManager`) o `AppCompatDelegate.setApplicationLocales`.
+### Fase B0 — Infraestructura i18n · **✅ HECHO (v1.0.9)**
+- `res/values/strings.xml` (ES) + `res/values-en/strings.xml` (EN) con la semilla de claves.
+- `LocaleHelper` + `attachBaseContext` en MainActivity → cambio de idioma por-app en TODAS las versiones (minSdk 24), sin AppCompatActivity ni GMS.
+- Selector **Automático / Español / English** en Ajustes (persistido, `recreate()` al cambiar).
+- Ajustes migrado como demostración (título, subtítulo y títulos de sección usan `stringResource`).
+- **Pendiente B1:** migrar el resto de pantallas (Login, Biblioteca, Reproductor, diálogos…) a `strings`.
+
+### Fase A0.1 — Botones de retroceder/adelantar 30s en la notificación · **✅ HECHO (v1.0.9)**
+- `CommandButton` (⏪30s / ⏩30s) en el custom layout del `MediaSession` → resuelve "no escuché bien" con un toque en la notificación/pantalla de bloqueo, sin voz. Incrementos de seek a 30s.
 
 ### Fase B1 — Migración de UI por pantallas · esfuerzo **grande** (el grind) · en tandas
 Extraer TODOS los textos hardcoded de Compose a `strings`, pantalla por pantalla:

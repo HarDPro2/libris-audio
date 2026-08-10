@@ -4,4 +4,19 @@
     <string name="title_activity_main">Libris Audio</string>
     <string name="package_name">com.librisaudio.app</string>
     <string name="custom_url_scheme">com.librisaudio.app</string>
+
+    <!-- Ajustes (semilla i18n · B0; el resto de pantallas migra en B1) -->
+    <string name="settings_title">Ajustes</string>
+    <string name="settings_subtitle">Personaliza tu experiencia</string>
+    <string name="settings_section_theme">🎨 Tema Visual</string>
+    <string name="settings_section_language">🌐 Idioma</string>
+    <string name="settings_section_downloads">📥 Descargas</string>
+    <string name="settings_section_achievements">🏆 Logros</string>
+    <string name="settings_section_system">ℹ️ Información del Sistema</string>
+    <string name="settings_section_session">🚪 Sesión</string>
+
+    <!-- Selector de idioma -->
+    <string name="language_system">Automático (sistema)</string>
+    <string name="language_spanish">Español</string>
+    <string name="language_english">English</string>
 </resources>
