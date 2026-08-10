@@ -212,6 +212,7 @@ fun SettingsScreen(
 
             InfoCard(
                 items = listOf(
+                    "📱 Versión" to com.librisaudio.app.BuildConfig.VERSION_NAME,
                     "🔊 Audio" to "Edge TTS Neural (Microsoft Azure)",
                     "☁️ Almacenamiento" to "Cloudflare R2",
                     "🗄️ Base de datos" to "Appwrite Cloud",
