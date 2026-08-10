@@ -430,7 +430,11 @@ class MainActivity : ComponentActivity() {
                                 onSelectTheme = { newTheme -> playerViewModel.setTheme(newTheme) },
                                 userName = userProfile.displayName.ifBlank { session?.name ?: "" },
                                 userEmail = session?.email ?: "",
-                                onLogout = { authViewModel.logout() }
+                                onLogout = { authViewModel.logout() },
+                                offlineBooks = playerViewModel.offlineBooks.collectAsState().value,
+                                offlineTotalBytes = playerViewModel.offlineTotalBytes.collectAsState().value,
+                                onDeleteOffline = { bookId -> playerViewModel.deleteOffline(bookId) },
+                                onDeleteAllOffline = { playerViewModel.deleteAllOffline() }
                             )
                         }
 
@@ -467,6 +471,10 @@ class MainActivity : ComponentActivity() {
                                 onPauseVoice = { playerViewModel.pauseVoice() },
                                 bookmarks = playerViewModel.bookmarks.collectAsState().value,
                                 onAddBookmark = { bid, pi, pos, note -> playerViewModel.addBookmark(bid, pi, pos, note) },
+                                isDownloaded = playerViewModel.downloadedIds.collectAsState().value.contains(currentBook!!.bookId),
+                                isDownloading = playerViewModel.downloadingBookId.collectAsState().value == currentBook!!.bookId,
+                                downloadProgress = playerViewModel.downloadProgress.collectAsState().value,
+                                onDownload = { playerViewModel.downloadBook(currentBook!!) },
                                 onClose = { isFullPlayerOpen = false }
                             )
                         }

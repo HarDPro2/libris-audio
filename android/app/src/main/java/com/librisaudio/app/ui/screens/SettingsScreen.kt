@@ -54,6 +54,10 @@ fun SettingsScreen(
     userName: String = "",
     userEmail: String = "",
     onLogout: (() -> Unit)? = null,
+    offlineBooks: List<com.librisaudio.app.data.OfflineBook> = emptyList(),
+    offlineTotalBytes: Long = 0L,
+    onDeleteOffline: (String) -> Unit = {},
+    onDeleteAllOffline: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showLogoutConfirm by remember { mutableStateOf(false) }
@@ -207,6 +211,18 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             // ─── Info Section ─────────────────────────────────────────────
+            // ─── Descargas offline ────────────────────────────────────────
+            SectionTitle("📥 Descargas")
+            Spacer(modifier = Modifier.height(10.dp))
+            OfflineDownloadsCard(
+                books = offlineBooks,
+                totalBytes = offlineTotalBytes,
+                currentTheme = currentTheme,
+                onDelete = onDeleteOffline,
+                onDeleteAll = onDeleteAllOffline
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+
             SectionTitle("ℹ️ Información del Sistema")
             Spacer(modifier = Modifier.height(10.dp))
 
@@ -298,4 +314,69 @@ private fun InfoCard(items: List<Pair<String, String>>, currentTheme: AppThemePr
             }
         }
     }
+}
+
+@Composable
+private fun OfflineDownloadsCard(
+    books: List<com.librisaudio.app.data.OfflineBook>,
+    totalBytes: Long,
+    currentTheme: AppThemePreset,
+    onDelete: (String) -> Unit,
+    onDeleteAll: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = Color(0x441E293B),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            if (books.isEmpty()) {
+                Text(
+                    "No tienes libros descargados. Abre un libro y toca el ícono de descarga (↓) para oírlo sin conexión.",
+                    color = TextMuted, fontSize = 13.sp
+                )
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "${books.size} libro(s) · ${formatBytes(totalBytes)}",
+                        color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium
+                    )
+                    TextButton(onClick = onDeleteAll) {
+                        Text("Borrar todo", color = Color(0xFFEF4444), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color(0x22FFFFFF))
+                books.forEach { b ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(b.title, color = Color.White, fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium, maxLines = 1)
+                            Text(
+                                "${b.partsCount} partes · ${formatBytes(b.sizeBytes)}" +
+                                    if (!b.complete) " · incompleto" else "",
+                                color = TextMuted, fontSize = 11.sp
+                            )
+                        }
+                        IconButton(onClick = { onDelete(b.bookId) }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Borrar descarga", tint = Color(0xFFEF4444))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun formatBytes(bytes: Long): String {
+    if (bytes <= 0) return "0 MB"
+    val mb = bytes / (1024.0 * 1024.0)
+    return if (mb >= 1) String.format("%.1f MB", mb) else String.format("%.0f KB", bytes / 1024.0)
 }

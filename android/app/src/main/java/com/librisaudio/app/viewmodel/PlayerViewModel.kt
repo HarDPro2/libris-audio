@@ -61,10 +61,58 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _wordTimings = MutableStateFlow<List<com.librisaudio.app.data.model.WordTiming>>(emptyList())
     val wordTimings: StateFlow<List<com.librisaudio.app.data.model.WordTiming>> = _wordTimings.asStateFlow()
 
+    // ── Descargas offline ─────────────────────────────────────────────────
+    private val offline = com.librisaudio.app.data.OfflineManager(application)
+
+    private val _downloadingBookId = MutableStateFlow<String?>(null)
+    val downloadingBookId: StateFlow<String?> = _downloadingBookId.asStateFlow()
+
+    private val _downloadProgress = MutableStateFlow(0)   // 0..100
+    val downloadProgress: StateFlow<Int> = _downloadProgress.asStateFlow()
+
+    private val _downloadedIds = MutableStateFlow<Set<String>>(emptySet())
+    val downloadedIds: StateFlow<Set<String>> = _downloadedIds.asStateFlow()
+
+    private val _offlineBooks = MutableStateFlow<List<com.librisaudio.app.data.OfflineBook>>(emptyList())
+    val offlineBooks: StateFlow<List<com.librisaudio.app.data.OfflineBook>> = _offlineBooks.asStateFlow()
+
+    private val _offlineTotalBytes = MutableStateFlow(0L)
+    val offlineTotalBytes: StateFlow<Long> = _offlineTotalBytes.asStateFlow()
+
+    /** Refresca la lista de libros descargados y el tamaño total. */
+    fun refreshOffline() {
+        val list = offline.downloadedBooks()
+        _offlineBooks.value = list
+        _downloadedIds.value = list.map { it.bookId }.toSet()
+        _offlineTotalBytes.value = offline.totalSizeBytes()
+    }
+
+    /** Descarga el libro completo (audio+texto+timing) para la voz seleccionada. */
+    fun downloadBook(book: Book) {
+        if (_downloadingBookId.value != null) return   // una descarga a la vez
+        viewModelScope.launch {
+            _downloadingBookId.value = book.bookId
+            _downloadProgress.value = 0
+            offline.download(book, _selectedVoice.value) { done, total ->
+                _downloadProgress.value = if (total > 0) done * 100 / total else 0
+            }
+            _downloadingBookId.value = null
+            refreshOffline()
+        }
+    }
+
+    fun deleteOffline(bookId: String) { offline.delete(bookId); refreshOffline() }
+    fun deleteAllOffline() { offline.deleteAll(); refreshOffline() }
+
     /** Carga los tiempos de palabra de una parte para la voz actual. */
     fun loadTiming(bookId: String, partIndex: Int, voice: String) {
         viewModelScope.launch {
             _wordTimings.value = emptyList()
+            // Offline primero: si la parte está descargada, usa el timing local
+            offline.localTimings(bookId, partIndex, voice)?.let {
+                _wordTimings.value = it
+                return@launch
+            }
             try {
                 _wordTimings.value = ApiClient.backendService.getTiming(bookId, partIndex, voice)
             } catch (e: Exception) {
@@ -326,6 +374,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     init {
         loadBooks()
         startPositionTracker()
+        refreshOffline()
     }
 
     fun initMediaController(context: Context) {
@@ -413,6 +462,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             _isTextLoading.value = true
             _currentPartText.value = ""
+            // Offline primero: si la parte está descargada, usa el texto local
+            offline.localText(bookId, partIndex)?.let {
+                _currentPartText.value = it
+                _isTextLoading.value = false
+                return@launch
+            }
             try {
                 val body = ApiClient.backendService.getBookText(bookId, partIndex)
                 _currentPartText.value = body.string()
@@ -479,9 +534,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     /** Construye un MediaItem con el índice de parte codificado en el mediaId,
      *  para poder saber a qué parte avanzó ExoPlayer al reproducir la cola. */
-    private fun buildMediaItem(book: Book, partIndex: Int, voice: String): MediaItem =
-        MediaItem.Builder()
-            .setUri(book.getAudioUrl(partIndex, voice))
+    private fun buildMediaItem(book: Book, partIndex: Int, voice: String): MediaItem {
+        // Offline primero: si el MP3 está descargado, reproduce el archivo local
+        // (instantáneo y sin red — ideal con pantalla apagada / sin conexión).
+        val local = offline.localAudio(book.bookId, partIndex, voice)
+        val uri = if (local != null) android.net.Uri.fromFile(local)
+                  else android.net.Uri.parse(book.getAudioUrl(partIndex, voice))
+        return MediaItem.Builder()
+            .setUri(uri)
             .setMediaId(partIndex.toString())
             .setMediaMetadata(
                 MediaMetadata.Builder()
@@ -490,6 +550,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     .build()
             )
             .build()
+    }
 
     /** ExoPlayer avanzó solo a la siguiente parte (ya prebufferizada). Actualiza
      *  el estado y encola la parte siguiente, todo SIN pedir red en el instante

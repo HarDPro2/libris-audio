@@ -17,6 +17,8 @@ import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Headphones
@@ -105,6 +107,10 @@ fun PlayerScreen(
     onPauseVoice: () -> Unit = {},
     bookmarks: List<BookmarkItem> = emptyList(),
     onAddBookmark: (String, Int, Long, String) -> Unit = { _, _, _, _ -> },
+    isDownloaded: Boolean = false,
+    isDownloading: Boolean = false,
+    downloadProgress: Int = 0,
+    onDownload: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var viewMode by remember { mutableStateOf(PlayerViewMode.CLASSIC_PLAYER) }
@@ -255,6 +261,21 @@ fun PlayerScreen(
                     }
                     IconButton(onClick = { isMusicDialogVisible = true }) {
                         Icon(Icons.Default.MusicNote, contentDescription = "Música de Fondo", tint = if (selectedMusicTrack != null) CyanAccent else Color.White)
+                    }
+                    IconButton(
+                        onClick = { if (!isDownloading && !isDownloaded) onDownload() },
+                        enabled = !isDownloading
+                    ) {
+                        when {
+                            isDownloading -> CircularProgressIndicator(
+                                progress = (downloadProgress / 100f).coerceIn(0f, 1f),
+                                modifier = Modifier.size(22.dp),
+                                strokeWidth = 2.dp,
+                                color = CyanAccent
+                            )
+                            isDownloaded -> Icon(Icons.Default.DownloadDone, contentDescription = "Descargado", tint = CyanAccent)
+                            else -> Icon(Icons.Default.Download, contentDescription = "Descargar sin conexión", tint = Color.White)
+                        }
                     }
               }
             }
