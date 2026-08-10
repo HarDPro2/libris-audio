@@ -14,8 +14,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.librisaudio.app.R
 import com.librisaudio.app.ui.theme.CardSurface
 import com.librisaudio.app.ui.theme.CyanAccent
 import com.librisaudio.app.ui.theme.DarkSlate
@@ -50,14 +52,14 @@ fun StatsDialog(
                     Icon(Icons.Default.QueryStats, contentDescription = null, tint = CyanAccent)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Estadísticas de Lectura",
+                        text = stringResource(R.string.dlg_stats_title),
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
                 }
                 IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = TextMuted)
+                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_close), tint = TextMuted)
                 }
             }
 
@@ -84,13 +86,13 @@ fun StatsDialog(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(
-                            text = "Racha Diaria: $streakDays Días Seguidos 🔥",
+                            text = stringResource(R.string.stats_streak, streakDays),
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Black,
                             color = Color(0xFFFED7AA)
                         )
                         Text(
-                            text = "¡Vas genial! Mantén el hábito escuchando hoy.",
+                            text = stringResource(R.string.stats_streak_sub),
                             fontSize = 11.sp,
                             color = Color(0xFFFDBA74)
                         )
@@ -114,7 +116,7 @@ fun StatsDialog(
                         modifier = Modifier.padding(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text("HOY", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                        Text(stringResource(R.string.stats_today), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text("$todayMinutes min", fontSize = 20.sp, fontWeight = FontWeight.Black, color = PurpleAccent)
                     }
@@ -129,7 +131,7 @@ fun StatsDialog(
                         modifier = Modifier.padding(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text("TOTAL ACUMULADO", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                        Text(stringResource(R.string.stats_total), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text("${totalHours}h", fontSize = 20.sp, fontWeight = FontWeight.Black, color = GreenAccent)
                     }

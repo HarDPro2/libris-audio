@@ -82,4 +82,37 @@
     <string name="car_exit">Salir de Modo Auto</string>
     <string name="car_part_of">PARTE %1$d DE %2$d</string>
     <string name="car_next_part">SIGUIENTE PARTE</string>
+
+    <!-- Diálogos (común) -->
+    <string name="action_close">Cerrar</string>
+
+    <!-- Diálogo: Voz del narrador -->
+    <string name="dlg_voice_title">Voz del Narrador</string>
+    <string name="dlg_voice_subtitle">Voces neurales de Microsoft Azure. Se aplica al instante — cámbiala cuando quieras.</string>
+    <string name="dlg_voice_selected">Seleccionada</string>
+
+    <!-- Diálogo: Temporizador de sueño -->
+    <string name="dlg_sleep_title">Temporizador de Sueño</string>
+    <string name="dlg_sleep_remaining">Tiempo restante: %1$s (Fade-out suave activado)</string>
+    <string name="sleep_off">Desactivado</string>
+    <string name="sleep_end_of_part">Al terminar la parte actual</string>
+    <string name="sleep_minutes">%1$d minutos</string>
+
+    <!-- Diálogo: Estadísticas -->
+    <string name="dlg_stats_title">Estadísticas de Lectura</string>
+    <string name="stats_streak">Racha Diaria: %1$d Días Seguidos 🔥</string>
+    <string name="stats_streak_sub">¡Vas genial! Mantén el hábito escuchando hoy.</string>
+    <string name="stats_today">HOY</string>
+    <string name="stats_total">TOTAL ACUMULADO</string>
+
+    <!-- Diálogo: Marcapáginas -->
+    <string name="dlg_bookmark_title">Marcapáginas y Citas</string>
+    <string name="bookmark_save_current">Guardar marca actual: Parte %1$d (%2$s)</string>
+    <string name="bookmark_note_hint">Nota opcional (ej: Cita importante...)</string>
+    <string name="bookmark_save">Guardar Marcapáginas</string>
+    <string name="bookmark_list_title">Tus marcas en este libro:</string>
+    <string name="bookmark_empty">Aún no has guardado marcapáginas.</string>
+    <string name="bookmark_item">Parte %1$d • %2$s</string>
+    <string name="bookmark_go">Ir ▶</string>
+    <string name="bookmark_default_note">Marca de lectura</string>
 </resources>

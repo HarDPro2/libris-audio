@@ -16,8 +16,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.librisaudio.app.R
 import com.librisaudio.app.data.model.VoiceCatalog
 import com.librisaudio.app.ui.theme.CyanAccent
 import com.librisaudio.app.ui.theme.DarkSlate
@@ -39,10 +41,10 @@ fun VoiceSelectorDialog(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.RecordVoiceOver, contentDescription = null, tint = CyanAccent)
                 Spacer(Modifier.width(8.dp))
-                Text("Voz del Narrador", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text(stringResource(R.string.dlg_voice_title), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
             }
             Text(
-                "Voces neurales de Microsoft Azure. Se aplica al instante — cámbiala cuando quieras.",
+                stringResource(R.string.dlg_voice_subtitle),
                 fontSize = 11.sp, color = TextMuted, modifier = Modifier.padding(top = 4.dp, bottom = 10.dp)
             )
 
@@ -73,7 +75,7 @@ fun VoiceSelectorDialog(
                             Text("${voice.country} · ${voice.gender}", fontSize = 11.sp, color = TextMuted)
                         }
                         if (isSelected) {
-                            Icon(Icons.Default.Check, contentDescription = "Seleccionada", tint = CyanAccent)
+                            Icon(Icons.Default.Check, contentDescription = stringResource(R.string.dlg_voice_selected), tint = CyanAccent)
                         }
                     }
                 }

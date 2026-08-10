@@ -80,4 +80,37 @@
     <string name="car_exit">Exit Car Mode</string>
     <string name="car_part_of">PART %1$d OF %2$d</string>
     <string name="car_next_part">NEXT PART</string>
+
+    <!-- Dialogs (common) -->
+    <string name="action_close">Close</string>
+
+    <!-- Dialog: Narrator voice -->
+    <string name="dlg_voice_title">Narrator Voice</string>
+    <string name="dlg_voice_subtitle">Microsoft Azure neural voices. Applies instantly — change it whenever you want.</string>
+    <string name="dlg_voice_selected">Selected</string>
+
+    <!-- Dialog: Sleep timer -->
+    <string name="dlg_sleep_title">Sleep Timer</string>
+    <string name="dlg_sleep_remaining">Time remaining: %1$s (Smooth fade-out on)</string>
+    <string name="sleep_off">Off</string>
+    <string name="sleep_end_of_part">At the end of the current part</string>
+    <string name="sleep_minutes">%1$d minutes</string>
+
+    <!-- Dialog: Statistics -->
+    <string name="dlg_stats_title">Reading Statistics</string>
+    <string name="stats_streak">Daily Streak: %1$d Days in a Row 🔥</string>
+    <string name="stats_streak_sub">You\'re doing great! Keep the habit by listening today.</string>
+    <string name="stats_today">TODAY</string>
+    <string name="stats_total">TOTAL ACCUMULATED</string>
+
+    <!-- Dialog: Bookmarks -->
+    <string name="dlg_bookmark_title">Bookmarks &amp; Quotes</string>
+    <string name="bookmark_save_current">Save current mark: Part %1$d (%2$s)</string>
+    <string name="bookmark_note_hint">Optional note (e.g. Important quote...)</string>
+    <string name="bookmark_save">Save Bookmark</string>
+    <string name="bookmark_list_title">Your marks in this book:</string>
+    <string name="bookmark_empty">You haven\'t saved any bookmarks yet.</string>
+    <string name="bookmark_item">Part %1$d • %2$s</string>
+    <string name="bookmark_go">Go ▶</string>
+    <string name="bookmark_default_note">Reading mark</string>
 </resources>

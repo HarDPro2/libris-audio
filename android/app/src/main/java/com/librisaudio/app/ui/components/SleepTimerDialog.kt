@@ -15,8 +15,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.librisaudio.app.R
 import com.librisaudio.app.ui.theme.CardSurface
 import com.librisaudio.app.ui.theme.DarkSlate
 import com.librisaudio.app.ui.theme.PurpleAccent
@@ -58,14 +60,14 @@ fun SleepTimerDialog(
                     Icon(Icons.Default.Bedtime, contentDescription = null, tint = PurpleAccent)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Temporizador de Sueño",
+                        text = stringResource(R.string.dlg_sleep_title),
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
                 }
                 IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = TextMuted)
+                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_close), tint = TextMuted)
                 }
             }
 
@@ -74,7 +76,7 @@ fun SleepTimerDialog(
                 val m = remainingSeconds / 60
                 val s = remainingSeconds % 60
                 Text(
-                    text = "Tiempo restante: ${String.format("%02d:%02d", m, s)} (Fade-out suave activado)",
+                    text = stringResource(R.string.dlg_sleep_remaining, String.format("%02d:%02d", m, s)),
                     fontSize = 12.sp,
                     color = PurpleAccent,
                     fontWeight = FontWeight.SemiBold
@@ -98,7 +100,11 @@ fun SleepTimerDialog(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = option.label,
+                                text = when (option) {
+                                    SleepTimerOption.OFF -> stringResource(R.string.sleep_off)
+                                    SleepTimerOption.END_OF_PART -> stringResource(R.string.sleep_end_of_part)
+                                    else -> stringResource(R.string.sleep_minutes, option.minutes)
+                                },
                                 fontSize = 14.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                 color = Color.White

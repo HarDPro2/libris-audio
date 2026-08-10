@@ -16,8 +16,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.librisaudio.app.R
 import com.librisaudio.app.ui.theme.CardSurface
 import com.librisaudio.app.ui.theme.CyanAccent
 import com.librisaudio.app.ui.theme.DarkSlate
@@ -64,14 +66,14 @@ fun BookmarkDialog(
                     Icon(Icons.Default.Bookmark, contentDescription = null, tint = PurpleAccent)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Marcapáginas y Citas",
+                        text = stringResource(R.string.dlg_bookmark_title),
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
                 }
                 IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = TextMuted)
+                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_close), tint = TextMuted)
                 }
             }
 
@@ -86,7 +88,7 @@ fun BookmarkDialog(
                     val m = (currentPositionMs / 1000) / 60
                     val s = (currentPositionMs / 1000) % 60
                     Text(
-                        text = "Guardar marca actual: Parte ${currentPartIndex + 1} (${String.format("%02d:%02d", m, s)})",
+                        text = stringResource(R.string.bookmark_save_current, currentPartIndex + 1, String.format("%02d:%02d", m, s)),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = CyanAccent
@@ -97,7 +99,7 @@ fun BookmarkDialog(
                     OutlinedTextField(
                         value = noteText,
                         onValueChange = { noteText = it },
-                        placeholder = { Text("Nota opcional (ej: Cita importante...)", color = TextMuted, fontSize = 12.sp) },
+                        placeholder = { Text(stringResource(R.string.bookmark_note_hint), color = TextMuted, fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -113,9 +115,10 @@ fun BookmarkDialog(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
+                    val defaultNote = stringResource(R.string.bookmark_default_note)
                     Button(
                         onClick = {
-                            onAddBookmark(noteText.ifEmpty { "Marca de lectura" })
+                            onAddBookmark(noteText.ifEmpty { defaultNote })
                             noteText = ""
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = PurpleAccent),
@@ -124,14 +127,14 @@ fun BookmarkDialog(
                     ) {
                         Icon(Icons.Default.BookmarkAdd, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Guardar Marcapáginas", fontSize = 12.sp)
+                        Text(stringResource(R.string.bookmark_save), fontSize = 12.sp)
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Text("Tus marcas en este libro:", fontSize = 12.sp, color = TextMuted)
+            Text(stringResource(R.string.bookmark_list_title), fontSize = 12.sp, color = TextMuted)
             Spacer(modifier = Modifier.height(8.dp))
 
             if (bookmarks.isEmpty()) {
@@ -141,7 +144,7 @@ fun BookmarkDialog(
                         .height(100.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("Aún no has guardado marcapáginas.", fontSize = 12.sp, color = TextMuted)
+                    Text(stringResource(R.string.bookmark_empty), fontSize = 12.sp, color = TextMuted)
                 }
             } else {
                 LazyColumn(
@@ -172,12 +175,12 @@ fun BookmarkDialog(
                                         color = Color.White
                                     )
                                     Text(
-                                        text = "Parte ${item.partIndex + 1} • ${String.format("%02d:%02d", m, s)}",
+                                        text = stringResource(R.string.bookmark_item, item.partIndex + 1, String.format("%02d:%02d", m, s)),
                                         fontSize = 11.sp,
                                         color = CyanAccent
                                     )
                                 }
-                                Text("Ir ▶", fontSize = 12.sp, color = PurpleAccent, fontWeight = FontWeight.Bold)
+                                Text(stringResource(R.string.bookmark_go), fontSize = 12.sp, color = PurpleAccent, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
