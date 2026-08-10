@@ -19,4 +19,36 @@
     <string name="language_system">Automático (sistema)</string>
     <string name="language_spanish">Español</string>
     <string name="language_english">English</string>
+
+    <!-- Barra de navegación inferior -->
+    <string name="nav_library">Biblioteca</string>
+    <string name="nav_history">Historial</string>
+    <string name="nav_upload">Subir PDF</string>
+    <string name="nav_settings">Ajustes</string>
+
+    <!-- Biblioteca -->
+    <string name="lib_tagline">Tu biblioteca de audiolibros</string>
+    <string name="lib_tab_explore">Explorar</string>
+    <string name="lib_tab_mine">Mi Biblioteca</string>
+    <string name="lib_search_hint">Buscar por título, autor o categoría…</string>
+    <string name="lib_continue_listening">CONTINUAR ESCUCHANDO</string>
+    <string name="lib_part_progress">Parte %1$d · %2$d%%</string>
+    <string name="cat_all">Todas</string>
+    <string name="cat_favorites">❤️ Favoritos</string>
+    <string name="lib_empty_title">Tu biblioteca está vacía</string>
+    <string name="lib_empty_sub">Ve a Explorar para empezar a escuchar libros</string>
+    <string name="lib_no_results">Sin resultados</string>
+    <string name="lib_no_results_sub">No encontramos libros que coincidan con \"%1$s\"</string>
+    <string name="action_continue">Continuar</string>
+
+    <!-- Ajustes (extra) -->
+    <string name="settings_theme_subtitle">Cada tema tiene su propia animación de fondo</string>
+
+    <!-- Historial -->
+    <string name="hist_title">Historial</string>
+    <string name="hist_subtitle">Audiolibros que has escuchado</string>
+    <string name="hist_empty_title">Aún no has escuchado ningún libro</string>
+    <string name="hist_empty_sub">Ve a la biblioteca y empieza tu primera lectura</string>
+    <string name="hist_progress">%1$d%% completado • Parte %2$d/%3$d</string>
+    <string name="hist_resume">▶ Reanudar</string>
 </resources>

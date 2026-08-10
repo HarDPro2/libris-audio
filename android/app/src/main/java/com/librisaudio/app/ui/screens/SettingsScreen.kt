@@ -145,7 +145,7 @@ fun SettingsScreen(
 
             // ─── Theme Section ────────────────────────────────────────────
             SectionTitle(stringResource(R.string.settings_section_theme))
-            Text("Cada tema tiene su propia animación de fondo", fontSize = 11.sp, color = TextMuted)
+            Text(stringResource(R.string.settings_theme_subtitle), fontSize = 11.sp, color = TextMuted)
             Spacer(modifier = Modifier.height(12.dp))
 
             FlowRow(

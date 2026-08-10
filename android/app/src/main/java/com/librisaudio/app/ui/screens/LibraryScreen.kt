@@ -29,6 +29,8 @@ import com.librisaudio.app.data.model.Book
 import com.librisaudio.app.data.model.BookCategories
 import com.librisaudio.app.ui.components.AnimatedBackground
 import com.librisaudio.app.ui.components.BookCard
+import androidx.compose.ui.res.stringResource
+import com.librisaudio.app.R
 import com.librisaudio.app.ui.theme.AppThemePreset
 import com.librisaudio.app.ui.theme.TextMuted
 
@@ -101,7 +103,7 @@ fun LibraryScreen(
                         Text("Libris", fontSize = 26.sp, fontWeight = FontWeight.Black, color = currentTheme.primary)
                         Text("Audio", fontSize = 26.sp, fontWeight = FontWeight.Black, color = currentTheme.secondary)
                     }
-                    Text("Tu biblioteca de audiolibros", fontSize = 12.sp, color = TextMuted)
+                    Text(stringResource(R.string.lib_tagline), fontSize = 12.sp, color = TextMuted)
                 }
             }
 
@@ -115,14 +117,14 @@ fun LibraryScreen(
                     .padding(4.dp)
             ) {
                 TabButton(
-                    text = "Explorar",
+                    text = stringResource(R.string.lib_tab_explore),
                     selected = activeTab == LibraryTab.EXPLORAR,
                     accentColor = currentTheme.primary,
                     onClick = { activeTab = LibraryTab.EXPLORAR; activeCategory = "Todas" },
                     modifier = Modifier.weight(1f)
                 )
                 TabButton(
-                    text = "Mi Biblioteca",
+                    text = stringResource(R.string.lib_tab_mine),
                     selected = activeTab == LibraryTab.MI_BIBLIOTECA,
                     accentColor = currentTheme.primary,
                     onClick = { activeTab = LibraryTab.MI_BIBLIOTECA; activeCategory = "Todas" },
@@ -136,7 +138,7 @@ fun LibraryScreen(
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                placeholder = { Text("Buscar por título, autor o categoría…", color = TextMuted, fontSize = 13.sp) },
+                placeholder = { Text(stringResource(R.string.lib_search_hint), color = TextMuted, fontSize = 13.sp) },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = TextMuted) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
@@ -179,18 +181,18 @@ fun LibraryScreen(
                     )
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("CONTINUAR ESCUCHANDO", fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                        Text(stringResource(R.string.lib_continue_listening), fontSize = 9.sp, fontWeight = FontWeight.Bold,
                             color = currentTheme.secondary, letterSpacing = 1.sp)
                         Text(continueBook.title, fontSize = 14.sp, fontWeight = FontWeight.Bold,
                             color = Color.White, maxLines = 1)
-                        Text("Parte ${continueBook.currentPartIndex + 1} · ${continueBook.progressPercent}%",
+                        Text(stringResource(R.string.lib_part_progress, continueBook.currentPartIndex + 1, continueBook.progressPercent),
                             fontSize = 11.sp, color = TextMuted)
                     }
                     Box(
                         modifier = Modifier.size(42.dp).clip(CircleShape).background(currentTheme.primary),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = "Continuar", tint = Color.White)
+                        Icon(Icons.Default.PlayArrow, contentDescription = stringResource(R.string.action_continue), tint = Color.White)
                     }
                 }
                 Spacer(modifier = Modifier.height(12.dp))
@@ -203,6 +205,13 @@ fun LibraryScreen(
             ) {
                 items(usedCategories) { cat ->
                     val isActive = cat == activeCategory
+                    // La clave de filtro sigue siendo interna ("Todas"/"❤️ Favoritos");
+                    // solo se traduce la ETIQUETA visible de esas dos especiales.
+                    val catLabel = when (cat) {
+                        "Todas"        -> stringResource(R.string.cat_all)
+                        "❤️ Favoritos" -> stringResource(R.string.cat_favorites)
+                        else           -> cat
+                    }
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(20.dp))
@@ -211,7 +220,7 @@ fun LibraryScreen(
                             .padding(horizontal = 14.dp, vertical = 6.dp)
                     ) {
                         Text(
-                            text = cat,
+                            text = catLabel,
                             fontSize = 12.sp,
                             fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
                             color = if (isActive) Color.White else TextMuted
@@ -227,16 +236,16 @@ fun LibraryScreen(
                 filteredBooks.isEmpty() && sourceBooks.isEmpty() && activeTab == LibraryTab.MI_BIBLIOTECA -> {
                     EmptyState(
                         emoji = "📚",
-                        title = "Tu biblioteca está vacía",
-                        subtitle = "Ve a Explorar para empezar a escuchar libros",
+                        title = stringResource(R.string.lib_empty_title),
+                        subtitle = stringResource(R.string.lib_empty_sub),
                         textMuted = TextMuted
                     )
                 }
                 filteredBooks.isEmpty() && searchQuery.isNotBlank() -> {
                     EmptyState(
                         emoji = "🔍",
-                        title = "Sin resultados",
-                        subtitle = "No encontramos libros que coincidan con \"$searchQuery\"",
+                        title = stringResource(R.string.lib_no_results),
+                        subtitle = stringResource(R.string.lib_no_results_sub, searchQuery),
                         textMuted = TextMuted
                     )
                 }

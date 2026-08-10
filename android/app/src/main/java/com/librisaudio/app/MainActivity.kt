@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import com.librisaudio.app.data.api.AppwriteAuthClient
 import com.librisaudio.app.data.api.AppwriteSdkClient
 import com.librisaudio.app.data.model.ProfileManager
@@ -365,29 +366,29 @@ class MainActivity : ComponentActivity() {
                                     NavigationBarItem(
                                         selected = selectedTab == MainTab.LIBRARY,
                                         onClick = { selectedTab = MainTab.LIBRARY },
-                                        icon = { Icon(Icons.Default.Book, contentDescription = "Biblioteca") },
-                                        label = { Text("Biblioteca") },
+                                        icon = { Icon(Icons.Default.Book, contentDescription = stringResource(R.string.nav_library)) },
+                                        label = { Text(stringResource(R.string.nav_library)) },
                                         colors = NavigationBarItemDefaults.colors(indicatorColor = currentTheme.primary)
                                     )
                                     NavigationBarItem(
                                         selected = selectedTab == MainTab.HISTORY,
                                         onClick = { selectedTab = MainTab.HISTORY },
-                                        icon = { Icon(Icons.Default.History, contentDescription = "Historial") },
-                                        label = { Text("Historial") },
+                                        icon = { Icon(Icons.Default.History, contentDescription = stringResource(R.string.nav_history)) },
+                                        label = { Text(stringResource(R.string.nav_history)) },
                                         colors = NavigationBarItemDefaults.colors(indicatorColor = currentTheme.primary)
                                     )
                                     NavigationBarItem(
                                         selected = selectedTab == MainTab.UPLOAD,
                                         onClick = { selectedTab = MainTab.UPLOAD },
-                                        icon = { Icon(Icons.Default.CloudUpload, contentDescription = "Subir PDF") },
-                                        label = { Text("Subir PDF") },
+                                        icon = { Icon(Icons.Default.CloudUpload, contentDescription = stringResource(R.string.nav_upload)) },
+                                        label = { Text(stringResource(R.string.nav_upload)) },
                                         colors = NavigationBarItemDefaults.colors(indicatorColor = currentTheme.primary)
                                     )
                                     NavigationBarItem(
                                         selected = selectedTab == MainTab.SETTINGS,
                                         onClick = { selectedTab = MainTab.SETTINGS },
-                                        icon = { Icon(Icons.Default.Settings, contentDescription = "Ajustes") },
-                                        label = { Text("Ajustes") },
+                                        icon = { Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.nav_settings)) },
+                                        label = { Text(stringResource(R.string.nav_settings)) },
                                         colors = NavigationBarItemDefaults.colors(indicatorColor = currentTheme.primary)
                                     )
                                 }

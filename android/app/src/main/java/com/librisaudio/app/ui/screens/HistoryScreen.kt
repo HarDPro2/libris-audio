@@ -17,9 +17,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.librisaudio.app.R
 import com.librisaudio.app.data.model.Book
 import com.librisaudio.app.ui.components.AnimatedBackground
 import com.librisaudio.app.ui.theme.AppThemePreset
@@ -53,14 +55,14 @@ fun HistoryScreen(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Historial",
+                    text = stringResource(R.string.hist_title),
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
                 )
             }
             Text(
-                text = "Audiolibros que has escuchado",
+                text = stringResource(R.string.hist_subtitle),
                 fontSize = 12.sp,
                 color = TextMuted
             )
@@ -73,14 +75,14 @@ fun HistoryScreen(
                         Text("🕐", fontSize = 48.sp)
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = "Aún no has escuchado ningún libro",
+                            text = stringResource(R.string.hist_empty_title),
                             color = TextMuted,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Medium
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "Ve a la biblioteca y empieza tu primera lectura",
+                            text = stringResource(R.string.hist_empty_sub),
                             color = TextMuted.copy(alpha = 0.7f),
                             fontSize = 13.sp
                         )
@@ -164,7 +166,7 @@ private fun HistoryBookRow(
             )
             Spacer(modifier = Modifier.height(3.dp))
             Text(
-                text = "${book.progressPercent}% completado • Parte ${book.currentPartIndex + 1}/${book.partsCount}",
+                text = stringResource(R.string.hist_progress, book.progressPercent, book.currentPartIndex + 1, book.partsCount),
                 color = currentTheme.secondary,
                 fontSize = 11.sp
             )
@@ -179,7 +181,7 @@ private fun HistoryBookRow(
             colors = ButtonDefaults.buttonColors(containerColor = currentTheme.primary),
             modifier = Modifier.height(34.dp)
         ) {
-            Text("▶ Reanudar", fontSize = 12.sp)
+            Text(stringResource(R.string.hist_resume), fontSize = 12.sp)
         }
     }
 }

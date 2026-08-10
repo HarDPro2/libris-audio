@@ -52,10 +52,9 @@ Documento de planificación. Se trabaja **de lo más sencillo a lo más complejo
 ### Fase A0.1 — Botones de retroceder/adelantar 30s en la notificación · **✅ HECHO (v1.0.9)**
 - `CommandButton` (⏪30s / ⏩30s) en el custom layout del `MediaSession` → resuelve "no escuché bien" con un toque en la notificación/pantalla de bloqueo, sin voz. Incrementos de seek a 30s.
 
-### Fase B1 — Migración de UI por pantallas · esfuerzo **grande** (el grind) · en tandas
-Extraer TODOS los textos hardcoded de Compose a `strings`, pantalla por pantalla:
-1. Login · 2. Biblioteca + "Continuar escuchando" · 3. Reproductor + Modo Auto · 4. Ajustes + Descargas ·
-5. Diálogos (voz, stats, chat IA, sleep timer, marcapáginas, logros, perfil) · 6. Textos de estado/errores.
+### Fase B1 — Migración de UI por pantallas · **EN PROGRESO** (por tandas)
+- **✅ Tanda 1 (v1.0.11):** barra de navegación inferior, **Biblioteca** (tabs, búsqueda, continuar escuchando, categorías Todas/Favoritos, estados vacíos), **Historial** (título, vacío, progreso, reanudar) y subtítulo de Ajustes. Las claves de filtro internas se conservan; solo se traduce la etiqueta visible.
+- **Pendiente:** Login · Reproductor + Modo Auto · Diálogos (voz, stats, chat IA, sleep, marcapáginas, logros, perfil) · Subir PDF · textos de estado/errores · InfoCard de Ajustes.
 
 ### Fase B2 — Contenido dinámico bilingüe · esfuerzo **medio**
 - Comandos de voz bilingües (se conecta con la Tarea A1.3).
