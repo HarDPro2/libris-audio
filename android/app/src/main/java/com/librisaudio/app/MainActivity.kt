@@ -501,6 +501,7 @@ class MainActivity : ComponentActivity() {
                                 downloadProgress = playerViewModel.downloadProgress.collectAsState().value,
                                 onDownload = { playerViewModel.downloadBook(currentBook!!) },
                                 onVoice = { text -> playerViewModel.onVoice(text) },
+                                onVoiceHandsFree = { text -> playerViewModel.onVoiceHandsFree(text) },
                                 voiceProcessing = playerViewModel.voiceProcessing.collectAsState().value,
                                 voiceMessage = playerViewModel.voiceMessage.collectAsState().value,
                                 onClearVoiceMessage = { playerViewModel.clearVoiceMessage() },

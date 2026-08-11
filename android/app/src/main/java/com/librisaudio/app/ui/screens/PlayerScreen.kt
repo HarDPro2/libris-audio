@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Home
@@ -116,6 +117,7 @@ fun PlayerScreen(
     downloadProgress: Int = 0,
     onDownload: () -> Unit = {},
     onVoice: (String) -> Unit = {},
+    onVoiceHandsFree: (String) -> Unit = {},
     voiceProcessing: Boolean = false,
     voiceMessage: String? = null,
     onClearVoiceMessage: () -> Unit = {},
@@ -176,6 +178,31 @@ fun PlayerScreen(
             android.widget.Toast.makeText(screenCtx, it, android.widget.Toast.LENGTH_SHORT).show()
             onClearVoiceMessage()
         }
+    }
+
+    // ── A3: modo manos libres (escucha continua, solo gramática local) ──
+    var handsFree by remember { mutableStateOf(false) }
+    LaunchedEffect(handsFree) {
+        while (handsFree) {
+            val text = voiceMgr.listenOnce(voiceLang)
+            if (!handsFree) break
+            if (text.isNotBlank()) onVoiceHandsFree(text)
+            kotlinx.coroutines.delay(600)
+        }
+    }
+    fun onHandsFreeClick() {
+        if (handsFree) {
+            handsFree = false
+            android.widget.Toast.makeText(screenCtx, screenCtx.getString(R.string.voice_handsfree_off), android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+            screenCtx, android.Manifest.permission.RECORD_AUDIO
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (granted) {
+            handsFree = true
+            android.widget.Toast.makeText(screenCtx, screenCtx.getString(R.string.voice_handsfree_on), android.widget.Toast.LENGTH_LONG).show()
+        } else micPermLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
     }
 
     var isMusicDialogVisible by remember { mutableStateOf(false) }
@@ -241,6 +268,10 @@ fun PlayerScreen(
                     TooltipIconButton(stringResource(R.string.voice_cmd), onClick = { onMicClick() }) {
                         Icon(Icons.Default.Mic, contentDescription = stringResource(R.string.voice_cmd),
                             tint = if (isListening) CyanAccent else Color.White)
+                    }
+                    TooltipIconButton(stringResource(R.string.voice_handsfree), onClick = { onHandsFreeClick() }) {
+                        Icon(Icons.Default.GraphicEq, contentDescription = stringResource(R.string.voice_handsfree),
+                            tint = if (handsFree) CyanAccent else Color.White)
                     }
                 }
 

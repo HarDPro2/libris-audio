@@ -122,6 +122,9 @@
     <string name="voice_cmd">Voice command</string>
     <string name="voice_listening">Listening…</string>
     <string name="voice_thinking">Thinking…</string>
+    <string name="voice_handsfree">Hands-free</string>
+    <string name="voice_handsfree_on">Hands-free on · say commands without tapping</string>
+    <string name="voice_handsfree_off">Hands-free off</string>
     <string name="voice_not_understood">Didn\'t catch that. Try: pause, next, go to chapter 5, rewind 30 seconds.</string>
     <string name="voice_perm_needed">Microphone permission required</string>
     <string name="voice_unavailable">Voice recognition unavailable on this device</string>

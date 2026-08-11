@@ -41,8 +41,10 @@ _Referencia de diseño original:_
 - **A2.4** Confirmación por voz + manejo de latencia ("buscando…").
 - **Entregable:** frases naturales + búsqueda semántica de capítulos; el costo lo pone el usuario con su key.
 
-### Fase A3 — Manos libres / wake-word (Nivel 2) · **FUTURO / premium**
-- "Hey Libris" siempre-activo con Porcupine/Vosk (offline). Documentado, **no se construye ahora**. Notas: batería, privacidad del micro, política de Play Store para micro en segundo plano.
+### Fase A3 — Manos libres (Nivel 2) · **✅ HECHO parcialmente (v1.0.20)**
+Toggle **Manos libres** (icono 〰️) en el reproductor: escucha **continua** (bucle `listenOnce`), solo gramática local (sin LLM) y **silenciosa** si no reconoce, para no disparar acciones con la narración. Opt-in por sesión (no persiste, por batería/privacidad).
+- **Limitación conocida:** al no tener wake-word real, si el audio suena por **altavoz**, el micro puede oír la narración y, si dice una palabra-comando ("para", "sigue"), disparar una acción. **Mejor con auriculares.**
+- **Pendiente (premium futuro):** wake-word real "Hey Libris" con Porcupine/Vosk (offline) para ignorar la narración de forma fiable. Requiere SDK/modelo + AccessKey; se hará como upgrade dedicado.
 
 ---
 

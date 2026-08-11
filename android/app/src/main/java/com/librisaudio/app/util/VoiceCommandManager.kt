@@ -70,4 +70,16 @@ class VoiceCommandManager(context: Context) {
         try { recognizer?.destroy() } catch (_: Exception) {}
         recognizer = null
     }
+
+    /** Versión suspend para el modo manos libres: escucha una vez y devuelve el
+     *  texto (o "" si hubo error/silencio). Cancelable. */
+    suspend fun listenOnce(langTag: String): String =
+        kotlinx.coroutines.suspendCancellableCoroutine { cont ->
+            listen(
+                langTag = langTag,
+                onResult = { if (cont.isActive) cont.resumeWith(Result.success(it)) },
+                onError = { if (cont.isActive) cont.resumeWith(Result.success("")) }
+            )
+            cont.invokeOnCancellation { stop() }
+        }
 }

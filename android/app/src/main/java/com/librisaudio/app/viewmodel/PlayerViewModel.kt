@@ -725,6 +725,16 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /** Modo MANOS LIBRES (A3): solo gramática local (sin LLM), y silencioso si no
+     *  reconoce — así la narración de fondo no dispara acciones ni toasts. */
+    fun onVoiceHandsFree(text: String) {
+        val intent = VoiceCommandParser.parse(text)
+        if (intent != VoiceIntent.Unknown) {
+            executeIntent(intent)
+            _voiceMessage.value = messageFor(intent, text)
+        }
+    }
+
     private fun executeIntent(intent: VoiceIntent) {
         when (intent) {
             VoiceIntent.Play      -> { mediaController?.play(); _isPlaying.value = true }
