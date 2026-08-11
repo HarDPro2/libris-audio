@@ -984,6 +984,89 @@ async def chat_with_book(req: ChatBookRequest):
 
 
 # ---------------------------------------------------------------------------
+# Asistente de voz A2 — interpreta lenguaje natural → acción (OpenRouter)
+# ---------------------------------------------------------------------------
+
+class VoiceCommandRequest(BaseModel):
+    transcript:          str
+    current_part:        int = 0
+    parts_count:         int = 1
+    user_openrouter_key: Optional[str] = None
+    enforce_free_only:   bool          = True
+
+
+def _extract_json_action(text: str):
+    """Extrae el primer objeto JSON {...} con 'action' del texto del LLM."""
+    try:
+        start = text.find("{")
+        end   = text.rfind("}")
+        if start >= 0 and end > start:
+            obj = json.loads(text[start:end + 1])
+            if isinstance(obj, dict) and "action" in obj:
+                return obj
+    except Exception:
+        pass
+    return None
+
+
+@app.post("/api/voice-command")
+async def voice_command(req: VoiceCommandRequest):
+    """Convierte una frase de voz (ES/EN) en una acción de reproducción JSON."""
+    system_prompt = (
+        "Eres el intérprete de comandos de voz de una app de audiolibros. "
+        f"El usuario escucha un libro (parte actual {req.current_part + 1} de {req.parts_count}). "
+        "Convierte su frase (en español o inglés) en UNA sola acción. "
+        "Responde SOLO con un objeto JSON válido, sin texto extra:\n"
+        '{"action": "<play|pause|next|prev|rewind|forward|goto|speed_up|speed_down|speed_normal|bookmark|where|stop|unknown>", "seconds": <entero opcional>, "part": <entero 1-based opcional>}\n'
+        "Usa 'goto' con 'part' para ir a un capítulo/parte concreto; 'rewind'/'forward' con 'seconds'; "
+        "si la frase no corresponde a ninguna acción, usa \"unknown\"."
+    )
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user",   "content": req.transcript},
+    ]
+
+    openrouter_key = (req.user_openrouter_key and req.user_openrouter_key.strip()) or \
+                     os.environ.get("OPENROUTER_API_KEY", "")
+    if not openrouter_key:
+        return JSONResponse({"action": "unknown"})
+
+    cascade = [
+        "openrouter/free",
+        "meta-llama/llama-3.3-70b-instruct:free",
+        "google/gemma-2-9b-it:free",
+        "qwen/qwen-2.5-coder-32b-instruct:free",
+    ]
+    headers = {
+        "Authorization": f"Bearer {openrouter_key}",
+        "HTTP-Referer":  "https://libris-audio.vercel.app",
+        "X-Title":       "Libris Audio - QuantumLabs",
+        "Content-Type":  "application/json",
+    }
+
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        for model in cascade:
+            if req.enforce_free_only and not (model.endswith(":free") or model == "openrouter/free"):
+                continue
+            try:
+                res = await client.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers=headers,
+                    json={"model": model, "messages": messages, "max_tokens": 80, "temperature": 0.0},
+                )
+                if res.status_code == 200:
+                    content = res.json()["choices"][0]["message"]["content"]
+                    action  = _extract_json_action(content)
+                    if action:
+                        return JSONResponse(action)
+            except Exception as ex:
+                print(f"[Voice] Modelo {model} falló: {ex}")
+                continue
+
+    return JSONResponse({"action": "unknown"})
+
+
+# ---------------------------------------------------------------------------
 # Estado del usuario en la nube (progreso + preferencias) — sincronización
 # ---------------------------------------------------------------------------
 

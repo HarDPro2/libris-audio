@@ -500,7 +500,10 @@ class MainActivity : ComponentActivity() {
                                 isDownloading = playerViewModel.downloadingBookId.collectAsState().value == currentBook!!.bookId,
                                 downloadProgress = playerViewModel.downloadProgress.collectAsState().value,
                                 onDownload = { playerViewModel.downloadBook(currentBook!!) },
-                                onVoiceCommand = { text -> playerViewModel.handleVoiceCommand(text) },
+                                onVoice = { text -> playerViewModel.onVoice(text) },
+                                voiceProcessing = playerViewModel.voiceProcessing.collectAsState().value,
+                                voiceMessage = playerViewModel.voiceMessage.collectAsState().value,
+                                onClearVoiceMessage = { playerViewModel.clearVoiceMessage() },
                                 onClose = { isFullPlayerOpen = false }
                             )
                         }

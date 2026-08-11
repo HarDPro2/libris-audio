@@ -66,7 +66,25 @@ interface LibrisApiService {
         @Part("category") category: RequestBody,
         @Part("added_by") addedBy: RequestBody
     ): Response<UploadResponse>
+
+    /** Asistente de voz A2: interpreta lenguaje natural → acción. */
+    @POST("api/voice-command")
+    suspend fun voiceCommand(@Body req: VoiceCommandRequest): VoiceCommandResponse
 }
+
+data class VoiceCommandRequest(
+    val transcript: String,
+    val current_part: Int,
+    val parts_count: Int,
+    val user_openrouter_key: String? = null,
+    val enforce_free_only: Boolean = true
+)
+
+data class VoiceCommandResponse(
+    val action: String = "unknown",
+    val seconds: Int? = null,
+    val part: Int? = null
+)
 
 data class UploadResponse(
     val title: String?,

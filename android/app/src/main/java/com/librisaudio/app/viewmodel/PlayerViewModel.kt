@@ -683,10 +683,49 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         mediaController?.setPlaybackSpeed(speed)
     }
 
-    /** Ejecuta un comando de voz (asistente A1). Devuelve el intent reconocido
-     *  para que la UI muestre confirmación o el error. */
-    fun handleVoiceCommand(text: String): VoiceIntent {
-        val intent = VoiceCommandParser.parse(text)
+    // ── Asistente de voz (A1 local + A2 lenguaje natural) ──
+    private val _voiceProcessing = MutableStateFlow(false)
+    val voiceProcessing: StateFlow<Boolean> = _voiceProcessing.asStateFlow()
+    private val _voiceMessage = MutableStateFlow<String?>(null)
+    val voiceMessage: StateFlow<String?> = _voiceMessage.asStateFlow()
+    fun clearVoiceMessage() { _voiceMessage.value = null }
+
+    /** Procesa una frase de voz: primero gramática local (A1, gratis/offline);
+     *  si no la entiende, cae al LLM vía backend (A2, con la key del usuario). */
+    fun onVoice(text: String) {
+        if (text.isBlank()) return
+        val local = VoiceCommandParser.parse(text)
+        if (local != VoiceIntent.Unknown) {
+            executeIntent(local)
+            _voiceMessage.value = messageFor(local, text)
+            return
+        }
+        // A2: fallback al LLM (lenguaje natural)
+        _voiceProcessing.value = true
+        viewModelScope.launch {
+            val resultIntent = try {
+                val key = getApplication<Application>()
+                    .getSharedPreferences("LibrisAudioPrefs", Context.MODE_PRIVATE)
+                    .getString("OPENROUTER_API_KEY", "")?.trim()
+                val resp = ApiClient.backendService.voiceCommand(
+                    com.librisaudio.app.data.api.VoiceCommandRequest(
+                        transcript = text,
+                        current_part = _currentPartIndex.value,
+                        parts_count = _currentBook.value?.partsCount ?: 1,
+                        user_openrouter_key = key?.ifBlank { null }
+                    )
+                )
+                actionToIntent(resp)
+            } catch (e: Exception) {
+                VoiceIntent.Unknown
+            }
+            if (resultIntent != VoiceIntent.Unknown) executeIntent(resultIntent)
+            _voiceMessage.value = messageFor(resultIntent, text)
+            _voiceProcessing.value = false
+        }
+    }
+
+    private fun executeIntent(intent: VoiceIntent) {
         when (intent) {
             VoiceIntent.Play      -> { mediaController?.play(); _isPlaying.value = true }
             VoiceIntent.Pause     -> { mediaController?.pause(); _isPlaying.value = false }
@@ -701,11 +740,41 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             VoiceIntent.Bookmark  -> _currentBook.value?.let {
                 addBookmark(it.bookId, _currentPartIndex.value, _currentPositionMs.value, "🎤")
             }
-            VoiceIntent.WhereAmI  -> { /* la UI muestra la parte actual */ }
+            VoiceIntent.WhereAmI  -> { }
             VoiceIntent.Stop      -> stopPlayback()
-            VoiceIntent.Unknown   -> { /* la UI muestra ayuda */ }
+            VoiceIntent.Unknown   -> { }
         }
-        return intent
+    }
+
+    private fun actionToIntent(resp: com.librisaudio.app.data.api.VoiceCommandResponse): VoiceIntent =
+        when (resp.action) {
+            "play"        -> VoiceIntent.Play
+            "pause"       -> VoiceIntent.Pause
+            "next"        -> VoiceIntent.NextPart
+            "prev"        -> VoiceIntent.PrevPart
+            "rewind"      -> VoiceIntent.Rewind(resp.seconds ?: 15)
+            "forward"     -> VoiceIntent.Forward(resp.seconds ?: 30)
+            "goto"        -> VoiceIntent.GoToPart((resp.part ?: 1).coerceAtLeast(1))
+            "speed_up"    -> VoiceIntent.SpeedUp
+            "speed_down"  -> VoiceIntent.SpeedDown
+            "speed_normal"-> VoiceIntent.SpeedNormal
+            "bookmark"    -> VoiceIntent.Bookmark
+            "where"       -> VoiceIntent.WhereAmI
+            "stop"        -> VoiceIntent.Stop
+            else          -> VoiceIntent.Unknown
+        }
+
+    private fun messageFor(intent: VoiceIntent, rawText: String): String {
+        val app = getApplication<Application>()
+        return when (intent) {
+            VoiceIntent.WhereAmI -> app.getString(
+                com.librisaudio.app.R.string.player_part_of,
+                _currentPartIndex.value + 1,
+                _currentBook.value?.partsCount ?: 1
+            )
+            VoiceIntent.Unknown -> app.getString(com.librisaudio.app.R.string.voice_not_understood)
+            else -> "🎤 $rawText"
+        }
     }
 
     private fun onPartEnded() {

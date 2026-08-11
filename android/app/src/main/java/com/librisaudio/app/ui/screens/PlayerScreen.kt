@@ -115,7 +115,10 @@ fun PlayerScreen(
     isDownloading: Boolean = false,
     downloadProgress: Int = 0,
     onDownload: () -> Unit = {},
-    onVoiceCommand: (String) -> com.librisaudio.app.util.VoiceIntent = { com.librisaudio.app.util.VoiceIntent.Unknown },
+    onVoice: (String) -> Unit = {},
+    voiceProcessing: Boolean = false,
+    voiceMessage: String? = null,
+    onClearVoiceMessage: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var viewMode by remember { mutableStateOf(PlayerViewMode.CLASSIC_PLAYER) }
@@ -147,17 +150,7 @@ fun PlayerScreen(
             langTag = voiceLang,
             onResult = { text ->
                 isListening = false
-                if (text.isNotBlank()) {
-                    val intent = onVoiceCommand(text)
-                    val msg = when (intent) {
-                        com.librisaudio.app.util.VoiceIntent.WhereAmI ->
-                            screenCtx.getString(R.string.player_part_of, currentPartIndex + 1, book.partsCount)
-                        com.librisaudio.app.util.VoiceIntent.Unknown ->
-                            screenCtx.getString(R.string.voice_not_understood)
-                        else -> "🎤 $text"
-                    }
-                    android.widget.Toast.makeText(screenCtx, msg, android.widget.Toast.LENGTH_SHORT).show()
-                }
+                onVoice(text)   // ejecuta A1 local o cae a A2 (LLM) en el ViewModel
             },
             onError = { isListening = false }
         )
@@ -175,6 +168,14 @@ fun PlayerScreen(
             screenCtx, android.Manifest.permission.RECORD_AUDIO
         ) == android.content.pm.PackageManager.PERMISSION_GRANTED
         if (granted) runVoice() else micPermLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+    }
+
+    // Muestra el resultado del comando de voz (toast) y lo limpia
+    LaunchedEffect(voiceMessage) {
+        voiceMessage?.let {
+            android.widget.Toast.makeText(screenCtx, it, android.widget.Toast.LENGTH_SHORT).show()
+            onClearVoiceMessage()
+        }
     }
 
     var isMusicDialogVisible by remember { mutableStateOf(false) }
@@ -589,16 +590,23 @@ fun PlayerScreen(
             }
         }
 
-        // Overlay de escucha del asistente de voz
-        if (isListening) {
+        // Overlay del asistente de voz (escuchando o pensando)
+        if (isListening || voiceProcessing) {
             Box(
                 modifier = Modifier.fillMaxSize().background(Color(0xCC000000)),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.Mic, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(56.dp))
+                    if (voiceProcessing) {
+                        CircularProgressIndicator(color = CyanAccent, modifier = Modifier.size(48.dp))
+                    } else {
+                        Icon(Icons.Default.Mic, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(56.dp))
+                    }
                     Spacer(modifier = Modifier.height(12.dp))
-                    Text(stringResource(R.string.voice_listening), color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        stringResource(if (voiceProcessing) R.string.voice_thinking else R.string.voice_listening),
+                        color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }

@@ -31,7 +31,10 @@ _Referencia de diseño original:_
 - **A1.5** UI de feedback: overlay de escucha + texto reconocido + toast de la acción.
 - **Entregable:** parar/seguir/retroceder/adelantar/ir al capítulo N/velocidad/marcapáginas — **offline y gratis**.
 
-### Fase A2 — Lenguaje natural (Nivel 4, **Plus**, BYOK) · esfuerzo **alto** · API **la del usuario**
+### Fase A2 — Lenguaje natural (Nivel 4) · **✅ HECHO (v1.0.19)**
+Backend `/api/voice-command` (cascada OpenRouter, misma que el chat, con la key del usuario o la compartida gratis) interpreta la frase → JSON de acción. En el app, `PlayerViewModel.onVoice()` hace la **cascada**: primero la gramática local A1 (gratis/offline); si no entiende, cae al LLM (overlay "Pensando…"). Requiere **redeploy del backend**. Búsqueda semántica de capítulos por texto = refinamiento futuro.
+
+_Referencia de diseño original:_
 - **A2.1** Gate: Plus activo **+** API key de OpenRouter del usuario (reusar el almacén de key del chat).
 - **A2.2** Cascada inteligente: primero intenta la **gramática local** (gratis/offline); si no hay match **y** hay conexión **y** es Plus → manda el transcript al **LLM**.
 - **A2.3** Esquema de intención (function-calling / JSON): mismo set de acciones **+** `SEARCH_CHAPTER(query)` con búsqueda sobre el texto de las partes ("llévame a donde empieza la batalla").

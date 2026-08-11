@@ -123,6 +123,7 @@
     <string name="player_keep_awake">Mantener pantalla encendida</string>
     <string name="voice_cmd">Comando de voz</string>
     <string name="voice_listening">Escuchando…</string>
+    <string name="voice_thinking">Pensando…</string>
     <string name="voice_not_understood">No te entendí. Prueba: pausa, siguiente, ir al capítulo 5, retrocede 30 segundos.</string>
     <string name="voice_perm_needed">Se necesita permiso de micrófono</string>
     <string name="voice_unavailable">Reconocimiento de voz no disponible en este dispositivo</string>
