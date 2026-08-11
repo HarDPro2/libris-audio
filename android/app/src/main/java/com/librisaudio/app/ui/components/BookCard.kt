@@ -33,6 +33,7 @@ fun BookCard(
     book: Book,
     currentTheme: AppThemePreset,
     currentUserId: String = "",
+    currentUserEmail: String = "",
     onBookClick: () -> Unit,
     onDeleteBook: ((Book) -> Unit)? = null,
     onEditBook: ((Book, String, String) -> Unit)? = null,
@@ -40,7 +41,12 @@ fun BookCard(
     onToggleFavorite: ((Book) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    val isOwner = currentUserId.isNotBlank() && book.addedBy == currentUserId
+    // Propietario por id (estándar) o por email (recupera libros de la PWA/legado
+    // que se etiquetaron con el correo en vez del id).
+    val isOwner = book.addedBy.isNotBlank() && (
+        (currentUserId.isNotBlank() && book.addedBy == currentUserId) ||
+        (currentUserEmail.isNotBlank() && book.addedBy.equals(currentUserEmail, ignoreCase = true))
+    )
     var showMenu by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }

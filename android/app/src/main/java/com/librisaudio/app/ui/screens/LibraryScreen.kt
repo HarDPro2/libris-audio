@@ -42,6 +42,7 @@ fun LibraryScreen(
     personalBooks: List<Book>,             // libros del usuario (Mi Biblioteca)
     currentTheme: AppThemePreset,
     currentUserId: String,
+    currentUserEmail: String = "",
     onBookSelect: (Book) -> Unit,
     onDeleteBook: (Book) -> Unit,
     onEditBook: (Book, String, String) -> Unit,
@@ -267,6 +268,7 @@ fun LibraryScreen(
                                 book = book,
                                 currentTheme = currentTheme,
                                 currentUserId = currentUserId,
+                                currentUserEmail = currentUserEmail,
                                 onBookClick = { onBookSelect(book) },
                                 onDeleteBook = onDeleteBook,
                                 onEditBook = onEditBook,

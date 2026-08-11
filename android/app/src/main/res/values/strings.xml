@@ -15,6 +15,25 @@
     <string name="settings_section_system">ℹ️ Información del Sistema</string>
     <string name="settings_section_session">🚪 Sesión</string>
 
+    <string name="settings_logout">Cerrar Sesión</string>
+    <string name="settings_view_achievements">Ver mis logros</string>
+    <string name="logout_confirm_msg">¿Seguro que quieres salir de tu cuenta?</string>
+    <string name="settings_help">Guía de uso</string>
+    <string name="settings_section_help">❓ Ayuda</string>
+    <string name="guide_title">Guía de uso</string>
+    <string name="guide_s1_title">🎧 Reproductor</string>
+    <string name="guide_s1_body">Toca un libro para empezar. Usa ▶/⏸ para reproducir o pausar. Mantén pulsado cualquier icono para ver su nombre.</string>
+    <string name="guide_s2_title">📖 Modos de lectura</string>
+    <string name="guide_s2_body">Clásico (solo audio), Libro (texto resaltado al ritmo de la voz) y Leer (solo texto, sin narración).</string>
+    <string name="guide_s3_title">⬇️ Descargas</string>
+    <string name="guide_s3_body">Toca el icono de descarga en el reproductor para guardar un libro y oírlo sin conexión. Encuéntralos en la pestaña Descargas.</string>
+    <string name="guide_s4_title">🎙️ Voz y velocidad</string>
+    <string name="guide_s4_body">Cambia el narrador con el icono de voz y ajusta la velocidad de lectura a tu gusto.</string>
+    <string name="guide_s5_title">✨ Asistente IA</string>
+    <string name="guide_s5_body">Pregúntale a la IA sobre el libro que escuchas. Puedes usar tu propia API key de OpenRouter para más cuota.</string>
+    <string name="guide_s6_title">👤 Perfil e idioma</string>
+    <string name="guide_s6_body">Personaliza tu nombre y avatar, elige el tema visual y cambia el idioma de la app desde Ajustes.</string>
+
     <!-- Selector de idioma -->
     <string name="language_system">Automático (sistema)</string>
     <string name="language_spanish">Español</string>
@@ -25,6 +44,15 @@
     <string name="nav_history">Historial</string>
     <string name="nav_upload">Subir PDF</string>
     <string name="nav_settings">Ajustes</string>
+    <string name="nav_downloads">Descargas</string>
+
+    <!-- Pantalla Descargas -->
+    <string name="downloads_subtitle">Escucha sin conexión</string>
+    <string name="downloads_empty">No tienes libros descargados.\nAbre un libro y toca ↓ para oírlo sin conexión.</string>
+    <string name="downloads_delete_all">Borrar todo</string>
+    <string name="downloads_summary">%1$d libro(s) · %2$s</string>
+    <string name="downloads_parts">%1$d partes · %2$s</string>
+    <string name="downloads_delete">Borrar descarga</string>
 
     <!-- Biblioteca -->
     <string name="lib_tagline">Tu biblioteca de audiolibros</string>

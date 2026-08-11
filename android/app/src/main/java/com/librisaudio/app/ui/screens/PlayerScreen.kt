@@ -171,10 +171,10 @@ fun PlayerScreen(
                 verticalAlignment = Alignment.CenterVertically
               ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onClose) {
+                    TooltipIconButton(stringResource(R.string.player_home), onClick = onClose) {
                         Icon(Icons.Default.Home, contentDescription = stringResource(R.string.player_home), tint = Color.White)
                     }
-                    IconButton(onClick = onStopPlayback) {
+                    TooltipIconButton(stringResource(R.string.player_stop), onClick = onStopPlayback) {
                         Icon(Icons.Default.StopCircle, contentDescription = stringResource(R.string.player_stop), tint = Color.White)
                     }
                 }
@@ -230,7 +230,7 @@ fun PlayerScreen(
                 }
 
                 // Pantalla completa (cierra la fila superior)
-                IconButton(onClick = { isImmersive = true }) {
+                TooltipIconButton(stringResource(R.string.player_fullscreen), onClick = { isImmersive = true }) {
                     Icon(Icons.Default.Fullscreen, contentDescription = stringResource(R.string.player_fullscreen), tint = CyanAccent)
                 }
               }
@@ -243,28 +243,29 @@ fun PlayerScreen(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
               ) {
-                    IconButton(onClick = { isVoiceDialogVisible = true }) {
+                    TooltipIconButton(stringResource(R.string.player_voice), onClick = { isVoiceDialogVisible = true }) {
                         Icon(Icons.Default.RecordVoiceOver, contentDescription = stringResource(R.string.player_voice), tint = Color.White)
                     }
-                    IconButton(onClick = { isStatsVisible = true }) {
+                    TooltipIconButton(stringResource(R.string.player_stats), onClick = { isStatsVisible = true }) {
                         Icon(Icons.Default.QueryStats, contentDescription = stringResource(R.string.player_stats), tint = Color.White)
                     }
-                    IconButton(onClick = { isAiChatVisible = true }) {
+                    TooltipIconButton(stringResource(R.string.player_ask_ai), onClick = { isAiChatVisible = true }) {
                         Icon(Icons.Default.AutoAwesome, contentDescription = stringResource(R.string.player_ask_ai), tint = CyanAccent)
                     }
-                    IconButton(onClick = onOpenCarMode) {
+                    TooltipIconButton(stringResource(R.string.player_car_mode), onClick = onOpenCarMode) {
                         Icon(Icons.Default.DirectionsCar, contentDescription = stringResource(R.string.player_car_mode), tint = Color.White)
                     }
-                    IconButton(onClick = { isSleepTimerVisible = true }) {
+                    TooltipIconButton(stringResource(R.string.player_sleep_timer), onClick = { isSleepTimerVisible = true }) {
                         Icon(Icons.Default.Bedtime, contentDescription = stringResource(R.string.player_sleep_timer), tint = if (selectedSleepTimer != SleepTimerOption.OFF) CyanAccent else Color.White)
                     }
-                    IconButton(onClick = { isBookmarkVisible = true }) {
+                    TooltipIconButton(stringResource(R.string.player_bookmarks), onClick = { isBookmarkVisible = true }) {
                         Icon(Icons.Default.Bookmark, contentDescription = stringResource(R.string.player_bookmarks), tint = Color.White)
                     }
-                    IconButton(onClick = { isMusicDialogVisible = true }) {
+                    TooltipIconButton(stringResource(R.string.player_bg_music), onClick = { isMusicDialogVisible = true }) {
                         Icon(Icons.Default.MusicNote, contentDescription = stringResource(R.string.player_bg_music), tint = if (selectedMusicTrack != null) CyanAccent else Color.White)
                     }
-                    IconButton(
+                    TooltipIconButton(
+                        label = stringResource(if (isDownloaded) R.string.player_downloaded else R.string.player_download),
                         onClick = { if (!isDownloading && !isDownloaded) onDownload() },
                         enabled = !isDownloading
                     ) {
@@ -591,4 +592,22 @@ private fun formatTime(seconds: Long): String {
     val m = seconds / 60
     val s = seconds % 60
     return String.format("%02d:%02d", m, s)
+}
+
+/** IconButton con nombre en tooltip al mantener pulsado (Material3). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TooltipIconButton(
+    label: String,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    content: @Composable () -> Unit
+) {
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+        tooltip = { PlainTooltip { Text(label) } },
+        state = rememberTooltipState()
+    ) {
+        IconButton(onClick = onClick, enabled = enabled) { content() }
+    }
 }

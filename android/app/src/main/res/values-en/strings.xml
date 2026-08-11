@@ -13,6 +13,25 @@
     <string name="settings_section_system">ℹ️ System Information</string>
     <string name="settings_section_session">🚪 Session</string>
 
+    <string name="settings_logout">Log Out</string>
+    <string name="settings_view_achievements">View my achievements</string>
+    <string name="logout_confirm_msg">Are you sure you want to sign out?</string>
+    <string name="settings_help">User guide</string>
+    <string name="settings_section_help">❓ Help</string>
+    <string name="guide_title">User guide</string>
+    <string name="guide_s1_title">🎧 Player</string>
+    <string name="guide_s1_body">Tap a book to start. Use ▶/⏸ to play or pause. Long-press any icon to see its name.</string>
+    <string name="guide_s2_title">📖 Reading modes</string>
+    <string name="guide_s2_body">Classic (audio only), Book (text highlighted in sync with the voice) and Read (text only, no narration).</string>
+    <string name="guide_s3_title">⬇️ Downloads</string>
+    <string name="guide_s3_body">Tap the download icon in the player to save a book and listen offline. Find them in the Downloads tab.</string>
+    <string name="guide_s4_title">🎙️ Voice &amp; speed</string>
+    <string name="guide_s4_body">Change the narrator with the voice icon and adjust the reading speed to your liking.</string>
+    <string name="guide_s5_title">✨ AI assistant</string>
+    <string name="guide_s5_body">Ask the AI about the book you\'re listening to. You can use your own OpenRouter API key for more quota.</string>
+    <string name="guide_s6_title">👤 Profile &amp; language</string>
+    <string name="guide_s6_body">Customize your name and avatar, choose the visual theme and change the app language from Settings.</string>
+
     <!-- Language selector -->
     <string name="language_system">Automatic (system)</string>
     <string name="language_spanish">Español</string>
@@ -23,6 +42,15 @@
     <string name="nav_history">History</string>
     <string name="nav_upload">Upload PDF</string>
     <string name="nav_settings">Settings</string>
+    <string name="nav_downloads">Downloads</string>
+
+    <!-- Downloads screen -->
+    <string name="downloads_subtitle">Listen offline</string>
+    <string name="downloads_empty">You have no downloaded books.\nOpen a book and tap ↓ to listen offline.</string>
+    <string name="downloads_delete_all">Delete all</string>
+    <string name="downloads_summary">%1$d book(s) · %2$s</string>
+    <string name="downloads_parts">%1$d parts · %2$s</string>
+    <string name="downloads_delete">Delete download</string>
 
     <!-- Library -->
     <string name="lib_tagline">Your audiobook library</string>

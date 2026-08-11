@@ -75,22 +75,11 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.VERSION }}
-          name: "Libris Audio v${{ steps.version.outputs.VERSION }} (Nativa Android)"
+          name: "Libris Audio v${{ steps.version.outputs.VERSION }}"
           body: |
-            ## 📱 Libris Audio v${{ steps.version.outputs.VERSION }} (App 100% Nativa Android)
+            Libris Audio v${{ steps.version.outputs.VERSION }}
 
-            App nativa escrita en **Kotlin + Jetpack Compose + AndroidX Media3 (ExoPlayer)**.
-
-            ### 🚀 Mejoras en esta versión:
-            - **Audio en segundo plano 100% ininterrumpido** gracias al Foreground Service nativo.
-            - **Controles en pantalla de bloqueo** y barra de notificaciones.
-            - **Velocidad de reproducción ajustable** (1.0x - 2.0x).
-            - **Diseño oscuro fluido** con portadas de libros.
-
-            ### 📥 Cómo instalar en Android
-            1. Descarga el archivo `.apk` adjunto abajo.
-            2. Activa **"Instalar de fuentes desconocidas"** en Ajustes de Android.
-            3. Abre e instala el `.apk`.
+            Mejoras y correcciones en esta versión. ¡Gracias por usar Libris Audio! 🎧
           files: release-output/libris-audio.apk
           draft: false
           prerelease: false

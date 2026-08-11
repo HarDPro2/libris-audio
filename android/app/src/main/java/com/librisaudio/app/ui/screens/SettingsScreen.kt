@@ -56,19 +56,19 @@ fun SettingsScreen(
     userName: String = "",
     userEmail: String = "",
     onLogout: (() -> Unit)? = null,
-    offlineBooks: List<com.librisaudio.app.data.OfflineBook> = emptyList(),
-    offlineTotalBytes: Long = 0L,
-    onDeleteOffline: (String) -> Unit = {},
-    onDeleteAllOffline: () -> Unit = {},
     currentLang: String = "system",
     onSelectLanguage: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showLogoutConfirm by remember { mutableStateOf(false) }
     var showAchievements by remember { mutableStateOf(false) }
+    var showGuide by remember { mutableStateOf(false) }
 
     if (showAchievements) {
         AchievementsDialog(primary = currentTheme.primary, onDismiss = { showAchievements = false })
+    }
+    if (showGuide) {
+        GuideDialog(currentTheme = currentTheme, onDismiss = { showGuide = false })
     }
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -143,6 +143,22 @@ fun SettingsScreen(
             LanguageSelector(currentLang = currentLang, currentTheme = currentTheme, onSelect = onSelectLanguage)
             Spacer(modifier = Modifier.height(24.dp))
 
+            // ─── Ayuda ────────────────────────────────────────────────────
+            SectionTitle(stringResource(R.string.settings_section_help))
+            Spacer(modifier = Modifier.height(10.dp))
+            OutlinedButton(
+                onClick = { showGuide = true },
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = currentTheme.primary),
+                border = androidx.compose.foundation.BorderStroke(1.dp, currentTheme.primary.copy(alpha = 0.5f))
+            ) {
+                Icon(Icons.Default.HelpOutline, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(stringResource(R.string.settings_help), fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+
             // ─── Theme Section ────────────────────────────────────────────
             SectionTitle(stringResource(R.string.settings_section_theme))
             Text(stringResource(R.string.settings_theme_subtitle), fontSize = 11.sp, color = TextMuted)
@@ -215,38 +231,8 @@ fun SettingsScreen(
             ) {
                 Icon(Icons.Default.EmojiEvents, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Ver mis logros", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                Text(stringResource(R.string.settings_view_achievements), fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
             }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // ─── Info Section ─────────────────────────────────────────────
-            // ─── Descargas offline ────────────────────────────────────────
-            SectionTitle(stringResource(R.string.settings_section_downloads))
-            Spacer(modifier = Modifier.height(10.dp))
-            OfflineDownloadsCard(
-                books = offlineBooks,
-                totalBytes = offlineTotalBytes,
-                currentTheme = currentTheme,
-                onDelete = onDeleteOffline,
-                onDeleteAll = onDeleteAllOffline
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-
-            SectionTitle(stringResource(R.string.settings_section_system))
-            Spacer(modifier = Modifier.height(10.dp))
-
-            InfoCard(
-                items = listOf(
-                    stringResource(R.string.info_version) to com.librisaudio.app.BuildConfig.VERSION_NAME,
-                    "🔊 Audio" to "Edge TTS Neural (Microsoft Azure)",
-                    stringResource(R.string.info_storage) to "Cloudflare R2",
-                    stringResource(R.string.info_database) to "Appwrite Cloud",
-                    "⚡ Backend" to "Google Cloud Run",
-                    stringResource(R.string.info_auth) to "Appwrite Auth"
-                ),
-                currentTheme = currentTheme
-            )
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -264,9 +250,19 @@ fun SettingsScreen(
                 ) {
                     Icon(Icons.Default.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Cerrar Sesión", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                    Text(stringResource(R.string.settings_logout), fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                 }
             }
+
+            Spacer(modifier = Modifier.height(24.dp))
+            // Pie discreto con la versión (sin info técnica)
+            Text(
+                text = "Libris Audio · v${com.librisaudio.app.BuildConfig.VERSION_NAME}",
+                fontSize = 11.sp,
+                color = TextMuted,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
 
             Spacer(modifier = Modifier.height(100.dp))
         }
@@ -276,16 +272,16 @@ fun SettingsScreen(
     if (showLogoutConfirm) {
         AlertDialog(
             onDismissRequest = { showLogoutConfirm = false },
-            title = { Text("Cerrar Sesión", color = Color.White, fontWeight = FontWeight.Bold) },
-            text = { Text("¿Seguro que quieres salir de tu cuenta?", color = TextMuted) },
+            title = { Text(stringResource(R.string.settings_logout), color = Color.White, fontWeight = FontWeight.Bold) },
+            text = { Text(stringResource(R.string.logout_confirm_msg), color = TextMuted) },
             confirmButton = {
                 TextButton(onClick = { showLogoutConfirm = false; onLogout?.invoke() }) {
-                    Text("Cerrar sesión", color = Color(0xFFEF4444), fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.settings_logout), color = Color(0xFFEF4444), fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showLogoutConfirm = false }) {
-                    Text("Cancelar", color = TextMuted)
+                    Text(stringResource(R.string.action_cancel), color = TextMuted)
                 }
             },
             containerColor = Color(0xFF1E293B)
@@ -426,5 +422,46 @@ private fun LanguageSelector(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun GuideDialog(currentTheme: AppThemePreset, onDismiss: () -> Unit) {
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = Color(0xFF0F172A),
+            modifier = Modifier.fillMaxWidth(0.95f).fillMaxHeight(0.85f)
+        ) {
+            Column(modifier = Modifier.fillMaxSize().padding(20.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.HelpOutline, contentDescription = null, tint = currentTheme.primary)
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.guide_title), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Spacer(Modifier.weight(1f))
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_close), tint = TextMuted)
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                    GuideItem(stringResource(R.string.guide_s1_title), stringResource(R.string.guide_s1_body))
+                    GuideItem(stringResource(R.string.guide_s2_title), stringResource(R.string.guide_s2_body))
+                    GuideItem(stringResource(R.string.guide_s3_title), stringResource(R.string.guide_s3_body))
+                    GuideItem(stringResource(R.string.guide_s4_title), stringResource(R.string.guide_s4_body))
+                    GuideItem(stringResource(R.string.guide_s5_title), stringResource(R.string.guide_s5_body))
+                    GuideItem(stringResource(R.string.guide_s6_title), stringResource(R.string.guide_s6_body))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GuideItem(title: String, body: String) {
+    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+        Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        Spacer(Modifier.height(4.dp))
+        Text(body, fontSize = 13.sp, color = TextMuted, lineHeight = 18.sp)
     }
 }

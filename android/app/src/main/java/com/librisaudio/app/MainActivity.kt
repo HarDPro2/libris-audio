@@ -40,7 +40,7 @@ import com.librisaudio.app.viewmodel.PlayerViewModel
 import kotlinx.coroutines.launch
 
 enum class MainTab {
-    LIBRARY, HISTORY, UPLOAD, SETTINGS
+    LIBRARY, HISTORY, UPLOAD, DOWNLOADS, SETTINGS
 }
 
 class MainActivity : ComponentActivity() {
@@ -385,6 +385,13 @@ class MainActivity : ComponentActivity() {
                                         colors = NavigationBarItemDefaults.colors(indicatorColor = currentTheme.primary)
                                     )
                                     NavigationBarItem(
+                                        selected = selectedTab == MainTab.DOWNLOADS,
+                                        onClick = { selectedTab = MainTab.DOWNLOADS },
+                                        icon = { Icon(Icons.Default.Download, contentDescription = stringResource(R.string.nav_downloads)) },
+                                        label = { Text(stringResource(R.string.nav_downloads)) },
+                                        colors = NavigationBarItemDefaults.colors(indicatorColor = currentTheme.primary)
+                                    )
+                                    NavigationBarItem(
                                         selected = selectedTab == MainTab.SETTINGS,
                                         onClick = { selectedTab = MainTab.SETTINGS },
                                         icon = { Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.nav_settings)) },
@@ -407,6 +414,7 @@ class MainActivity : ComponentActivity() {
                                 personalBooks = books.filter { it.progressPercent > 0 },
                                 currentTheme = currentTheme,
                                 currentUserId = session?.userId ?: "",
+                                currentUserEmail = session?.email ?: "",
                                 onBookSelect = { selectedBook -> playerViewModel.resumeBook(selectedBook) },
                                 onDeleteBook = { book -> playerViewModel.deleteBook(book, session?.sessionId ?: "") },
                                 onEditBook  = { book, newTitle, newCat -> playerViewModel.editBook(book, newTitle, newCat, session?.sessionId ?: "") },
@@ -431,16 +439,22 @@ class MainActivity : ComponentActivity() {
                                     selectedTab = MainTab.LIBRARY
                                 }
                             )
+                            MainTab.DOWNLOADS -> DownloadsScreen(
+                                currentTheme = currentTheme,
+                                books = playerViewModel.offlineBooks.collectAsState().value,
+                                totalBytes = playerViewModel.offlineTotalBytes.collectAsState().value,
+                                onPlay = { bookId ->
+                                    books.firstOrNull { it.bookId == bookId }?.let { playerViewModel.resumeBook(it) }
+                                },
+                                onDelete = { bookId -> playerViewModel.deleteOffline(bookId) },
+                                onDeleteAll = { playerViewModel.deleteAllOffline() }
+                            )
                             MainTab.SETTINGS -> SettingsScreen(
                                 currentTheme = currentTheme,
                                 onSelectTheme = { newTheme -> playerViewModel.setTheme(newTheme) },
                                 userName = userProfile.displayName.ifBlank { session?.name ?: "" },
                                 userEmail = session?.email ?: "",
                                 onLogout = { authViewModel.logout() },
-                                offlineBooks = playerViewModel.offlineBooks.collectAsState().value,
-                                offlineTotalBytes = playerViewModel.offlineTotalBytes.collectAsState().value,
-                                onDeleteOffline = { bookId -> playerViewModel.deleteOffline(bookId) },
-                                onDeleteAllOffline = { playerViewModel.deleteAllOffline() },
                                 currentLang = com.librisaudio.app.util.LocaleHelper.getLang(this@MainActivity),
                                 onSelectLanguage = { tag ->
                                     com.librisaudio.app.util.LocaleHelper.setLang(this@MainActivity, tag)
