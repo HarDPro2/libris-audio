@@ -72,7 +72,10 @@ fun VoiceSelectorDialog(
                                 fontWeight = FontWeight.Bold,
                                 color = if (isSelected) Color.White else Color(0xFFE2E8F0)
                             )
-                            Text("${voice.country} · ${voice.gender}", fontSize = 11.sp, color = TextMuted)
+                            Text(
+                                "${voice.country} · ${stringResource(if (voice.female) R.string.voice_female else R.string.voice_male)}",
+                                fontSize = 11.sp, color = TextMuted
+                            )
                         }
                         if (isSelected) {
                             Icon(Icons.Default.Check, contentDescription = stringResource(R.string.dlg_voice_selected), tint = CyanAccent)

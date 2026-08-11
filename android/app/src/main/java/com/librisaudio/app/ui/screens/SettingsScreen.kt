@@ -48,6 +48,27 @@ private fun animationIcon(preset: AppThemePreset): String = when (preset.animati
     ThemeAnimation.MESH      -> "🎨"
 }
 
+/** Nombre localizado del tema (los títulos del enum están en español). */
+@Composable
+private fun themeName(preset: AppThemePreset): String = when (preset) {
+    AppThemePreset.NEURAL    -> stringResource(R.string.theme_neural)
+    AppThemePreset.QUANTUM   -> stringResource(R.string.theme_quantum)
+    AppThemePreset.MATRIX    -> stringResource(R.string.theme_matrix)
+    AppThemePreset.RETRO     -> stringResource(R.string.theme_retro)
+    AppThemePreset.AURORA    -> stringResource(R.string.theme_aurora)
+    AppThemePreset.COSMIC    -> stringResource(R.string.theme_cosmic)
+    AppThemePreset.INK       -> stringResource(R.string.theme_ink)
+    AppThemePreset.EMBER     -> stringResource(R.string.theme_ember)
+    AppThemePreset.ROMANCE   -> stringResource(R.string.theme_romance)
+    AppThemePreset.MYSTERY   -> stringResource(R.string.theme_mystery)
+    AppThemePreset.ENCHANTED -> stringResource(R.string.theme_enchanted)
+    AppThemePreset.LIBRARY   -> stringResource(R.string.theme_library)
+    AppThemePreset.CYBERPUNK -> stringResource(R.string.theme_cyberpunk)
+    AppThemePreset.OCEAN     -> stringResource(R.string.theme_ocean)
+    AppThemePreset.FOREST    -> stringResource(R.string.theme_forest)
+    AppThemePreset.MIDNIGHT  -> stringResource(R.string.theme_midnight)
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
@@ -205,7 +226,7 @@ fun SettingsScreen(
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = preset.title,
+                            text = themeName(preset),
                             fontSize = 11.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                             color = if (isSelected) Color.White else Color(0xFFCBD5E1),

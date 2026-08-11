@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.MusicNote
@@ -117,6 +118,17 @@ fun PlayerScreen(
 ) {
     var viewMode by remember { mutableStateOf(PlayerViewMode.CLASSIC_PLAYER) }
     var isImmersive by remember { mutableStateOf(false) }
+
+    // Mantener la pantalla encendida (para leer/karaoke sin tocarla). Persistido.
+    val screenCtx = androidx.compose.ui.platform.LocalContext.current
+    val currentView = androidx.compose.ui.platform.LocalView.current
+    val keepPrefs = remember { screenCtx.getSharedPreferences("libris_prefs", android.content.Context.MODE_PRIVATE) }
+    var keepScreenOn by remember { mutableStateOf(keepPrefs.getBoolean("keep_screen_on", false)) }
+    androidx.compose.runtime.DisposableEffect(keepScreenOn) {
+        currentView.keepScreenOn = keepScreenOn
+        onDispose { currentView.keepScreenOn = false }
+    }
+
     var isMusicDialogVisible by remember { mutableStateOf(false) }
     var isSleepTimerVisible by remember { mutableStateOf(false) }
     var isBookmarkVisible by remember { mutableStateOf(false) }
@@ -263,6 +275,16 @@ fun PlayerScreen(
                     }
                     TooltipIconButton(stringResource(R.string.player_bg_music), onClick = { isMusicDialogVisible = true }) {
                         Icon(Icons.Default.MusicNote, contentDescription = stringResource(R.string.player_bg_music), tint = if (selectedMusicTrack != null) CyanAccent else Color.White)
+                    }
+                    TooltipIconButton(
+                        stringResource(R.string.player_keep_awake),
+                        onClick = {
+                            keepScreenOn = !keepScreenOn
+                            keepPrefs.edit().putBoolean("keep_screen_on", keepScreenOn).apply()
+                        }
+                    ) {
+                        Icon(Icons.Default.LightMode, contentDescription = stringResource(R.string.player_keep_awake),
+                            tint = if (keepScreenOn) CyanAccent else Color.White)
                     }
                     TooltipIconButton(
                         label = stringResource(if (isDownloaded) R.string.player_downloaded else R.string.player_download),
