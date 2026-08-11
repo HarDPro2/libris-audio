@@ -18,7 +18,10 @@ Documento de planificación. Se trabaja **de lo más sencillo a lo más complejo
 - Se preserva el fondo/offline (ExoPlayer prebufferiza la siguiente ventana) y queda listo `goToPart(n)` para "ir al capítulo N" de A1.
 - **Pendiente de A1+:** que Assistant abra un libro por nombre ("reproduce X en Libris") requiere App Actions / media browse tree — se hará más adelante. A0 cubre el control de transporte de la sesión activa.
 
-### Fase A1 — Comandos de voz on-device (Nivel 1, **Free**) · esfuerzo **medio** · API **$0** · offline
+### Fase A1 — Comandos de voz on-device (Nivel 1, **Free**) · **✅ HECHO (v1.0.18)**
+`VoiceCommandParser` (gramática bilingüe ES/EN) + `VoiceCommandManager` (SpeechRecognizer on-device, `EXTRA_PREFER_OFFLINE`) + `PlayerViewModel.handleVoiceCommand` + botón 🎤 en el reproductor con overlay de escucha y permiso `RECORD_AUDIO`. Comandos: pausa/reanuda, siguiente/anterior parte, retrocede/adelanta N seg, ir al capítulo N, más rápido/lento, marcapáginas, dónde estoy, detener. También **B11 ✅**: filtro Todos/Español/English en el selector de voces.
+
+_Referencia de diseño original:_
 - **A1.1** Permiso `RECORD_AUDIO` + botón de micrófono grande en **Modo Auto** (y opcional en el reproductor).
 - **A1.2** `VoiceCommandManager`: wrapper de `SpeechRecognizer` on-device (`createOnDeviceSpeechRecognizer` en API 33+, fallback con `EXTRA_PREFER_OFFLINE`). Estados: escuchando / procesando / resultado.
 - **A1.3** Motor de intención por **gramática bilingüe (ES/EN)**:

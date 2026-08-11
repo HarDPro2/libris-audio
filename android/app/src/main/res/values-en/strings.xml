@@ -119,6 +119,11 @@
     <string name="player_play">Play</string>
     <string name="player_pause">Pause</string>
     <string name="player_keep_awake">Keep screen on</string>
+    <string name="voice_cmd">Voice command</string>
+    <string name="voice_listening">Listening…</string>
+    <string name="voice_not_understood">Didn\'t catch that. Try: pause, next, go to chapter 5, rewind 30 seconds.</string>
+    <string name="voice_perm_needed">Microphone permission required</string>
+    <string name="voice_unavailable">Voice recognition unavailable on this device</string>
 
     <!-- Car Mode -->
     <string name="car_title">CAR MODE</string>

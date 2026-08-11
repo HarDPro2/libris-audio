@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.StopCircle
 import androidx.compose.material.icons.filled.Pause
@@ -114,6 +115,7 @@ fun PlayerScreen(
     isDownloading: Boolean = false,
     downloadProgress: Int = 0,
     onDownload: () -> Unit = {},
+    onVoiceCommand: (String) -> com.librisaudio.app.util.VoiceIntent = { com.librisaudio.app.util.VoiceIntent.Unknown },
     modifier: Modifier = Modifier
 ) {
     var viewMode by remember { mutableStateOf(PlayerViewMode.CLASSIC_PLAYER) }
@@ -127,6 +129,52 @@ fun PlayerScreen(
     androidx.compose.runtime.DisposableEffect(keepScreenOn) {
         currentView.keepScreenOn = keepScreenOn
         onDispose { currentView.keepScreenOn = false }
+    }
+
+    // ── Asistente de voz A1 (comandos on-device, gratis) ──
+    val voiceMgr = remember { com.librisaudio.app.util.VoiceCommandManager(screenCtx) }
+    var isListening by remember { mutableStateOf(false) }
+    val voiceLang = remember { java.util.Locale.getDefault().language.ifBlank { "es" } }
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { voiceMgr.stop() } }
+
+    fun runVoice() {
+        if (!voiceMgr.isAvailable()) {
+            android.widget.Toast.makeText(screenCtx, screenCtx.getString(R.string.voice_unavailable), android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        isListening = true
+        voiceMgr.listen(
+            langTag = voiceLang,
+            onResult = { text ->
+                isListening = false
+                if (text.isNotBlank()) {
+                    val intent = onVoiceCommand(text)
+                    val msg = when (intent) {
+                        com.librisaudio.app.util.VoiceIntent.WhereAmI ->
+                            screenCtx.getString(R.string.player_part_of, currentPartIndex + 1, book.partsCount)
+                        com.librisaudio.app.util.VoiceIntent.Unknown ->
+                            screenCtx.getString(R.string.voice_not_understood)
+                        else -> "🎤 $text"
+                    }
+                    android.widget.Toast.makeText(screenCtx, msg, android.widget.Toast.LENGTH_SHORT).show()
+                }
+            },
+            onError = { isListening = false }
+        )
+    }
+
+    val micPermLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) runVoice()
+        else android.widget.Toast.makeText(screenCtx, screenCtx.getString(R.string.voice_perm_needed), android.widget.Toast.LENGTH_SHORT).show()
+    }
+
+    fun onMicClick() {
+        val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+            screenCtx, android.Manifest.permission.RECORD_AUDIO
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (granted) runVoice() else micPermLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
     }
 
     var isMusicDialogVisible by remember { mutableStateOf(false) }
@@ -188,6 +236,10 @@ fun PlayerScreen(
                     }
                     TooltipIconButton(stringResource(R.string.player_stop), onClick = onStopPlayback) {
                         Icon(Icons.Default.StopCircle, contentDescription = stringResource(R.string.player_stop), tint = Color.White)
+                    }
+                    TooltipIconButton(stringResource(R.string.voice_cmd), onClick = { onMicClick() }) {
+                        Icon(Icons.Default.Mic, contentDescription = stringResource(R.string.voice_cmd),
+                            tint = if (isListening) CyanAccent else Color.White)
                     }
                 }
 
@@ -533,6 +585,20 @@ fun PlayerScreen(
                 }
                 IconButton(onClick = onNextPart) {
                     Icon(Icons.Default.SkipNext, contentDescription = stringResource(R.string.player_next), tint = Color.White, modifier = Modifier.size(30.dp))
+                }
+            }
+        }
+
+        // Overlay de escucha del asistente de voz
+        if (isListening) {
+            Box(
+                modifier = Modifier.fillMaxSize().background(Color(0xCC000000)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.Mic, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(56.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(stringResource(R.string.voice_listening), color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

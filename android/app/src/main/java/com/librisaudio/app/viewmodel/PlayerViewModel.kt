@@ -15,6 +15,8 @@ import com.google.common.util.concurrent.MoreExecutors
 import com.librisaudio.app.data.api.ApiClient
 import com.librisaudio.app.data.model.Book
 import com.librisaudio.app.service.AudioService
+import com.librisaudio.app.util.VoiceCommandParser
+import com.librisaudio.app.util.VoiceIntent
 import com.librisaudio.app.ui.theme.AppThemePreset
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -679,6 +681,31 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun setSpeed(speed: Float) {
         _playbackSpeed.value = speed
         mediaController?.setPlaybackSpeed(speed)
+    }
+
+    /** Ejecuta un comando de voz (asistente A1). Devuelve el intent reconocido
+     *  para que la UI muestre confirmación o el error. */
+    fun handleVoiceCommand(text: String): VoiceIntent {
+        val intent = VoiceCommandParser.parse(text)
+        when (intent) {
+            VoiceIntent.Play      -> { mediaController?.play(); _isPlaying.value = true }
+            VoiceIntent.Pause     -> { mediaController?.pause(); _isPlaying.value = false }
+            VoiceIntent.NextPart  -> nextPart()
+            VoiceIntent.PrevPart  -> previousPart()
+            is VoiceIntent.Rewind -> seekTo((_currentPositionMs.value - intent.seconds * 1000L).coerceAtLeast(0))
+            is VoiceIntent.Forward-> seekTo(_currentPositionMs.value + intent.seconds * 1000L)
+            is VoiceIntent.GoToPart -> goToPart(intent.part - 1)
+            VoiceIntent.SpeedUp   -> setSpeed((_playbackSpeed.value + 0.25f).coerceAtMost(2.0f))
+            VoiceIntent.SpeedDown -> setSpeed((_playbackSpeed.value - 0.25f).coerceAtLeast(0.5f))
+            VoiceIntent.SpeedNormal -> setSpeed(1.0f)
+            VoiceIntent.Bookmark  -> _currentBook.value?.let {
+                addBookmark(it.bookId, _currentPartIndex.value, _currentPositionMs.value, "🎤")
+            }
+            VoiceIntent.WhereAmI  -> { /* la UI muestra la parte actual */ }
+            VoiceIntent.Stop      -> stopPlayback()
+            VoiceIntent.Unknown   -> { /* la UI muestra ayuda */ }
+        }
+        return intent
     }
 
     private fun onPartEnded() {

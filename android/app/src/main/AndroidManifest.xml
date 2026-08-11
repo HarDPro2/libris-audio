@@ -86,4 +86,12 @@
     <!-- Auto-actualizador: instalar el APK descargado desde GitHub Releases -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <!-- Comandos por voz (asistente A1) — reconocimiento on-device -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
+
 </manifest>
