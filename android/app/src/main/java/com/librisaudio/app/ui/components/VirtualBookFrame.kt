@@ -2,8 +2,11 @@ package com.librisaudio.app.ui.components
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
@@ -386,6 +389,19 @@ fun VirtualBookFrame(
                 }
             }
 
+            // Marco ILUSTRADO por género (drop-in): si existe res/drawable/frame_<genero>
+            // se superpone (PNG con centro transparente, sobre el texto); si no existe,
+            // se mantiene el marco animado actual. Los PNG son la "segunda tanda".
+            val frameRes = remember(selectedStyle) { genreFrameImage(ctx, selectedStyle) }
+            if (fxOn && frameRes != 0) {
+                Image(
+                    painter = painterResource(frameRes),
+                    contentDescription = null,
+                    contentScale = ContentScale.FillBounds,
+                    modifier = Modifier.matchParentSize()
+                )
+            }
+
             // Navegación
             IconButton(
                 onClick = { PageTurnSound.play(ctx); flipAngle = -30f; onPreviousPart(); flipAngle = 0f },
@@ -551,6 +567,30 @@ private fun resolveGenreFont(ctx: android.content.Context, style: BookBindingSty
     }
     // Resolver universal alineado con DIRECTIVA_FUENTES_ARTISTICAS_EMBEBIDAS
     return com.librisaudio.app.util.ArtisticFonts.resolve(ctx, name, fallback)
+}
+
+/**
+ * Marco ILUSTRADO por género (drop-in, "2ª tanda"). Resuelve un PNG opcional en
+ * res/drawable/frame_<genero> con centro transparente. Si existe, se superpone al
+ * marco; si no, devuelve 0 y se mantiene el marco animado actual (fallback).
+ * Ver MARCOS_ILUSTRADOS_SPEC.md. Añadir marcos = soltar los PNG, sin tocar código.
+ */
+private fun genreFrameImage(ctx: android.content.Context, style: BookBindingStyle): Int {
+    val name = when (style) {
+        BookBindingStyle.CLASSIC    -> "frame_classic"
+        BookBindingStyle.MEDIEVAL   -> "frame_medieval"
+        BookBindingStyle.SPIRITUAL  -> "frame_spiritual"
+        BookBindingStyle.WAR        -> "frame_war"
+        BookBindingStyle.LOVE       -> "frame_love"
+        BookBindingStyle.PARANORMAL -> "frame_paranormal"
+        BookBindingStyle.SCIENTIFIC -> "frame_scientific"
+        BookBindingStyle.COMEDY     -> "frame_comedy"
+        BookBindingStyle.FANTASY    -> "frame_fantasy"
+        BookBindingStyle.POETRY     -> "frame_poetry"
+        BookBindingStyle.NOIR       -> "frame_noir"
+        BookBindingStyle.COSMIC     -> "frame_cosmic"
+    }
+    return ctx.resources.getIdentifier(name, "drawable", ctx.packageName)
 }
 
 // Helpers para el degradado del borde que se desplaza (shimmer)
