@@ -140,6 +140,8 @@ fun VirtualBookFrame(
     onSeekTo: (Long) -> Unit = {},
     onNextPart: () -> Unit,
     onPreviousPart: () -> Unit,
+    frames3dEnabled: Boolean = false,
+    onToggleFrames3d: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val ctx = LocalContext.current
@@ -148,6 +150,10 @@ fun VirtualBookFrame(
     var fontMode by remember { mutableStateOf(0) }   // 0 = Género, 1 = Serif, 2 = Sans
     var highlightOn by remember { mutableStateOf(true) }
     var fxOn by remember { mutableStateOf(true) }    // capa animada ambiental por género
+    // Marcos 3D ilustrados por género. El estado vive en PlayerViewModel (misma
+    // preferencia "frames_3d" que usa Ajustes), así el botón del reproductor y
+    // el interruptor de Ajustes nunca se desincronizan.
+    val frames3dOn = frames3dEnabled
 
     val activeFont = remember(fontMode, selectedStyle) {
         when (fontMode) {
@@ -234,6 +240,18 @@ fun VirtualBookFrame(
                 ) {
                     Text("🎇 FX", fontSize = 10.sp, fontWeight = FontWeight.Bold,
                         color = if (fxOn) Color.White else Color(0xFF94A3B8))
+                }
+                Spacer(Modifier.width(6.dp))
+                // Toggle de los marcos 3D ilustrados por género
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (frames3dOn) selectedStyle.accentColor else Color(0x33FFFFFF))
+                        .clickable { onToggleFrames3d(!frames3dOn) }
+                        .padding(horizontal = 8.dp, vertical = 5.dp)
+                ) {
+                    Text("🖼️ 3D", fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                        color = if (frames3dOn) Color.White else Color(0xFF94A3B8))
                 }
                 Spacer(Modifier.width(6.dp))
                 IconButton(onClick = { if (fontSizeSp > 12) fontSizeSp -= 2 }) {
@@ -392,18 +410,26 @@ fun VirtualBookFrame(
             // Marco ILUSTRADO por género (drop-in): si existe res/drawable/frame_<genero>
             // se superpone (PNG con centro transparente, sobre el texto); si no existe,
             // se mantiene el marco animado actual. Los PNG son la "segunda tanda".
-            val frames3dOn = remember {
-                ctx.getSharedPreferences("libris_progress", android.content.Context.MODE_PRIVATE)
-                    .getBoolean("frames_3d", false)
-            }
-            val frameRes = remember(selectedStyle) { genreFrameImage(ctx, selectedStyle) }
-            if (fxOn && frames3dOn && frameRes != 0) {
-                Image(
-                    painter = painterResource(frameRes),
-                    contentDescription = null,
-                    contentScale = ContentScale.FillBounds,
+            if (frames3dOn) {
+                androidx.compose.foundation.layout.BoxWithConstraints(
                     modifier = Modifier.matchParentSize()
-                )
+                ) {
+                    // Cada género trae dos versiones: vertical (3:4) y ancha
+                    // (16:9). Se elige la que coincide con la forma del hueco,
+                    // así el marco no se estira.
+                    val wide = maxWidth > maxHeight
+                    val frameRes = remember(selectedStyle, wide) {
+                        genreFrameImage(ctx, selectedStyle, wide)
+                    }
+                    if (frameRes != 0) {
+                        Image(
+                            painter = painterResource(frameRes),
+                            contentDescription = null,
+                            contentScale = ContentScale.FillBounds,
+                            modifier = Modifier.matchParentSize()
+                        )
+                    }
+                }
             }
 
             // Navegación
@@ -579,7 +605,11 @@ private fun resolveGenreFont(ctx: android.content.Context, style: BookBindingSty
  * marco; si no, devuelve 0 y se mantiene el marco animado actual (fallback).
  * Ver MARCOS_ILUSTRADOS_SPEC.md. Añadir marcos = soltar los PNG, sin tocar código.
  */
-private fun genreFrameImage(ctx: android.content.Context, style: BookBindingStyle): Int {
+private fun genreFrameImage(
+    ctx: android.content.Context,
+    style: BookBindingStyle,
+    wide: Boolean = false
+): Int {
     val name = when (style) {
         BookBindingStyle.CLASSIC    -> "frame_classic"
         BookBindingStyle.MEDIEVAL   -> "frame_medieval"
@@ -593,6 +623,10 @@ private fun genreFrameImage(ctx: android.content.Context, style: BookBindingStyl
         BookBindingStyle.POETRY     -> "frame_poetry"
         BookBindingStyle.NOIR       -> "frame_noir"
         BookBindingStyle.COSMIC     -> "frame_cosmic"
+    }
+    if (wide) {
+        val landscape = ctx.resources.getIdentifier(name + "_wide", "drawable", ctx.packageName)
+        if (landscape != 0) return landscape
     }
     return ctx.resources.getIdentifier(name, "drawable", ctx.packageName)
 }

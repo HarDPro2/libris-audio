@@ -109,6 +109,8 @@ fun PlayerScreen(
     onStopPlayback: () -> Unit = {},
     onReadNextPart: () -> Unit = {},
     onReadPreviousPart: () -> Unit = {},
+    frames3dEnabled: Boolean = false,
+    onToggleFrames3d: (Boolean) -> Unit = {},
     onPauseVoice: () -> Unit = {},
     bookmarks: List<BookmarkItem> = emptyList(),
     onAddBookmark: (String, Int, Long, String) -> Unit = { _, _, _, _ -> },
@@ -413,6 +415,8 @@ fun PlayerScreen(
                     onSeekTo = onSeekTo,
                     onNextPart = if (readOnly) onReadNextPart else onNextPart,
                     onPreviousPart = if (readOnly) onReadPreviousPart else onPreviousPart,
+                    frames3dEnabled = frames3dEnabled,
+                    onToggleFrames3d = onToggleFrames3d,
                     modifier = Modifier.weight(1f)
                 )
             } else {

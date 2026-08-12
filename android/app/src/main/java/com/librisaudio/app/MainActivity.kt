@@ -535,6 +535,8 @@ class MainActivity : ComponentActivity() {
                                 voiceProcessing = playerViewModel.voiceProcessing.collectAsState().value,
                                 voiceMessage = playerViewModel.voiceMessage.collectAsState().value,
                                 onClearVoiceMessage = { playerViewModel.clearVoiceMessage() },
+                                frames3dEnabled = frames3dEnabled,
+                                onToggleFrames3d = { playerViewModel.setFrames3d(it) },
                                 onClose = { isFullPlayerOpen = false }
                             )
                         }
