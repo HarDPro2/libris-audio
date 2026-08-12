@@ -266,11 +266,15 @@ fun VirtualBookFrame(
             }
         }
 
+        // Contenedor sin recorte: el marco base va dentro y el marco 3D se dibuja
+        // encima, más grande, para que su hueco coincida con el borde exterior
+        // del marco base y la decoración quede por fuera.
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+
         // Marco 3D del libro
         Box(
             modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
+                .fillMaxSize()
                 .shadow(20.dp, RoundedCornerShape(18.dp))
                 .clip(RoundedCornerShape(18.dp))
                 .background(Brush.verticalGradient(listOf(selectedStyle.paperTop, selectedStyle.paperBottom)))
@@ -410,27 +414,6 @@ fun VirtualBookFrame(
             // Marco ILUSTRADO por género (drop-in): si existe res/drawable/frame_<genero>
             // se superpone (PNG con centro transparente, sobre el texto); si no existe,
             // se mantiene el marco animado actual. Los PNG son la "segunda tanda".
-            if (frames3dOn) {
-                androidx.compose.foundation.layout.BoxWithConstraints(
-                    modifier = Modifier.matchParentSize()
-                ) {
-                    // Cada género trae dos versiones: vertical (3:4) y ancha
-                    // (16:9). Se elige la que coincide con la forma del hueco,
-                    // así el marco no se estira.
-                    val wide = maxWidth > maxHeight
-                    val frameRes = remember(selectedStyle, wide) {
-                        genreFrameImage(ctx, selectedStyle, wide)
-                    }
-                    if (frameRes != 0) {
-                        Image(
-                            painter = painterResource(frameRes),
-                            contentDescription = null,
-                            contentScale = ContentScale.FillBounds,
-                            modifier = Modifier.matchParentSize()
-                        )
-                    }
-                }
-            }
 
             // Navegación
             IconButton(
@@ -447,6 +430,68 @@ fun VirtualBookFrame(
             ) {
                 Icon(Icons.Default.NavigateNext, contentDescription = "Siguiente página", tint = selectedStyle.textColor)
             }
+        }   // fin del marco base
+
+            // Marco ILUSTRADO por género, por ENCIMA del marco base y sin
+            // recortar: se escala para que su hueco transparente coincida
+            // exactamente con el borde exterior del marco base, así la
+            // decoración (espada, hiedra, lupa…) queda por fuera.
+            if (frames3dOn) {
+                GenreFrame3d(style = selectedStyle)
+            }
+        }   // fin del contenedor sin recorte
+    }
+}
+
+/** Proporciones del hueco transparente de cada marco, medidas sobre el PNG. */
+private data class FrameWindow(val x: Float, val y: Float, val w: Float, val h: Float)
+private data class FrameKey(val style: BookBindingStyle, val wide: Boolean)
+
+private val FRAME_WINDOWS: Map<FrameKey, FrameWindow> = mapOf(
+    FrameKey(BookBindingStyle.CLASSIC, false)    to FrameWindow(0.1641f, 0.1372f, 0.6713f, 0.7176f),
+    FrameKey(BookBindingStyle.CLASSIC, true)     to FrameWindow(0.1498f, 0.1901f, 0.7004f, 0.6204f),
+    FrameKey(BookBindingStyle.MEDIEVAL, false)   to FrameWindow(0.1512f, 0.1427f, 0.6970f, 0.7197f),
+    FrameKey(BookBindingStyle.MEDIEVAL, true)    to FrameWindow(0.1945f, 0.1914f, 0.6117f, 0.6172f),
+    FrameKey(BookBindingStyle.SPIRITUAL, false)  to FrameWindow(0.2584f, 0.2167f, 0.4821f, 0.5661f),
+    FrameKey(BookBindingStyle.SPIRITUAL, true)   to FrameWindow(0.1747f, 0.2174f, 0.6590f, 0.5651f),
+    FrameKey(BookBindingStyle.WAR, false)        to FrameWindow(0.1518f, 0.1364f, 0.6964f, 0.6741f),
+    FrameKey(BookBindingStyle.WAR, true)         to FrameWindow(0.1509f, 0.1895f, 0.6985f, 0.6211f),
+    FrameKey(BookBindingStyle.LOVE, false)       to FrameWindow(0.1886f, 0.1598f, 0.6217f, 0.6791f),
+    FrameKey(BookBindingStyle.LOVE, true)        to FrameWindow(0.1656f, 0.2005f, 0.6769f, 0.6100f),
+    FrameKey(BookBindingStyle.PARANORMAL, false) to FrameWindow(0.1914f, 0.1431f, 0.6177f, 0.6925f),
+    FrameKey(BookBindingStyle.PARANORMAL, true)  to FrameWindow(0.1927f, 0.2298f, 0.6300f, 0.5462f),
+    FrameKey(BookBindingStyle.SCIENTIFIC, false) to FrameWindow(0.1953f, 0.1858f, 0.6088f, 0.6279f),
+    FrameKey(BookBindingStyle.SCIENTIFIC, true)  to FrameWindow(0.1509f, 0.1901f, 0.6989f, 0.6204f),
+    FrameKey(BookBindingStyle.COMEDY, false)     to FrameWindow(0.2065f, 0.1674f, 0.5865f, 0.6690f),
+    FrameKey(BookBindingStyle.COMEDY, true)      to FrameWindow(0.2385f, 0.2461f, 0.5315f, 0.5078f),
+    FrameKey(BookBindingStyle.FANTASY, false)    to FrameWindow(0.2567f, 0.2167f, 0.4877f, 0.5669f),
+    FrameKey(BookBindingStyle.FANTASY, true)     to FrameWindow(0.1897f, 0.2279f, 0.6168f, 0.5449f)
+)
+
+/**
+ * Dibuja el marco ilustrado del género escalado de modo que su hueco
+ * transparente cubra EXACTAMENTE el área del contenedor (el marco base).
+ * El resto de la imagen —la decoración— se sale por fuera, sin recorte.
+ * Es proporcional, así que se adapta solo a móvil, tablet y pantalla completa.
+ */
+@Composable
+private fun BoxScope.GenreFrame3d(style: BookBindingStyle) {
+    val ctx = LocalContext.current
+    BoxWithConstraints(modifier = Modifier.matchParentSize()) {
+        val wide = maxWidth > maxHeight
+        val res = remember(style, wide) { genreFrameImage(ctx, style, wide) }
+        val win = FRAME_WINDOWS[FrameKey(style, wide)]
+        if (res != 0 && win != null) {
+            val imgW = maxWidth / win.w
+            val imgH = maxHeight / win.h
+            Image(
+                painter = painterResource(res),
+                contentDescription = null,
+                contentScale = ContentScale.FillBounds,
+                modifier = Modifier
+                    .offset(x = -(imgW * win.x), y = -(imgH * win.y))
+                    .requiredSize(imgW, imgH)
+            )
         }
     }
 }
