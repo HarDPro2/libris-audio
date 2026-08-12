@@ -343,9 +343,10 @@ fun PlayerScreen(
 
               Spacer(modifier = Modifier.height(4.dp))
 
-              // Segunda fila: TODAS las acciones visibles, sin scroll
+              // Segunda fila de acciones. Son 9 iconos y en pantallas estrechas
+              // el ultimo (descargar) quedaba fuera: se hace desplazable.
               Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
               ) {

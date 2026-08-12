@@ -8,6 +8,7 @@ import androidx.compose.foundation.border
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.zIndex
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
@@ -192,7 +193,12 @@ fun VirtualBookFrame(
         // Barra compacta: dos desplegables (Temas / Efectos) + tamaño y fuente.
         // Antes eran dos filas siempre visibles que le robaban alto al libro y
         // acababan tapadas por la decoración del marco 3D.
-        if (showControls) Column(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+        if (showControls) Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .zIndex(1f)
+                .padding(bottom = 8.dp)
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -269,12 +275,7 @@ fun VirtualBookFrame(
         // Contenedor sin recorte: el marco base va dentro y el marco 3D se dibuja
         // encima, más grande, para que su hueco coincida con el borde exterior
         // del marco base y la decoración quede por fuera.
-        val bookPadding = when {
-            !frames3dOn   -> PaddingValues(0.dp)
-            showControls  -> PaddingValues(start = 8.dp, end = 8.dp, top = 2.dp, bottom = 26.dp)
-            else          -> PaddingValues(horizontal = 30.dp, vertical = 38.dp)
-        }
-        Box(modifier = Modifier.weight(1f).fillMaxWidth().padding(bookPadding)) {
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
 
         // Marco 3D del libro
         Box(
@@ -384,12 +385,7 @@ fun VirtualBookFrame(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
 
-                val bookPadding = when {
-            !frames3dOn   -> PaddingValues(0.dp)
-            showControls  -> PaddingValues(start = 8.dp, end = 8.dp, top = 2.dp, bottom = 26.dp)
-            else          -> PaddingValues(horizontal = 30.dp, vertical = 38.dp)
-        }
-        Box(modifier = Modifier.weight(1f).fillMaxWidth().padding(bookPadding)) {
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     if (isTextLoading) {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
