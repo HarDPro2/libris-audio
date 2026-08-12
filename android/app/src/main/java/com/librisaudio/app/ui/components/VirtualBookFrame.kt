@@ -6,6 +6,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -142,6 +143,7 @@ fun VirtualBookFrame(
     onPreviousPart: () -> Unit,
     frames3dEnabled: Boolean = false,
     onToggleFrames3d: (Boolean) -> Unit = {},
+    showControls: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val ctx = LocalContext.current
@@ -182,8 +184,10 @@ fun VirtualBookFrame(
             .fillMaxSize()
             .padding(12.dp)
     ) {
-        // Toolbar: estilos (scroll horizontal) + fuente
-        Column(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+        // Toolbar: estilos (scroll horizontal) + fuente. En pantalla completa se
+        // oculta entera: el libro se queda solo, con el botón de salir del modo
+        // inmersivo que ya dibuja PlayerScreen por encima.
+        if (showControls) Column(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -482,15 +486,25 @@ private fun BoxScope.GenreFrame3d(style: BookBindingStyle) {
         val res = remember(style, wide) { genreFrameImage(ctx, style, wide) }
         val win = FRAME_WINDOWS[FrameKey(style, wide)]
         if (res != 0 && win != null) {
-            val imgW = maxWidth / win.w
-            val imgH = maxHeight / win.h
+            // La imagen se dibuja del tamaño del contenedor y luego se ESCALA
+            // desde un punto fijo elegido para que el hueco caiga exactamente
+            // sobre el contenedor. Escala = 1/tamañoDelHueco; el origen que deja
+            // el hueco centrado es  x / (1 - ancho)  (misma fórmula en vertical).
             Image(
                 painter = painterResource(res),
                 contentDescription = null,
                 contentScale = ContentScale.FillBounds,
                 modifier = Modifier
-                    .offset(x = -(imgW * win.x), y = -(imgH * win.y))
-                    .requiredSize(imgW, imgH)
+                    .matchParentSize()
+                    .graphicsLayer {
+                        scaleX = 1f / win.w
+                        scaleY = 1f / win.h
+                        transformOrigin = TransformOrigin(
+                            pivotFractionX = win.x / (1f - win.w),
+                            pivotFractionY = win.y / (1f - win.h)
+                        )
+                        clip = false
+                    }
             )
         }
     }

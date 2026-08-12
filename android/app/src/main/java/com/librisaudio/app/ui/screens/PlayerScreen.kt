@@ -417,6 +417,7 @@ fun PlayerScreen(
                     onPreviousPart = if (readOnly) onReadPreviousPart else onPreviousPart,
                     frames3dEnabled = frames3dEnabled,
                     onToggleFrames3d = onToggleFrames3d,
+                    showControls = !isImmersive,
                     modifier = Modifier.weight(1f)
                 )
             } else {
