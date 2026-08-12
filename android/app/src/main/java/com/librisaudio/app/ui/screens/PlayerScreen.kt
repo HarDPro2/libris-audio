@@ -275,7 +275,20 @@ fun PlayerScreen(
                     }
                 }
 
-                // View Mode Switcher Pills (Cl�sico vs Libro 3D)
+                // Pantalla completa (cierra la fila superior)
+                TooltipIconButton(stringResource(R.string.player_fullscreen), onClick = { isImmersive = true }) {
+                    Icon(Icons.Default.Fullscreen, contentDescription = stringResource(R.string.player_fullscreen), tint = CyanAccent)
+                }
+              }
+
+              Spacer(modifier = Modifier.height(6.dp))
+
+              // Selector de modo de vista — fila propia y centrada (evita el descuadre/overflow)
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+              ) {
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(16.dp))
@@ -292,7 +305,7 @@ fun PlayerScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Headphones, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text(stringResource(R.string.player_mode_classic), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text(stringResource(R.string.player_mode_classic), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, softWrap = false)
                         }
                     }
 
@@ -306,7 +319,7 @@ fun PlayerScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Book, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text(stringResource(R.string.player_mode_book), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text(stringResource(R.string.player_mode_book), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, softWrap = false)
                         }
                     }
 
@@ -320,14 +333,9 @@ fun PlayerScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.MenuBook, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text(stringResource(R.string.player_mode_read), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text(stringResource(R.string.player_mode_read), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, softWrap = false)
                         }
                     }
-                }
-
-                // Pantalla completa (cierra la fila superior)
-                TooltipIconButton(stringResource(R.string.player_fullscreen), onClick = { isImmersive = true }) {
-                    Icon(Icons.Default.Fullscreen, contentDescription = stringResource(R.string.player_fullscreen), tint = CyanAccent)
                 }
               }
 
