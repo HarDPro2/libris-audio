@@ -128,6 +128,7 @@ class MainActivity : ComponentActivity() {
     private fun buildUi() {
         setContent {
             val currentTheme by playerViewModel.selectedTheme.collectAsState()
+            val frames3dEnabled by playerViewModel.frames3d.collectAsState()
 
             LibrisAudioTheme(preset = currentTheme) {
                 val authState by authViewModel.authState.collectAsState()
@@ -209,8 +210,20 @@ class MainActivity : ComponentActivity() {
                 var downloading by remember { mutableStateOf(false) }
                 var downloadProgress by remember { mutableStateOf(0) }
                 val updateScope = rememberCoroutineScope()
-                LaunchedEffect(Unit) {
-                    updateInfo = UpdateManager.checkForUpdate(BuildConfig.VERSION_NAME)
+                // Re-chequea al ARRANCAR y cada vez que se REABRE la app (ON_RESUME),
+                // no solo una vez por proceso: así la notificación llega aunque la app
+                // estuviera en segundo plano cuando salió la nueva versión.
+                DisposableEffect(Unit) {
+                    val obs = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                        if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME &&
+                            updateInfo == null && !updateDismissed && !downloading) {
+                            updateScope.launch {
+                                updateInfo = UpdateManager.checkForUpdate(BuildConfig.VERSION_NAME)
+                            }
+                        }
+                    }
+                    this@MainActivity.lifecycle.addObserver(obs)
+                    onDispose { this@MainActivity.lifecycle.removeObserver(obs) }
                 }
                 val info = updateInfo
                 if (info != null && !updateDismissed) {
@@ -459,6 +472,23 @@ class MainActivity : ComponentActivity() {
                                 onSelectLanguage = { tag ->
                                     com.librisaudio.app.util.LocaleHelper.setLang(this@MainActivity, tag)
                                     recreate()   // re-aplica el idioma vía attachBaseContext
+                                },
+                                frames3dEnabled = frames3dEnabled,
+                                onToggleFrames3d = { playerViewModel.setFrames3d(it) },
+                                onCheckUpdates = {
+                                    updateScope.launch {
+                                        val u = UpdateManager.checkForUpdate(BuildConfig.VERSION_NAME)
+                                        if (u != null) {
+                                            updateInfo = u
+                                            updateDismissed = false
+                                        } else {
+                                            android.widget.Toast.makeText(
+                                                this@MainActivity,
+                                                getString(R.string.updates_up_to_date),
+                                                android.widget.Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    }
                                 }
                             )
                         }

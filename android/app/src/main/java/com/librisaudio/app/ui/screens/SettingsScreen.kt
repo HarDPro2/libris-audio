@@ -79,6 +79,9 @@ fun SettingsScreen(
     onLogout: (() -> Unit)? = null,
     currentLang: String = "system",
     onSelectLanguage: (String) -> Unit = {},
+    frames3dEnabled: Boolean = false,
+    onToggleFrames3d: (Boolean) -> Unit = {},
+    onCheckUpdates: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showLogoutConfirm by remember { mutableStateOf(false) }
@@ -238,6 +241,38 @@ fun SettingsScreen(
                 }
             }
 
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // ─── Marcos 3D (premium, opt-in) ──────────────────────────────
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color(0x22FFFFFF))
+                    .clickable { onToggleFrames3d(!frames3dEnabled) }
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        stringResource(R.string.settings_frames3d_title),
+                        fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White
+                    )
+                    Text(
+                        stringResource(R.string.settings_frames3d_subtitle),
+                        fontSize = 11.sp, color = TextMuted
+                    )
+                }
+                Switch(
+                    checked = frames3dEnabled,
+                    onCheckedChange = { onToggleFrames3d(it) },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = currentTheme.primary
+                    )
+                )
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
 
             // ─── Achievements Section ─────────────────────────────────────
@@ -273,6 +308,19 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(stringResource(R.string.settings_logout), fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                 }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            OutlinedButton(
+                onClick = onCheckUpdates,
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = currentTheme.primary),
+                border = androidx.compose.foundation.BorderStroke(1.dp, currentTheme.primary.copy(alpha = 0.5f))
+            ) {
+                Icon(Icons.Default.SystemUpdate, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(stringResource(R.string.settings_check_updates), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
             }
 
             Spacer(modifier = Modifier.height(24.dp))

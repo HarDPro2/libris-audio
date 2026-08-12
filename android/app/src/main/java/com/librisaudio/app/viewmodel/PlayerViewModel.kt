@@ -171,6 +171,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         saveToCloud()
     }
 
+    // ── Marcos 3D ilustrados (premium, opt-in) ─────────────────────────────
+    // Cuando está activo, en el modo "Libro" se usa el marco ilustrado del
+    // género (res/drawable/frame_<genero>) si existe; si no, o si está apagado,
+    // se mantiene el marco animado actual.
+    private val _frames3d = MutableStateFlow(prefs.getBoolean("frames_3d", false))
+    val frames3d: StateFlow<Boolean> = _frames3d.asStateFlow()
+
+    fun setFrames3d(enabled: Boolean) {
+        _frames3d.value = enabled
+        prefs.edit().putBoolean("frames_3d", enabled).apply()
+    }
+
     // ── Sincronización en la nube (progreso + preferencias) ────────────────
     private var cloudUserId: String? = null
     private var cloudSaveJob: kotlinx.coroutines.Job? = null

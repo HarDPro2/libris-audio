@@ -71,6 +71,10 @@
 
     <!-- Ajustes (extra) -->
     <string name="settings_theme_subtitle">Cada tema tiene su propia animación de fondo</string>
+    <string name="settings_frames3d_title">Marcos 3D (Premium)</string>
+    <string name="settings_frames3d_subtitle">Marcos ilustrados por género en el modo Libro. Si está apagado, se usan los marcos animados.</string>
+    <string name="settings_check_updates">Buscar actualizaciones</string>
+    <string name="updates_up_to_date">Ya tienes la última versión</string>
     <string name="theme_neural">Red Neuronal</string>
     <string name="theme_quantum">Campo Cuántico</string>
     <string name="theme_matrix">Matrix</string>

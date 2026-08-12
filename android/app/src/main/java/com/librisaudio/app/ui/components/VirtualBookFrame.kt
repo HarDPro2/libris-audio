@@ -392,8 +392,12 @@ fun VirtualBookFrame(
             // Marco ILUSTRADO por género (drop-in): si existe res/drawable/frame_<genero>
             // se superpone (PNG con centro transparente, sobre el texto); si no existe,
             // se mantiene el marco animado actual. Los PNG son la "segunda tanda".
+            val frames3dOn = remember {
+                ctx.getSharedPreferences("libris_progress", android.content.Context.MODE_PRIVATE)
+                    .getBoolean("frames_3d", false)
+            }
             val frameRes = remember(selectedStyle) { genreFrameImage(ctx, selectedStyle) }
-            if (fxOn && frameRes != 0) {
+            if (fxOn && frames3dOn && frameRes != 0) {
                 Image(
                     painter = painterResource(frameRes),
                     contentDescription = null,
