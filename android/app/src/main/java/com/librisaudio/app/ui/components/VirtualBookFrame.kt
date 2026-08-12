@@ -156,6 +156,8 @@ fun VirtualBookFrame(
     // preferencia "frames_3d" que usa Ajustes), así el botón del reproductor y
     // el interruptor de Ajustes nunca se desincronizan.
     val frames3dOn = frames3dEnabled
+    var temasOpen by remember { mutableStateOf(false) }
+    var efectosOpen by remember { mutableStateOf(false) }
 
     val activeFont = remember(fontMode, selectedStyle) {
         when (fontMode) {
@@ -187,77 +189,24 @@ fun VirtualBookFrame(
         // Toolbar: estilos (scroll horizontal) + fuente. En pantalla completa se
         // oculta entera: el libro se queda solo, con el botón de salir del modo
         // inmersivo que ya dibuja PlayerScreen por encima.
+        // Barra compacta: dos desplegables (Temas / Efectos) + tamaño y fuente.
+        // Antes eran dos filas siempre visibles que le robaban alto al libro y
+        // acababan tapadas por la decoración del marco 3D.
         if (showControls) Column(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                BookBindingStyle.values().forEach { style ->
-                    val selected = selectedStyle == style
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(
-                                if (selected)
-                                    Brush.horizontalGradient(listOf(style.coverStart, style.coverEnd))
-                                else Brush.horizontalGradient(listOf(Color(0x331E293B), Color(0x331E293B)))
-                            )
-                            .clickable { selectedStyle = style }
-                            .padding(horizontal = 10.dp, vertical = 5.dp)
-                    ) {
-                        Text(
-                            text = "${style.emblem} ${style.title}",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (selected) Color.White else Color(0xFF94A3B8)
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.height(6.dp))
-            Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Resaltado sincronizado (karaoke) on/off
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (highlightOn) selectedStyle.accentColor else Color(0x33FFFFFF))
-                        .clickable { highlightOn = !highlightOn }
-                        .padding(horizontal = 8.dp, vertical = 5.dp)
-                ) {
-                    Text("✨ Sync", fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                        color = if (highlightOn) Color.White else Color(0xFF94A3B8))
+                ToolChip("🎨 Temas", temasOpen, selectedStyle.accentColor) {
+                    temasOpen = !temasOpen
+                    if (temasOpen) efectosOpen = false
                 }
                 Spacer(Modifier.width(6.dp))
-                // Toggle de la capa animada ambiental por género
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (fxOn) selectedStyle.accentColor else Color(0x33FFFFFF))
-                        .clickable { fxOn = !fxOn }
-                        .padding(horizontal = 8.dp, vertical = 5.dp)
-                ) {
-                    Text("🎇 FX", fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                        color = if (fxOn) Color.White else Color(0xFF94A3B8))
+                ToolChip("🎇 Efectos", efectosOpen, selectedStyle.accentColor) {
+                    efectosOpen = !efectosOpen
+                    if (efectosOpen) temasOpen = false
                 }
-                Spacer(Modifier.width(6.dp))
-                // Toggle de los marcos 3D ilustrados por género
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (frames3dOn) selectedStyle.accentColor else Color(0x33FFFFFF))
-                        .clickable { onToggleFrames3d(!frames3dOn) }
-                        .padding(horizontal = 8.dp, vertical = 5.dp)
-                ) {
-                    Text("🖼️ 3D", fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                        color = if (frames3dOn) Color.White else Color(0xFF94A3B8))
-                }
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.weight(1f))
                 IconButton(onClick = { if (fontSizeSp > 12) fontSizeSp -= 2 }) {
                     Text("A-", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold)
                 }
@@ -268,12 +217,64 @@ fun VirtualBookFrame(
                     Text(fontLabel, fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
                 }
             }
+
+            // Panel de temas
+            if (temasOpen) {
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    BookBindingStyle.values().forEach { style ->
+                        val selected = selectedStyle == style
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(
+                                    if (selected)
+                                        Brush.horizontalGradient(listOf(style.coverStart, style.coverEnd))
+                                    else Brush.horizontalGradient(listOf(Color(0x331E293B), Color(0x331E293B)))
+                                )
+                                .clickable { selectedStyle = style }
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                        ) {
+                            Text(
+                                text = "${style.emblem} ${style.title}",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (selected) Color.White else Color(0xFF94A3B8)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Panel de efectos
+            if (efectosOpen) {
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ToolChip("✨ Sync", highlightOn, selectedStyle.accentColor) { highlightOn = !highlightOn }
+                    ToolChip("🎇 FX", fxOn, selectedStyle.accentColor) { fxOn = !fxOn }
+                    ToolChip("🖼️ 3D", frames3dOn, selectedStyle.accentColor) { onToggleFrames3d(!frames3dOn) }
+                }
+            }
         }
 
         // Contenedor sin recorte: el marco base va dentro y el marco 3D se dibuja
         // encima, más grande, para que su hueco coincida con el borde exterior
         // del marco base y la decoración quede por fuera.
-        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+        val bookPadding = when {
+            !frames3dOn   -> PaddingValues(0.dp)
+            showControls  -> PaddingValues(start = 8.dp, end = 8.dp, top = 2.dp, bottom = 26.dp)
+            else          -> PaddingValues(horizontal = 30.dp, vertical = 38.dp)
+        }
+        Box(modifier = Modifier.weight(1f).fillMaxWidth().padding(bookPadding)) {
 
         // Marco 3D del libro
         Box(
@@ -383,7 +384,12 @@ fun VirtualBookFrame(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
 
-                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                val bookPadding = when {
+            !frames3dOn   -> PaddingValues(0.dp)
+            showControls  -> PaddingValues(start = 8.dp, end = 8.dp, top = 2.dp, bottom = 26.dp)
+            else          -> PaddingValues(horizontal = 30.dp, vertical = 38.dp)
+        }
+        Box(modifier = Modifier.weight(1f).fillMaxWidth().padding(bookPadding)) {
                     if (isTextLoading) {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -693,3 +699,18 @@ private fun genreFrameImage(
 // Helpers para el degradado del borde que se desplaza (shimmer)
 private fun Offset0(t: Float) = androidx.compose.ui.geometry.Offset(t * 300f, 0f)
 private fun Offset1(t: Float) = androidx.compose.ui.geometry.Offset(300f + t * 300f, 600f)
+
+/** Chip de la barra de herramientas del lector. */
+@Composable
+private fun ToolChip(label: String, active: Boolean, accent: Color, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (active) accent else Color(0x33FFFFFF))
+            .clickable { onClick() }
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    ) {
+        Text(label, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+            color = if (active) Color.White else Color(0xFF94A3B8))
+    }
+}

@@ -34,6 +34,13 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
+          # Cachea la distribución de Gradle y las dependencias: si el runner
+          # ya la tiene, no vuelve a descargarla y el build deja de depender
+          # de que services.gradle.org responda.
+          cache: 'gradle'
+          cache-dependency-path: |
+            android/*.gradle*
+            android/**/gradle-wrapper.properties
 
       # ── 4. Accept Android SDK licenses ───────────────────────────
       - name: Accept Android SDK licenses
