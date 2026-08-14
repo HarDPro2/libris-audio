@@ -471,7 +471,13 @@ private val FRAME_WINDOWS: Map<FrameKey, FrameWindow> = mapOf(
     FrameKey(BookBindingStyle.COMEDY, false)     to FrameWindow(0.2065f, 0.1674f, 0.5865f, 0.6690f),
     FrameKey(BookBindingStyle.COMEDY, true)      to FrameWindow(0.2385f, 0.2461f, 0.5315f, 0.5078f),
     FrameKey(BookBindingStyle.FANTASY, false)    to FrameWindow(0.2567f, 0.2167f, 0.4877f, 0.5669f),
-    FrameKey(BookBindingStyle.FANTASY, true)     to FrameWindow(0.1897f, 0.2279f, 0.6168f, 0.5449f)
+    FrameKey(BookBindingStyle.FANTASY, true)     to FrameWindow(0.1897f, 0.2279f, 0.6168f, 0.5449f),
+    FrameKey(BookBindingStyle.POETRY, false)     to FrameWindow(0.1590f, 0.1392f, 0.6456f, 0.7242f),
+    FrameKey(BookBindingStyle.POETRY, true)      to FrameWindow(0.1501f, 0.1855f, 0.7002f, 0.6289f),
+    FrameKey(BookBindingStyle.NOIR, false)       to FrameWindow(0.1669f, 0.1397f, 0.6680f, 0.7268f),
+    FrameKey(BookBindingStyle.NOIR, true)        to FrameWindow(0.1999f, 0.1862f, 0.5999f, 0.6283f),
+    FrameKey(BookBindingStyle.COSMIC, false)     to FrameWindow(0.2539f, 0.2180f, 0.4916f, 0.5674f),
+    FrameKey(BookBindingStyle.COSMIC, true)      to FrameWindow(0.1941f, 0.1901f, 0.6132f, 0.6198f)
 )
 
 /**
