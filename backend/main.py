@@ -19,6 +19,13 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 import edge_tts
 
+from extractores import (
+    extraer as extraer_documento,
+    DocumentoProtegido,
+    FormatoNoSoportado,
+    SOPORTADOS as FORMATOS_SOPORTADOS,
+)
+
 try:
     import fitz  # PyMuPDF
 except ImportError as ex:
@@ -656,30 +663,36 @@ async def upload_pdf(
     try:
         if not R2_ENDPOINT_URL:
             raise HTTPException(status_code=500, detail="Cloudflare R2 no configurado")
-        if not file.filename or not file.filename.lower().endswith(".pdf"):
-            raise HTTPException(status_code=400, detail="Solo se aceptan archivos PDF.")
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="Falta el nombre del archivo.")
 
         pdf_bytes = await file.read()
-        if len(pdf_bytes) == 0:
-            raise HTTPException(status_code=400, detail="El archivo PDF está vacío.")
 
+        # META 1 — normalizador universal. Todo formato (y en META 2 también el
+        # OCR) desemboca en la misma estructura Documento.
         try:
-            text = extract_text_from_pdf(pdf_bytes, max_pages=1000)
+            documento = extraer_documento(pdf_bytes, file.filename, title)
+        except DocumentoProtegido as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+        except FormatoNoSoportado as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
         except Exception as exc:
-            raise HTTPException(status_code=422, detail=f"No se pudo leer el PDF: {exc}")
+            raise HTTPException(status_code=422,
+                                detail=f"No se pudo leer el archivo: {exc}")
 
-        if not text:
+        if documento.necesita_ocr:
+            # META 2 lo resolverá con OCR. Hasta entonces, mensaje explícito.
             raise HTTPException(
                 status_code=422,
-                detail="El PDF no contiene texto extraíble (puede ser un PDF escaneado).",
+                detail="Este documento parece escaneado (no tiene texto seleccionable). "
+                       "El reconocimiento de texto aún no está disponible.",
             )
 
-        # Usar el título enviado por la app; si no viene, derivar del nombre de archivo
-        if not title or not title.strip():
-            raw_title = file.filename.rsplit(".", 1)[0]
-            title = raw_title.replace("_", " ").replace("-", " ").strip() or "Libro sin título"
-        else:
-            title = title.strip()
+        text  = documento.texto
+        title = documento.titulo
+        if not text.strip():
+            raise HTTPException(status_code=422,
+                                detail="No se pudo extraer texto del archivo.")
 
         chunks  = chunk_text(text, max_chars=3800)
         if not chunks:
@@ -690,7 +703,7 @@ async def upload_pdf(
         # Portada
         cover_url = None
         try:
-            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            doc = fitz.open(stream=pdf_bytes, filetype=documento.formato)
             if len(doc) > 0:
                 pix       = doc.load_page(0).get_pixmap(matrix=fitz.Matrix(1.5, 1.5))
                 cover_key = f"{book_id}/cover.png"
@@ -708,6 +721,21 @@ async def upload_pdf(
 
         await asyncio.gather(*[upload_chunk(i, c) for i, c in enumerate(chunks)])
         print(f"[Upload] {len(chunks)} partes subidas a R2 para {book_id}")
+
+        # Índice de capítulos (del TOC real del EPUB/MOBI/FB2, o heurístico en PDF)
+        try:
+            indice = {
+                "formato":   documento.formato,
+                "capitulos": documento.indice,
+                "total_caracteres": len(text),
+            }
+            await asyncio.to_thread(
+                r2_upload, f"{book_id}/index.json",
+                json.dumps(indice, ensure_ascii=False).encode("utf-8"),
+                "application/json; charset=utf-8")
+            print(f"[Upload] Índice con {len(documento.capitulos)} capítulos")
+        except Exception as e:
+            print(f"[Upload] Warning índice: {e}")
 
         # Registrar en Appwrite
         try:
@@ -733,6 +761,8 @@ async def upload_pdf(
             "bookId":     book_id,
             "partsCount": len(chunks),
             "coverUrl":   cover_url,
+            "format":     documento.formato,
+            "chapters":   len(documento.capitulos),
         })
 
     except HTTPException as http_exc:
@@ -946,6 +976,23 @@ async def delete_book(book_id_hex: str, authorization: str = Header(default=None
 
     _invalidate_book_meta(book_id_hex)
     return {"status": "deleted", "book_id": book_id_hex}
+
+
+@app.get("/api/formats")
+def supported_formats():
+    """Formatos que acepta la subida. La app lo usa para filtrar el selector."""
+    return {"formats": FORMATOS_SOPORTADOS}
+
+
+@app.get("/api/index/{book_id}")
+async def get_book_index(book_id: str, authorization: str = Header(default=None)):
+    """Índice de capítulos del documento. 404 si se subió antes de la META 1."""
+    await _assert_can_read(book_id, authorization)
+    try:
+        raw = await asyncio.to_thread(r2_download, f"{book_id}/index.json")
+        return JSONResponse(content=json.loads(raw.decode("utf-8")))
+    except Exception:
+        raise HTTPException(status_code=404, detail="Este documento no tiene índice.")
 
 
 # ---------------------------------------------------------------------------

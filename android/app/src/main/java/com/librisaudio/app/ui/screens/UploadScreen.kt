@@ -56,6 +56,9 @@ fun UploadScreen(
     var uploadProgress by remember { mutableStateOf("") }
     var uploadSuccess by remember { mutableStateOf(false) }
     var uploadError by remember { mutableStateOf("") }
+    // El backend detecta el formato por la extensión del nombre que le llega,
+    // así que hay que mandar el real y no uno fijo.
+    var selectedFileName by remember { mutableStateOf("documento.pdf") }
 
     val pdfLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -63,14 +66,17 @@ fun UploadScreen(
         selectedUri = uri
         uploadSuccess = false
         uploadError = ""
-        if (uri != null && bookTitle.isBlank()) {
-            // Auto-fill title from filename
+        if (uri != null) {
             val cursor = context.contentResolver.query(uri, null, null, null, null)
             cursor?.use {
                 val nameIndex = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
                 it.moveToFirst()
-                val fileName = it.getString(nameIndex) ?: "libro.pdf"
-                bookTitle = fileName.removeSuffix(".pdf").replace("_", " ").replace("-", " ").trim()
+                val fileName = it.getString(nameIndex) ?: "documento.pdf"
+                selectedFileName = fileName
+                if (bookTitle.isBlank()) {
+                    bookTitle = fileName.substringBeforeLast('.')
+                        .replace("_", " ").replace("-", " ").trim()
+                }
             }
         }
     }
@@ -109,7 +115,7 @@ fun UploadScreen(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(18.dp))
                     .background(Color(0x441E293B))
-                    .clickable { pdfLauncher.launch("application/pdf") }
+                    .clickable { pdfLauncher.launch("*/*") }
                     .padding(24.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -232,8 +238,8 @@ fun UploadScreen(
 
                                 val filePart = MultipartBody.Part.createFormData(
                                     "file",
-                                    "documento.pdf",
-                                    bytes.toRequestBody("application/pdf".toMediaTypeOrNull())
+                                    selectedFileName,
+                                    bytes.toRequestBody("application/octet-stream".toMediaTypeOrNull())
                                 )
                                 val titleBody = bookTitle.trim().toRequestBody("text/plain".toMediaTypeOrNull())
                                 val categoryBody = selectedCategory.toRequestBody("text/plain".toMediaTypeOrNull())
