@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'android/**'
+      - 'package.json'          # el versionName sale de aqui: un bump debe publicar release
       - '.github/workflows/build-android-apk.yml'
 
   workflow_dispatch:
