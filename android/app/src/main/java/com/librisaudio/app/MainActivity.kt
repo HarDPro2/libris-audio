@@ -215,6 +215,11 @@ class MainActivity : ComponentActivity() {
                 // estuviera en segundo plano cuando salió la nueva versión.
                 DisposableEffect(Unit) {
                     val obs = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                        if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                            // Sincronización multidispositivo: al volver a la app
+                            // se trae el progreso hecho en otro aparato.
+                            playerViewModel.syncNow()
+                        }
                         if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME &&
                             updateInfo == null && !updateDismissed && !downloading) {
                             updateScope.launch {

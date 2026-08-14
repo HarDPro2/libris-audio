@@ -194,6 +194,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         restoreFromCloud()
     }
 
+    /**
+     * Vuelve a traer el estado de la nube. Se llama al reabrir la app: sin
+     * esto, `restoreFromCloud` solo corría en el login y el progreso hecho en
+     * otro dispositivo no aparecía hasta cerrar sesión. Mismo fallo que tenía
+     * el auto-actualizador con LaunchedEffect(Unit).
+     */
+    fun syncNow() {
+        if (cloudUserId == null) return
+        if (_isPlaying.value) return   // no pisar una escucha en curso
+        restoreFromCloud()
+    }
+
     private fun restoreFromCloud() {
         val uid = cloudUserId ?: return
         viewModelScope.launch {
@@ -210,9 +222,17 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     _selectedVoice.value = v
                     editor.putString("voice", v)
                 }
+                // Fusión por libro: solo se acepta lo remoto si es MÁS RECIENTE
+                // que lo local. Antes se sobrescribía siempre, así que abrir la
+                // app en un móvil desactualizado borraba el avance del otro.
                 state.progress?.forEach { (bookId, pp) ->
-                    editor.putInt("part_$bookId", pp.part)
-                    editor.putLong("pos_$bookId", pp.pos)
+                    val locales = prefs.getLong("ts_$bookId", 0L)
+                    if (pp.updatedAt >= locales) {
+                        editor.putInt("part_$bookId", pp.part)
+                        editor.putLong("pos_$bookId", pp.pos)
+                        if (pp.pct > 0) editor.putInt("pct_$bookId", pp.pct)
+                        editor.putLong("ts_$bookId", pp.updatedAt)
+                    }
                 }
                 val started = (state.started ?: emptyList()).toMutableSet()
                 state.progress?.keys?.let { started.addAll(it) }
@@ -257,8 +277,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 val started = prefs.getStringSet("started_books", emptySet()) ?: emptySet()
                 val progress = started.associateWith { bid ->
                     com.librisaudio.app.data.model.PartPos(
-                        prefs.getInt("part_$bid", 0),
-                        prefs.getLong("pos_$bid", 0L)
+                        part = prefs.getInt("part_$bid", 0),
+                        pos = prefs.getLong("pos_$bid", 0L),
+                        pct = prefs.getInt("pct_$bid", 0),
+                        updatedAt = prefs.getLong("ts_$bid", 0L)
                     )
                 }
                 val dto = com.librisaudio.app.data.model.UserStateDto(
@@ -496,6 +518,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         prefs.edit()
             .putInt("part_$bookId", partIndex)
             .putInt("pct_$bookId", progressPct)
+            .putLong("ts_$bookId", System.currentTimeMillis())
             .apply()
     }
 
@@ -686,7 +709,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun savePosition(bookId: String, positionMs: Long) {
-        prefs.edit().putLong("pos_${bookId}", positionMs.coerceAtLeast(0L)).apply()
+        prefs.edit()
+            .putLong("pos_${bookId}", positionMs.coerceAtLeast(0L))
+            .putLong("ts_${bookId}", System.currentTimeMillis())
+            .apply()
     }
 
     fun togglePlayPause() {

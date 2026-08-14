@@ -1,9 +1,18 @@
 package com.librisaudio.app.data.model
 
-/** Parte y posición (ms) de un libro en el progreso del usuario. */
+/**
+ * Parte y posición (ms) de un libro en el progreso del usuario.
+ *
+ * `updatedAt` es lo que permite la sincronización real entre dispositivos: al
+ * fusionar, gana el progreso MÁS RECIENTE de cada libro por separado. Sin esta
+ * marca, el último dispositivo que guardaba pisaba al otro aunque su progreso
+ * fuera más viejo.
+ */
 data class PartPos(
     val part: Int = 0,
-    val pos: Long = 0L
+    val pos: Long = 0L,
+    val pct: Int = 0,
+    val updatedAt: Long = 0L
 )
 
 /** Estadísticas de escucha (racha, tiempo) para conservarlas entre dispositivos. */
