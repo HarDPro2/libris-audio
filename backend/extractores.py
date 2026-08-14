@@ -44,6 +44,7 @@ class Documento:
     capitulos: list[Capitulo] = field(default_factory=list)
     necesita_ocr: bool = False          # META 2 lo usará como disparador
     aviso: str | None = None
+    idioma: str | None = None           # 'es' | 'en' | None (META 3.9)
 
     @property
     def texto(self) -> str:
@@ -57,6 +58,42 @@ class Documento:
             salida.append({"titulo": c.titulo, "capitulo": c.indice, "offset": cursor})
             cursor += len(c.texto) + 1
         return salida
+
+
+# ---------------------------------------------------------------------------
+# Detección de idioma — META 3.9 (karaoke para aprender idiomas)
+#
+# Sin dependencias: cuenta palabras vacías características de cada idioma.
+# Solo distingue español e inglés, que es lo que soportan las voces.
+# ---------------------------------------------------------------------------
+
+_VACIAS_ES = {"de","la","que","el","en","y","a","los","del","se","las","por",
+              "un","para","con","no","una","su","al","es","lo","como","más",
+              "pero","sus","le","ya","o","este","sí","porque","esta","son",
+              "entre","cuando","muy","sin","sobre","también","me","hasta",
+              "hay","donde","quien","desde","todo","nos","durante","todos"}
+_VACIAS_EN = {"the","of","and","to","in","is","it","you","that","he","was",
+              "for","on","are","as","with","his","they","at","be","this",
+              "have","from","or","one","had","by","word","but","not","what",
+              "all","were","we","when","your","can","said","there","use",
+              "each","which","she","do","how","their","if","will","about"}
+
+
+def detectar_idioma(texto: str) -> str | None:
+    """Devuelve 'es', 'en' o None si no hay señal suficiente."""
+    palabras = re.findall(r"[a-záéíóúñüA-ZÁÉÍÓÚÑÜ']+", texto[:20000].lower())
+    if len(palabras) < 30:
+        return None
+    es = sum(1 for p in palabras if p in _VACIAS_ES)
+    en = sum(1 for p in palabras if p in _VACIAS_EN)
+    if es == en == 0:
+        return None
+    # Se exige una diferencia clara para no adivinar a ciegas.
+    if es >= en * 1.4:
+        return "es"
+    if en >= es * 1.4:
+        return "en"
+    return None
 
 
 class DocumentoProtegido(Exception):
@@ -418,6 +455,14 @@ def extraer(datos: bytes, nombre_archivo: str, titulo: str | None = None,
         nombre_archivo.rsplit(".", 1)[0].replace("_", " ").replace("-", " ").strip() or \
         "Documento sin título"
 
+    doc = _extraer_segun_formato(datos, ext, titulo, filtro_academico)
+    if doc.idioma is None:
+        doc.idioma = detectar_idioma(doc.texto)
+    return doc
+
+
+def _extraer_segun_formato(datos: bytes, ext: str, titulo: str,
+                           filtro_academico: bool) -> Documento:
     if ext == "docx":
         return _extraer_docx(datos, titulo)
     if ext in PLANOS and ext != "txt":

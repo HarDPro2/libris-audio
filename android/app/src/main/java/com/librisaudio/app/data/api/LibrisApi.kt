@@ -45,6 +45,10 @@ interface LibrisApiService {
         @Body body: UserStateDto
     ): ResponseBody
 
+    /** Índice de capítulos e idioma detectado del documento (META 1 / 3.9). */
+    @GET("api/index/{bookId}")
+    suspend fun getBookIndex(@Path("bookId") bookId: String): BookIndexDto
+
     /** Quita el libro del historial del usuario. No borra contenido. */
     @DELETE("api/library/{bookId}")
     suspend fun removeFromLibrary(

@@ -95,7 +95,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             _downloadingBookId.value = book.bookId
             _downloadProgress.value = 0
-            offline.download(book, _selectedVoice.value) { done, total ->
+            offline.download(book, voiceEfectiva()) { done, total ->
                 _downloadProgress.value = if (total > 0) done * 100 / total else 0
             }
             _downloadingBookId.value = null
@@ -200,6 +200,37 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      * otro dispositivo no aparecía hasta cerrar sesión. Mismo fallo que tenía
      * el auto-actualizador con LaunchedEffect(Unit).
      */
+    // ── META 3.9 — voz según el idioma del documento ──────────────────────
+    //
+    // Un PDF en inglés leído con voz española es inservible para hacer
+    // shadowing. Cuando el documento está en otro idioma se usa una voz de ese
+    // idioma SOLO para ese libro: la voz preferida del usuario no se toca, así
+    // que al volver a un libro en español sigue oyendo la suya.
+    private val _idiomaDocumento = MutableStateFlow<String?>(null)
+    val idiomaDocumento: StateFlow<String?> = _idiomaDocumento.asStateFlow()
+
+    private var voiceOverride: String? = null
+
+    /** Voz que se usa realmente para reproducir. */
+    private fun voiceEfectiva(): String = voiceOverride ?: _selectedVoice.value
+
+    private fun aplicarIdiomaDocumento(bookId: String) {
+        viewModelScope.launch {
+            val idioma = try {
+                ApiClient.backendService.getBookIndex(bookId).language
+            } catch (_: Exception) { null }
+            _idiomaDocumento.value = idioma
+            val preferida = _selectedVoice.value
+            voiceOverride = when {
+                idioma == "en" && !preferida.startsWith("en-") ->
+                    com.librisaudio.app.data.model.VoiceCatalog.DEFAULT_EN
+                idioma == "es" && !preferida.startsWith("es-") ->
+                    com.librisaudio.app.data.model.VoiceCatalog.DEFAULT
+                else -> null
+            }
+        }
+    }
+
     fun syncNow() {
         if (cloudUserId == null) return
         if (_isPlaying.value) return   // no pisar una escucha en curso
@@ -285,7 +316,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 }
                 val dto = com.librisaudio.app.data.model.UserStateDto(
                     theme = _selectedTheme.value.name,
-                    voice = _selectedVoice.value,
+                    voice = voiceEfectiva(),
                     progress = progress,
                     started = started.toList(),
                     favorites = _favorites.value.toList(),
@@ -386,6 +417,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun setVoice(voiceId: String) {
         if (voiceId == _selectedVoice.value) return
+        // Elección manual: gana siempre sobre la detección automática.
+        voiceOverride = null
         _selectedVoice.value = voiceId
         prefs.edit().putString("voice", voiceId).apply()
         saveToCloud()
@@ -523,6 +556,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun playBook(book: Book, partIndex: Int = 0, seekToMs: Long = 0L) {
+        if (_currentBook.value?.bookId != book.bookId) aplicarIdiomaDocumento(book.bookId)
         _currentBook.value = book
         _currentPartIndex.value = partIndex
 
@@ -545,12 +579,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
         // Load text + word timings for Libro 3D / karaoke (non-blocking)
         loadPartText(book.bookId, partIndex)
-        loadTiming(book.bookId, partIndex, _selectedVoice.value)
+        loadTiming(book.bookId, partIndex, voiceEfectiva())
         // Predescarga: el backend genera y cachea la SIGUIENTE parte (una sola,
         // para no saturar) → al avanzar no hay espera ni cortes.
-        prefetchNextPart(book, partIndex, _selectedVoice.value)
+        prefetchNextPart(book, partIndex, voiceEfectiva())
 
-        val voice = _selectedVoice.value
+        val voice = voiceEfectiva()
         mediaController?.let { player ->
             // Playlist COMPLETA de todas las partes. Ventajas:
             //  • El control por sistema (Assistant, Android Auto, notificación,
@@ -606,8 +640,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             else it
         }
         loadPartText(book.bookId, newIdx)
-        loadTiming(book.bookId, newIdx, _selectedVoice.value)
-        prefetchNextPart(book, newIdx, _selectedVoice.value)
+        loadTiming(book.bookId, newIdx, voiceEfectiva())
+        prefetchNextPart(book, newIdx, voiceEfectiva())
     }
 
     /** Pausa la voz (para entrar al modo Solo Lectura). */

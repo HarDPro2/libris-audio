@@ -727,6 +727,7 @@ async def upload_pdf(
         try:
             indice = {
                 "formato":   documento.formato,
+                "idioma":    documento.idioma,
                 "capitulos": documento.indice,
                 "total_caracteres": len(text),
             }
@@ -764,6 +765,7 @@ async def upload_pdf(
             "coverUrl":   cover_url,
             "format":     documento.formato,
             "chapters":   len(documento.capitulos),
+            "language":   documento.idioma,
             "notice":     documento.aviso,
         })
 
