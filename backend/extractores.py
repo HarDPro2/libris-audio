@@ -142,16 +142,70 @@ _SOLO_NUMERO   = re.compile(r"^\d+$")
 _PAGINA        = re.compile(r"(p[áa]gina|page|pág\.?)\s*\d+$", re.IGNORECASE)
 _GUION_NUMERO  = re.compile(r"^[-–—\s]*\d+[-–—\s]*$")
 
+# ── Filtro de ruido académico (META 3.1) ────────────────────────────────────
+# Escuchar un PDF universitario sin esto es una tortura: la voz lee en alto
+# cada cita bibliográfica, cada URL y cada número de nota al pie.
+# ES CONFIGURABLE a propósito: un investigador puede querer oír las citas que
+# un estudiante quiere saltarse.
 
-def limpiar_bloque(texto: str) -> str:
+# (Freud, 1915, p. 43) · (cf. Lacan 1966) · (2020) · (ibíd., p. 12) · [12]
+_CITA_PARENTESIS = re.compile(
+    r"\(\s*(?:cf\.|véase|vease|ver|see|ibid\.?|ibíd\.?|op\.\s*cit\.?|et\s*al\.?)?[^()]{0,80}?"
+    r"(?:\b\d{4}[a-z]?\b|\bp{1,2}\.\s*\d+|\bpág{1,2}\.?\s*\d+)[^()]{0,40}\)",
+    re.IGNORECASE)
+_CITA_CORCHETES  = re.compile(r"\[\s*\d+(?:\s*[,–-]\s*\d+)*\s*\]")
+_URL             = re.compile(r"(https?://|www\.)\S+", re.IGNORECASE)
+_DOI             = re.compile(r"\bdoi:\s*\S+|\b10\.\d{4,}/\S+", re.IGNORECASE)
+_CORREO          = re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.]+\b")
+# Línea que es solo la marca de una nota al pie: "12 Ibíd., p. 44."
+_NOTA_PIE        = re.compile(r"^\d{1,3}\s+(ib[íi]d|op\.\s*cit|v[ée]ase|cf\.|\[)", re.IGNORECASE)
+_ESPACIO_ANTES   = re.compile(r"\s+([,.;:!?])")
+
+
+def _quitar_ruido_academico(texto: str) -> str:
+    texto = _URL.sub(" ", texto)
+    texto = _DOI.sub(" ", texto)
+    texto = _CORREO.sub(" ", texto)
+    texto = _CITA_PARENTESIS.sub(" ", texto)
+    texto = _CITA_CORCHETES.sub(" ", texto)
+    texto = _ESPACIO_ANTES.sub(r"\1", texto)
+    return texto
+
+
+def limpiar_bloque(texto: str, filtro_academico: bool = True,
+                   repetidas: set | None = None) -> str:
+    """
+    `repetidas` son las líneas que aparecen en casi todas las páginas
+    (encabezados y pies de página); se calculan a nivel de documento.
+    """
     lineas = []
     for linea in texto.splitlines():
         s = linea.strip()
         if not s or _SOLO_NUMERO.match(s) or _PAGINA.search(s) or _GUION_NUMERO.match(s):
             continue
+        if repetidas and s in repetidas:
+            continue
+        if filtro_academico and _NOTA_PIE.match(s):
+            continue
         lineas.append(s)
     salida = " ".join(lineas)
+    if filtro_academico:
+        salida = _quitar_ruido_academico(salida)
     return re.sub(r"  +", " ", salida).strip()
+
+
+def _lineas_repetidas(paginas_crudas: list[str], umbral: float = 0.5) -> set:
+    """Encabezados y pies: líneas cortas que salen en más de la mitad de las páginas."""
+    if len(paginas_crudas) < 4:
+        return set()
+    from collections import Counter
+    c = Counter()
+    for pagina in paginas_crudas:
+        vistas = {l.strip() for l in pagina.splitlines()
+                  if 3 < len(l.strip()) < 90}
+        c.update(vistas)
+    minimo = max(3, int(len(paginas_crudas) * umbral))
+    return {linea for linea, n in c.items() if n >= minimo}
 
 
 # ---------------------------------------------------------------------------
@@ -162,7 +216,11 @@ def limpiar_bloque(texto: str) -> str:
 # ---------------------------------------------------------------------------
 
 OCR_IDIOMAS   = "spa+eng"
-OCR_MAX_PAGS  = 60      # techo de coste: un libro entero escaneado es caro
+# Medido: ~6.7 s por página densa a 200 DPI. 20 páginas ≈ 135 s, que cabe
+# holgadamente en el timeout de 300 s de Cloud Run. Con 60 páginas se iba a
+# 404 s y la petición moría. Subir este número exige mover el OCR a una tarea
+# en segundo plano con consulta de estado.
+OCR_MAX_PAGS  = 20
 OCR_DPI       = 200     # suficiente para texto impreso; 300 casi no mejora
 
 
@@ -207,7 +265,8 @@ _MIN_CARACTERES_POR_PAGINA = 25   # por debajo de esto, es un escaneo
 
 
 def _extraer_mupdf(datos: bytes, ext: str, titulo: str,
-                   permitir_ocr: bool = True) -> Documento:
+                   permitir_ocr: bool = True,
+                   filtro_academico: bool = True) -> Documento:
     tipo = MUPDF.get(ext, ext)
     doc = fitz.open(stream=datos, filetype=tipo)
 
@@ -223,7 +282,9 @@ def _extraer_mupdf(datos: bytes, ext: str, titulo: str,
         if nivel <= 2 and pagina >= 1:
             inicios.setdefault(pagina - 1, nombre.strip() or f"Capítulo {len(inicios)+1}")
 
-    paginas = [limpiar_bloque(doc.load_page(i).get_text()) for i in range(doc.page_count)]
+    crudas   = [doc.load_page(i).get_text() for i in range(doc.page_count)]
+    repetidas = _lineas_repetidas(crudas)
+    paginas  = [limpiar_bloque(t, filtro_academico, repetidas) for t in crudas]
     total_paginas = doc.page_count
     doc.close()
 
@@ -328,7 +389,8 @@ def _extraer_docx(datos: bytes, titulo: str) -> Documento:
 # Entrada única
 # ---------------------------------------------------------------------------
 
-def extraer(datos: bytes, nombre_archivo: str, titulo: str | None = None) -> Documento:
+def extraer(datos: bytes, nombre_archivo: str, titulo: str | None = None,
+            filtro_academico: bool = True) -> Documento:
     """
     Convierte cualquier archivo soportado en un `Documento` normalizado.
 
@@ -362,7 +424,7 @@ def extraer(datos: bytes, nombre_archivo: str, titulo: str | None = None) -> Doc
         return _extraer_plano(datos, ext, titulo)
     if ext in KINDLE:
         # Sin DRM, un AZW3/PRC es un MOBI: MuPDF lo abre.
-        return _extraer_mupdf(datos, "mobi", titulo)
+        return _extraer_mupdf(datos, "mobi", titulo, filtro_academico=filtro_academico)
     if ext in IMAGENES:
         doc = _extraer_mupdf(datos, "jpeg" if ext in ("jpg", "jpeg") else ext, titulo)
         doc.formato = ext
@@ -371,5 +433,5 @@ def extraer(datos: bytes, nombre_archivo: str, titulo: str | None = None) -> Doc
                          "Prueba con una foto más nítida y bien iluminada.")
         return doc
     if ext in MUPDF:
-        return _extraer_mupdf(datos, ext, titulo)
+        return _extraer_mupdf(datos, ext, titulo, filtro_academico=filtro_academico)
     return _extraer_plano(datos, ext, titulo)

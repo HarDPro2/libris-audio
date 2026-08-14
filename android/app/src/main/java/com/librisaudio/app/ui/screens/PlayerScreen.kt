@@ -231,7 +231,10 @@ fun PlayerScreen(
         }
     }
 
-    val speeds = listOf(1.0f, 1.25f, 1.5f, 1.75f, 2.0f)
+    // META 3.2 — hasta 4x. Media3 usa Sonic para el estiramiento temporal, que
+    // conserva el tono, así que la voz no se agudiza al acelerar. Muy pedido
+    // por estudiantes en época de exámenes.
+    val speeds = listOf(1.0f, 1.25f, 1.5f, 1.75f, 2.0f, 2.5f, 3.0f, 4.0f)
 
     val infiniteTransition = rememberInfiniteTransition(label = "AuraPulse")
     val auraGlow by infiniteTransition.animateFloat(
@@ -555,20 +558,25 @@ fun PlayerScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
+                // Con 8 velocidades ya no caben repartiendo el ancho: la fila
+                // se desplaza y cada chip ocupa lo que necesita. (weight(1f)
+                // además es incompatible con una fila con scroll horizontal.)
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     speeds.forEach { speed ->
                         val isSelected = playbackSpeed == speed
                         Box(
                             modifier = Modifier
-                                .weight(1f)
+                                .widthIn(min = 52.dp)
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(if (isSelected) currentTheme.primary else Color(0x331E293B))
                                 .clickable { onSelectSpeed(speed) }
-                                .padding(vertical = 6.dp),
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
