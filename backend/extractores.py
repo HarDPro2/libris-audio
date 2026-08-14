@@ -76,13 +76,15 @@ MUPDF = {
     "pdf": "pdf", "epub": "epub", "mobi": "mobi", "fb2": "fb2",
     "xps": "xps", "cbz": "cbz", "txt": "txt",
 }
+# Foto de una página del libro hecha con el móvil. Siempre pasa por OCR.
+IMAGENES = {"jpg", "jpeg", "png", "webp", "tif", "tiff", "bmp"}
 # Texto plano que tratamos nosotros para conservar la estructura.
 PLANOS = {"txt", "md", "markdown", "html", "htm", "xhtml"}
 # Kindle: en la práctica siempre llevan DRM. Solo pasan los que no lo tengan.
 KINDLE = {"azw", "azw3", "azw4", "kfx", "prc"}
 OTROS  = {"docx"}
 
-SOPORTADOS = sorted(set(MUPDF) | PLANOS | KINDLE | OTROS)
+SOPORTADOS = sorted(set(MUPDF) | PLANOS | KINDLE | OTROS | IMAGENES)
 
 
 def extension(nombre: str) -> str:
@@ -153,13 +155,59 @@ def limpiar_bloque(texto: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# OCR — META 2
+#
+# Se activa solo cuando el documento no trae capa de texto. Rellena el MISMO
+# `Documento` que el resto de extractores, así que nada del pipeline cambia.
+# ---------------------------------------------------------------------------
+
+OCR_IDIOMAS   = "spa+eng"
+OCR_MAX_PAGS  = 60      # techo de coste: un libro entero escaneado es caro
+OCR_DPI       = 200     # suficiente para texto impreso; 300 casi no mejora
+
+
+def ocr_disponible() -> bool:
+    try:
+        import pytesseract
+        pytesseract.get_tesseract_version()
+        return True
+    except Exception:
+        return False
+
+
+def _ocr_pagina(pagina) -> str:
+    """Rasteriza una página y la pasa por Tesseract."""
+    import pytesseract
+    from PIL import Image
+    pix = pagina.get_pixmap(dpi=OCR_DPI)
+    img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+    return pytesseract.image_to_string(img, lang=OCR_IDIOMAS)
+
+
+def _ocr_documento(datos: bytes, tipo: str) -> tuple[list[str], int, bool]:
+    """Devuelve (textos_por_pagina, paginas_procesadas, se_trunco)."""
+    doc = fitz.open(stream=datos, filetype=tipo)
+    total = doc.page_count
+    limite = min(total, OCR_MAX_PAGS)
+    textos = []
+    for i in range(limite):
+        try:
+            textos.append(limpiar_bloque(_ocr_pagina(doc.load_page(i))))
+        except Exception:
+            textos.append("")
+    doc.close()
+    return textos, limite, total > limite
+
+
+# ---------------------------------------------------------------------------
 # Extractores
 # ---------------------------------------------------------------------------
 
 _MIN_CARACTERES_POR_PAGINA = 25   # por debajo de esto, es un escaneo
 
 
-def _extraer_mupdf(datos: bytes, ext: str, titulo: str) -> Documento:
+def _extraer_mupdf(datos: bytes, ext: str, titulo: str,
+                   permitir_ocr: bool = True) -> Documento:
     tipo = MUPDF.get(ext, ext)
     doc = fitz.open(stream=datos, filetype=tipo)
 
@@ -181,6 +229,16 @@ def _extraer_mupdf(datos: bytes, ext: str, titulo: str) -> Documento:
 
     caracteres = sum(len(p) for p in paginas)
     necesita_ocr = total_paginas > 0 and (caracteres / total_paginas) < _MIN_CARACTERES_POR_PAGINA
+    aviso = None
+
+    # AQUÍ es donde META 2 rellena el hueco que dejó META 1.
+    if necesita_ocr and permitir_ocr and ocr_disponible():
+        textos, procesadas, truncado = _ocr_documento(datos, tipo)
+        if sum(len(t) for t in textos) > 0:
+            paginas = textos + [""] * (total_paginas - len(textos))
+            necesita_ocr = False
+            aviso = (f"Texto reconocido por OCR de las primeras {procesadas} páginas."
+                     if truncado else "Texto reconocido por OCR.")
 
     capitulos: list[Capitulo] = []
     actual = Capitulo(titulo=inicios.get(0, "Inicio"), indice=0)
@@ -195,7 +253,7 @@ def _extraer_mupdf(datos: bytes, ext: str, titulo: str) -> Documento:
         capitulos.append(actual)
 
     return Documento(titulo=titulo, formato=ext, capitulos=capitulos,
-                     necesita_ocr=necesita_ocr)
+                     necesita_ocr=necesita_ocr, aviso=aviso)
 
 
 _ETIQUETAS = re.compile(r"<[^>]+>")
@@ -305,6 +363,13 @@ def extraer(datos: bytes, nombre_archivo: str, titulo: str | None = None) -> Doc
     if ext in KINDLE:
         # Sin DRM, un AZW3/PRC es un MOBI: MuPDF lo abre.
         return _extraer_mupdf(datos, "mobi", titulo)
+    if ext in IMAGENES:
+        doc = _extraer_mupdf(datos, "jpeg" if ext in ("jpg", "jpeg") else ext, titulo)
+        doc.formato = ext
+        if doc.necesita_ocr:
+            doc.aviso = ("No se pudo reconocer texto en la imagen. "
+                         "Prueba con una foto más nítida y bien iluminada.")
+        return doc
     if ext in MUPDF:
         return _extraer_mupdf(datos, ext, titulo)
     return _extraer_plano(datos, ext, titulo)

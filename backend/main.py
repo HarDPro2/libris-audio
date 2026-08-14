@@ -681,11 +681,12 @@ async def upload_pdf(
                                 detail=f"No se pudo leer el archivo: {exc}")
 
         if documento.necesita_ocr:
-            # META 2 lo resolverá con OCR. Hasta entonces, mensaje explícito.
+            # El OCR ya corrió y no sacó nada legible (o no está instalado).
             raise HTTPException(
                 status_code=422,
-                detail="Este documento parece escaneado (no tiene texto seleccionable). "
-                       "El reconocimiento de texto aún no está disponible.",
+                detail=documento.aviso or
+                       "Este documento parece escaneado y no se pudo reconocer su texto. "
+                       "Prueba con un escaneo más nítido.",
             )
 
         text  = documento.texto
@@ -763,6 +764,7 @@ async def upload_pdf(
             "coverUrl":   cover_url,
             "format":     documento.formato,
             "chapters":   len(documento.capitulos),
+            "notice":     documento.aviso,
         })
 
     except HTTPException as http_exc:
