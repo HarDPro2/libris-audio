@@ -45,6 +45,7 @@ fun LibraryScreen(
     currentUserEmail: String = "",
     onBookSelect: (Book) -> Unit,
     onDeleteBook: (Book) -> Unit,
+    onRemoveFromLibrary: (Book) -> Unit = {},
     onEditBook: (Book, String, String) -> Unit,
     lastBookId: String = "",
     onContinue: (Book) -> Unit = {},
@@ -271,6 +272,7 @@ fun LibraryScreen(
                                 currentUserEmail = currentUserEmail,
                                 onBookClick = { onBookSelect(book) },
                                 onDeleteBook = onDeleteBook,
+                                onRemoveFromLibrary = onRemoveFromLibrary,
                                 onEditBook = onEditBook,
                                 isFavorite = book.bookId in favorites,
                                 onToggleFavorite = onToggleFavorite

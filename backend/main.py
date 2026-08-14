@@ -980,6 +980,68 @@ async def delete_book(book_id_hex: str, authorization: str = Header(default=None
     return {"status": "deleted", "book_id": book_id_hex}
 
 
+@app.get("/api/export-mp3/{book_id}")
+async def export_mp3(book_id: str, voice: str = "es-MX-JorgeNeural",
+                     authorization: str = Header(default=None)):
+    """
+    META 3.6 — descarga el libro entero como un solo MP3.
+
+    Une las partes YA generadas y cacheadas en R2. No genera nada nuevo a
+    propósito: un libro largo tardaría más que el timeout de Cloud Run y
+    dejaría al usuario esperando sin respuesta. Si faltan partes, se dice
+    cuántas y el cliente las genera reproduciéndolas o descargándolas.
+    """
+    await _assert_can_read(book_id, authorization)
+
+    safe_voice = sanitize_filename(voice)
+    claves = await asyncio.to_thread(r2_list_prefix, f"{book_id}/audio/")
+    partes = []
+    for k in claves:
+        m = re.search(rf"part_(\d+)_{re.escape(safe_voice)}\.mp3$", k)
+        if m:
+            partes.append((int(m.group(1)), k))
+    partes.sort()
+
+    if not partes:
+        raise HTTPException(
+            status_code=409,
+            detail="Todavía no hay audio generado para este libro con esa voz. "
+                   "Escúchalo o descárgalo primero y vuelve a intentarlo.",
+        )
+
+    destino = f"{book_id}/export/completo_{safe_voice}.mp3"
+    if not await asyncio.to_thread(r2_exists, destino):
+        import subprocess, tempfile, shutil
+        tmp = Path(tempfile.mkdtemp(prefix="export_"))
+        try:
+            lista = tmp / "lista.txt"
+            with open(lista, "w", encoding="utf-8") as f:
+                for idx, clave in partes:
+                    local = tmp / f"p{idx:05}.mp3"
+                    local.write_bytes(await asyncio.to_thread(r2_download, clave))
+                    f.write(f"file '{local.as_posix()}'\n")
+            salida = tmp / "completo.mp3"
+            # ffmpeg ya está en la imagen (lo instala el Dockerfile)
+            proc = await asyncio.to_thread(
+                subprocess.run,
+                ["ffmpeg", "-y", "-f", "concat", "-safe", "0",
+                 "-i", str(lista), "-c", "copy", str(salida)],
+                capture_output=True)
+            if proc.returncode != 0 or not salida.exists():
+                raise HTTPException(status_code=500,
+                                    detail="No se pudo unir el audio.")
+            await asyncio.to_thread(r2_upload, destino,
+                                    salida.read_bytes(), "audio/mpeg")
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    return {
+        "url": r2_public_url(destino),
+        "parts": len(partes),
+        "voice": voice,
+    }
+
+
 @app.get("/api/formats")
 def supported_formats():
     """Formatos que acepta la subida. La app lo usa para filtrar el selector."""

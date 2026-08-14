@@ -430,6 +430,9 @@ class MainActivity : ComponentActivity() {
                                 currentUserEmail = session?.email ?: "",
                                 onBookSelect = { selectedBook -> playerViewModel.resumeBook(selectedBook) },
                                 onDeleteBook = { book -> playerViewModel.deleteBook(book, session?.sessionId ?: "") },
+                                onRemoveFromLibrary = { book ->
+                                    playerViewModel.removeFromLibrary(book.bookId, session?.sessionId ?: "")
+                                },
                                 onEditBook  = { book, newTitle, newCat -> playerViewModel.editBook(book, newTitle, newCat, session?.sessionId ?: "") },
                                 lastBookId = playerViewModel.lastBookId.collectAsState().value,
                                 onContinue = { book -> playerViewModel.resumeBook(book) },

@@ -157,6 +157,13 @@ fun VirtualBookFrame(
     // preferencia "frames_3d" que usa Ajustes), así el botón del reproductor y
     // el interruptor de Ajustes nunca se desincronizan.
     val frames3dOn = frames3dEnabled
+    // META 3.5 — modo lectura fácil. Interlineado y espaciado amplios, sin
+    // justificar: es lo que más ayuda a la lectura con dislexia, junto con la
+    // tipografía. Se persiste porque quien lo necesita lo quiere siempre.
+    val lecturaPrefs = remember {
+        ctx.getSharedPreferences("libris_progress", android.content.Context.MODE_PRIVATE)
+    }
+    var lecturaFacil by remember { mutableStateOf(lecturaPrefs.getBoolean("lectura_facil", false)) }
     var temasOpen by remember { mutableStateOf(false) }
     var efectosOpen by remember { mutableStateOf(false) }
 
@@ -268,6 +275,10 @@ fun VirtualBookFrame(
                     ToolChip("✨ Sync", highlightOn, selectedStyle.accentColor) { highlightOn = !highlightOn }
                     ToolChip("🎇 FX", fxOn, selectedStyle.accentColor) { fxOn = !fxOn }
                     ToolChip("🖼️ 3D", frames3dOn, selectedStyle.accentColor) { onToggleFrames3d(!frames3dOn) }
+                    ToolChip("🔠 Fácil", lecturaFacil, selectedStyle.accentColor) {
+                        lecturaFacil = !lecturaFacil
+                        lecturaPrefs.edit().putBoolean("lectura_facil", lecturaFacil).apply()
+                    }
                 }
             }
         }
@@ -404,7 +415,8 @@ fun VirtualBookFrame(
                             accent = selectedStyle.accentColor,
                             textColor = selectedStyle.textColor,
                             fontSizeSp = fontSizeSp,
-                            fontFamily = activeFont,
+                            fontFamily = if (lecturaFacil) FontFamily.SansSerif else activeFont,
+                            lecturaFacil = lecturaFacil,
                             onSeekTo = onSeekTo
                         )
                     }
@@ -556,8 +568,12 @@ private fun ReadingText(
     textColor: Color,
     fontSizeSp: Int,
     fontFamily: FontFamily,
+    lecturaFacil: Boolean = false,
     onSeekTo: (Long) -> Unit
 ) {
+    // Valores del modo lectura fácil: más aire entre líneas y entre letras.
+    val alturaLinea  = if (lecturaFacil) 2.0f else 1.6f
+    val espaciadoSp  = if (lecturaFacil) 0.08f else 0.0f
     if (text.isEmpty()) {
         Text(
             "Selecciona un libro y pulsa reproducir para ver el texto aquí.",
@@ -575,7 +591,8 @@ private fun ReadingText(
                 text = text,
                 fontSize = fontSizeSp.sp,
                 fontFamily = fontFamily,
-                lineHeight = (fontSizeSp * 1.6).sp,
+                lineHeight = (fontSizeSp * alturaLinea).sp,
+                letterSpacing = (fontSizeSp * espaciadoSp).sp,
                 color = textColor,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -622,7 +639,8 @@ private fun ReadingText(
             text = annotated,
             fontSize = fontSizeSp.sp,
             fontFamily = fontFamily,
-            lineHeight = (fontSizeSp * 1.6).sp,
+            lineHeight = (fontSizeSp * alturaLinea).sp,
+            letterSpacing = (fontSizeSp * espaciadoSp).sp,
             color = textColor,
             onTextLayout = { layout = it },
             modifier = Modifier

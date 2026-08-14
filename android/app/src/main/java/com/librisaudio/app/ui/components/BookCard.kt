@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.PlaylistRemove
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -37,6 +38,9 @@ fun BookCard(
     onBookClick: () -> Unit,
     onDeleteBook: ((Book) -> Unit)? = null,
     onEditBook: ((Book, String, String) -> Unit)? = null,
+    // Modo 1 de borrado: quita el libro del historial/biblioteca del usuario.
+    // No borra contenido y vale para CUALQUIER libro, también los del catálogo.
+    onRemoveFromLibrary: ((Book) -> Unit)? = null,
     isFavorite: Boolean = false,
     onToggleFavorite: ((Book) -> Unit)? = null,
     modifier: Modifier = Modifier
@@ -113,7 +117,11 @@ fun BookCard(
                             )
                         }
                     }
-                    if (isOwner) {
+                    // El menú aparece si hay algo que ofrecer: quitar de la
+                    // biblioteca (todos) o editar/eliminar (solo propietario).
+                    val enBiblioteca = book.progressPercent > 0
+                    val hayMenu = isOwner || (onRemoveFromLibrary != null && enBiblioteca)
+                    if (hayMenu) {
                         Box {
                             IconButton(onClick = { showMenu = true }, modifier = Modifier.size(36.dp)) {
                                 Icon(
@@ -128,16 +136,28 @@ fun BookCard(
                                 onDismissRequest = { showMenu = false },
                                 modifier = Modifier.background(Color(0xFF1E293B))
                             ) {
-                                DropdownMenuItem(
-                                    text = { Text("Editar nombre/categoría", color = Color.White) },
-                                    onClick = { showMenu = false; showEditDialog = true },
-                                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = currentTheme.primary) }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Eliminar libro", color = Color(0xFFEF4444)) },
-                                    onClick = { showMenu = false; showDeleteConfirm = true },
-                                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFEF4444)) }
-                                )
+                                if (onRemoveFromLibrary != null && enBiblioteca) {
+                                    DropdownMenuItem(
+                                        text = { Text("Quitar de mi biblioteca", color = Color.White) },
+                                        onClick = { showMenu = false; onRemoveFromLibrary(book) },
+                                        leadingIcon = {
+                                            Icon(Icons.Default.PlaylistRemove, contentDescription = null,
+                                                 tint = Color(0xFF94A3B8))
+                                        }
+                                    )
+                                }
+                                if (isOwner) {
+                                    DropdownMenuItem(
+                                        text = { Text("Editar nombre/categoría", color = Color.White) },
+                                        onClick = { showMenu = false; showEditDialog = true },
+                                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = currentTheme.primary) }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Eliminar definitivamente", color = Color(0xFFEF4444)) },
+                                        onClick = { showMenu = false; showDeleteConfirm = true },
+                                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFEF4444)) }
+                                    )
+                                }
                             }
                         }
                     }
@@ -200,8 +220,16 @@ fun BookCard(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Eliminar libro", color = Color.White) },
-            text = { Text("¿Seguro que quieres eliminar \"${book.title}\"? Esta acción no se puede deshacer.", color = Color(0xFF94A3B8)) },
+            title = { Text("Eliminar definitivamente", color = Color.White) },
+            text = {
+                Text(
+                    "Se borrará \"${book.title}\" por completo: el documento, su texto y " +
+                    "todo el audio generado. Esta acción no se puede deshacer.\n\n" +
+                    "Si solo quieres que desaparezca de tu biblioteca, usa " +
+                    "\"Quitar de mi biblioteca\".",
+                    color = Color(0xFF94A3B8)
+                )
+            },
             confirmButton = {
                 TextButton(onClick = { showDeleteConfirm = false; onDeleteBook?.invoke(book) }) {
                     Text("Eliminar", color = Color(0xFFEF4444))
