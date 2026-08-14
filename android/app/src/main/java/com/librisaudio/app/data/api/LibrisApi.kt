@@ -1,5 +1,6 @@
 package com.librisaudio.app.data.api
 
+import com.librisaudio.app.data.model.BookIndexDto
 import com.librisaudio.app.data.model.GlobalBookDto
 import com.librisaudio.app.data.model.UserBookDto
 import com.librisaudio.app.data.model.UserStateDto
