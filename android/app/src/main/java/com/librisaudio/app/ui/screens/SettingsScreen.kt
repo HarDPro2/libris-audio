@@ -181,7 +181,7 @@ fun SettingsScreen(
             ) {
                 Icon(Icons.Default.HelpOutline, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(stringResource(R.string.settings_help), fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                Text(stringResource(R.string.guia_open), fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
             }
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -533,35 +533,9 @@ private fun GuideDialog(currentTheme: AppThemePreset, onDismiss: () -> Unit) {
             color = Color(0xFF0F172A),
             modifier = Modifier.fillMaxWidth(0.95f).fillMaxHeight(0.85f)
         ) {
-            Column(modifier = Modifier.fillMaxSize().padding(20.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.HelpOutline, contentDescription = null, tint = currentTheme.primary)
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.guide_title), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    Spacer(Modifier.weight(1f))
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_close), tint = TextMuted)
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-                Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                    GuideItem(stringResource(R.string.guide_s1_title), stringResource(R.string.guide_s1_body))
-                    GuideItem(stringResource(R.string.guide_s2_title), stringResource(R.string.guide_s2_body))
-                    GuideItem(stringResource(R.string.guide_s3_title), stringResource(R.string.guide_s3_body))
-                    GuideItem(stringResource(R.string.guide_s4_title), stringResource(R.string.guide_s4_body))
-                    GuideItem(stringResource(R.string.guide_s5_title), stringResource(R.string.guide_s5_body))
-                    GuideItem(stringResource(R.string.guide_s6_title), stringResource(R.string.guide_s6_body))
-                }
-            }
+            // Antes aqui vivia una guia de seis puntos que cubria menos de un
+            // tercio de la app. La sustituye el catalogo completo de funciones.
+            GuiaScreen(currentTheme = currentTheme, onBack = onDismiss)
         }
-    }
-}
-
-@Composable
-private fun GuideItem(title: String, body: String) {
-    Column(modifier = Modifier.padding(vertical = 8.dp)) {
-        Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        Spacer(Modifier.height(4.dp))
-        Text(body, fontSize = 13.sp, color = TextMuted, lineHeight = 18.sp)
     }
 }

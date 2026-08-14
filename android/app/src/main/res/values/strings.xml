@@ -20,19 +20,6 @@
     <string name="logout_confirm_msg">¿Seguro que quieres salir de tu cuenta?</string>
     <string name="settings_help">Guía de uso</string>
     <string name="settings_section_help">❓ Ayuda</string>
-    <string name="guide_title">Guía de uso</string>
-    <string name="guide_s1_title">🎧 Reproductor</string>
-    <string name="guide_s1_body">Toca un libro para empezar. Usa ▶/⏸ para reproducir o pausar. Mantén pulsado cualquier icono para ver su nombre.</string>
-    <string name="guide_s2_title">📖 Modos de lectura</string>
-    <string name="guide_s2_body">Clásico (solo audio), Libro (texto resaltado al ritmo de la voz) y Leer (solo texto, sin narración).</string>
-    <string name="guide_s3_title">⬇️ Descargas</string>
-    <string name="guide_s3_body">Toca el icono de descarga en el reproductor para guardar un libro y oírlo sin conexión. Encuéntralos en la pestaña Descargas.</string>
-    <string name="guide_s4_title">🎙️ Voz y velocidad</string>
-    <string name="guide_s4_body">Cambia el narrador con el icono de voz y ajusta la velocidad de lectura a tu gusto.</string>
-    <string name="guide_s5_title">✨ Asistente IA</string>
-    <string name="guide_s5_body">Pregúntale a la IA sobre el libro que escuchas. Puedes usar tu propia API key de OpenRouter para más cuota.</string>
-    <string name="guide_s6_title">👤 Perfil e idioma</string>
-    <string name="guide_s6_body">Personaliza tu nombre y avatar, elige el tema visual y cambia el idioma de la app desde Ajustes.</string>
 
     <!-- Selector de idioma -->
     <string name="language_system">Automático (sistema)</string>
@@ -198,9 +185,11 @@
     <string name="music_volume">Volumen de Música de Fondo</string>
     <string name="music_choose">Elige una obra maestra:</string>
     <string name="music_none">🔇 Sin música de fondo</string>
-    <!-- META 3.7 — secciones del selector segun el genero del libro -->
+    <!-- META 3.7 — selector de musica por genero -->
     <string name="music_for_genre">Para %1$s</string>
     <string name="music_rest">Resto del catálogo</string>
+    <string name="music_shuffle">🔀 Aleatorio (va cambiando)</string>
+    <string name="music_shuffle_hint">Baraja las pistas del género del libro</string>
 
     <!-- Diálogo: Perfil -->
     <string name="profile_title">Mi Perfil</string>
@@ -272,4 +261,90 @@
     <string name="info_database">🗄️ Base de datos</string>
     <string name="info_auth">🔐 Autenticación</string>
     <string name="info_version">📱 Versión</string>
+
+    <!-- Pantalla: Todo lo que puedes hacer -->
+    <string name="guia_title">Todo lo que puedes hacer</string>
+    <string name="guia_intro">Libris Audio hace bastante más de lo que se ve a primera vista. Aquí está todo, con dónde se toca cada cosa.</string>
+    <string name="guia_g_library">Tu biblioteca</string>
+    <string name="guia_upload_t">Sube tus propios libros</string>
+    <string name="guia_upload_d">Convierte cualquier documento tuyo en audiolibro. Acepta más de 20 formatos: PDF, EPUB, MOBI, AZW3, FB2, CBZ, DOCX, TXT y más.</string>
+    <string name="guia_upload_h">Pestaña Subir, en la barra de abajo.</string>
+    <string name="guia_ocr_t">Lee documentos escaneados</string>
+    <string name="guia_ocr_d">Si el PDF es una foto de las páginas y no tiene texto, la app lo reconoce con OCR en español e inglés y lo lee igual.</string>
+    <string name="guia_ocr_h">Automático al subir. No hay que activar nada.</string>
+    <string name="guia_lang_t">Detecta el idioma del libro</string>
+    <string name="guia_lang_d">Reconoce si el documento está en español o inglés y elige una voz nativa de ese idioma.</string>
+    <string name="guia_lang_h">Automático. Puedes cambiar la voz a mano cuando quieras.</string>
+    <string name="guia_edit_t">Corrige título y categoría</string>
+    <string name="guia_edit_d">Si el nombre salió mal del archivo, lo cambias. La categoría además decide el marco y la música del libro.</string>
+    <string name="guia_edit_h">Botón Editar, debajo de tus libros en la biblioteca.</string>
+    <string name="guia_delete_t">Dos formas de borrar</string>
+    <string name="guia_delete_d">Quitar saca el libro de tu biblioteca pero no borra nada. Borrar elimina de verdad el documento, su texto y su audio, y solo aparece en los libros que subiste tú.</string>
+    <string name="guia_delete_h">Botones Quitar y Borrar, debajo de cada libro.</string>
+    <string name="guia_fav_t">Favoritos</string>
+    <string name="guia_fav_d">Marca los libros que quieres tener a mano.</string>
+    <string name="guia_fav_h">Corazón, arriba a la derecha de la portada.</string>
+    <string name="guia_g_listen">Escuchar</string>
+    <string name="guia_voices_t">Voces naturales</string>
+    <string name="guia_voices_d">Varias voces de hombre y mujer en español e inglés, con entonación natural.</string>
+    <string name="guia_voices_h">Icono de voz, en la barra del reproductor.</string>
+    <string name="guia_speed_t">Velocidad hasta 4x</string>
+    <string name="guia_speed_d">Acelera sin que la voz suene aguda: el tono se mantiene aunque vayas al cuádruple.</string>
+    <string name="guia_speed_h">Botón de velocidad en el reproductor. 1x, 1.25x, 1.5x, 1.75x, 2x, 2.5x, 3x y 4x.</string>
+    <string name="guia_karaoke_t">Karaoke palabra por palabra</string>
+    <string name="guia_karaoke_d">La palabra que suena se resalta en el texto. Y puedes tocar cualquier palabra para saltar el audio justo ahí.</string>
+    <string name="guia_karaoke_h">Botón ✨ Sync dentro del libro 3D.</string>
+    <string name="guia_marks_t">Marcadores</string>
+    <string name="guia_marks_d">Guarda el punto exacto donde vas, con su parte y su segundo.</string>
+    <string name="guia_marks_h">Icono de marcador en el reproductor.</string>
+    <string name="guia_sleep_t">Temporizador de sueño</string>
+    <string name="guia_sleep_d">Se apaga solo pasado el tiempo que elijas, para escuchar en la cama sin perder la página.</string>
+    <string name="guia_sleep_h">Icono de reloj en el reproductor.</string>
+    <string name="guia_car_t">Modo coche</string>
+    <string name="guia_car_d">Pantalla con botones enormes para usar de un vistazo mientras conduces.</string>
+    <string name="guia_car_h">Icono de coche en el reproductor.</string>
+    <string name="guia_voicecmd_t">Comandos de voz</string>
+    <string name="guia_voicecmd_d">Controla la lectura hablando: reproducir, pausar, adelantar, atrás, más rápido, más lento, parar, ir a una parte, o preguntar por dónde vas.</string>
+    <string name="guia_voicecmd_h">Icono de micrófono en el reproductor.</string>
+    <string name="guia_g_immersive">Lectura inmersiva</string>
+    <string name="guia_frames_t">Marcos 3D por género</string>
+    <string name="guia_frames_d">Doce ambientaciones ilustradas —clásico, medieval, fantasía, romance, paranormal, negra, cósmico y más— que enmarcan el texto. El marco se elige solo según el género del libro.</string>
+    <string name="guia_frames_h">Botón 🎨 Temas dentro del libro 3D. El 🖼️ 3D los activa o desactiva.</string>
+    <string name="guia_fx_t">Efectos ambientales</string>
+    <string name="guia_fx_d">Capa animada acorde al género: ceniza en guerra, lluvia en novela negra, estrellas en cósmico, pétalos en romance.</string>
+    <string name="guia_fx_h">Botón 🎇 Efectos dentro del libro 3D.</string>
+    <string name="guia_music_t">Música de fondo</string>
+    <string name="guia_music_d">Quince piezas clásicas de dominio público que suenan bajo la narración. En modo aleatorio va cambiando sola entre las que pegan con el género; o eliges una concreta y se queda en bucle.</string>
+    <string name="guia_music_h">Icono de nota musical en el reproductor. También ajustas ahí el volumen.</string>
+    <string name="guia_easy_t">Modo lectura fácil</string>
+    <string name="guia_easy_d">Interlineado y espaciado amplios, sin justificar. Pensado para leer con más comodidad y para dislexia.</string>
+    <string name="guia_easy_h">Botón 🔠 Fácil dentro del libro 3D. Se recuerda siempre.</string>
+    <string name="guia_theme_t">Temas de color</string>
+    <string name="guia_theme_d">Cambia la paleta de toda la app.</string>
+    <string name="guia_theme_h">Ajustes, arriba del todo.</string>
+    <string name="guia_g_study">Estudiar</string>
+    <string name="guia_chat_t">Pregúntale al libro</string>
+    <string name="guia_chat_d">Chat con IA sobre lo que estás leyendo: resúmenes, dudas, explicaciones de un pasaje concreto.</string>
+    <string name="guia_chat_h">Icono de chat en el reproductor. Puedes poner tu propia clave de OpenRouter en Ajustes para tener más cuota.</string>
+    <string name="guia_modes_t">Tres modos de lectura</string>
+    <string name="guia_modes_d">Clásico es solo audio. Libro muestra el texto resaltado al ritmo de la voz. Leer es solo texto, sin narración.</string>
+    <string name="guia_modes_h">Selector de modo, en la parte de arriba del reproductor.</string>
+    <string name="guia_stats_t">Tus estadísticas</string>
+    <string name="guia_stats_d">Cuánto has escuchado, cuántos libros llevas y tu racha.</string>
+    <string name="guia_stats_h">Icono de estadísticas en el reproductor.</string>
+    <string name="guia_g_anywhere">En cualquier sitio</string>
+    <string name="guia_offline_t">Descarga y escucha sin datos</string>
+    <string name="guia_offline_d">Guarda las partes en el móvil y siguen sonando sin conexión, con su texto y su karaoke.</string>
+    <string name="guia_offline_h">Icono de descarga en el reproductor. Se gestionan en la pestaña Descargas.</string>
+    <string name="guia_sync_t">Sigue en otro dispositivo</string>
+    <string name="guia_sync_d">Tu punto de lectura viaja contigo: cierras en el móvil y continúas donde ibas en otro sitio.</string>
+    <string name="guia_sync_h">Automático mientras tengas la sesión iniciada.</string>
+    <string name="guia_applang_t">App en español o inglés</string>
+    <string name="guia_applang_d">Toda la interfaz cambia de idioma.</string>
+    <string name="guia_applang_h">Ajustes, apartado de idioma.</string>
+    <string name="guia_update_t">Actualizaciones</string>
+    <string name="guia_update_d">La app avisa cuando hay versión nueva y la instala sola.</string>
+    <string name="guia_update_h">Automático, o Buscar actualizaciones en Ajustes.</string>
+    <string name="guia_open">Todo lo que puedes hacer</string>
+    <string name="guia_open_sub">Guía de las funciones de la app</string>
 </resources>

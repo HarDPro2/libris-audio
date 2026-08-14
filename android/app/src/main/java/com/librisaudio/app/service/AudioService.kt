@@ -97,11 +97,32 @@ class AudioService : MediaLibraryService() {
 
     fun playBackgroundTrack(url: String, volume: Float = 0.25f) {
         val item = MediaItem.fromUri(url)
+        // Pista fija: se repite ella sola y sin barajar. Hay que forzarlo aqui
+        // porque el modo aleatorio deja el reproductor en ALL + shuffle.
+        backgroundMusicPlayer.shuffleModeEnabled = false
+        backgroundMusicPlayer.repeatMode = Player.REPEAT_MODE_ONE
         backgroundMusicPlayer.setMediaItem(item)
         backgroundMusicPlayer.volume = volume
         backgroundMusicPlayer.prepare()
         // Arranca siempre al seleccionar (ambiente independiente de la voz —
         // así también suena en el modo lectura con la voz en pausa).
+        backgroundMusicPlayer.playWhenReady = true
+        backgroundMusicPlayer.play()
+    }
+
+    /**
+     * Modo aleatorio: se le pasa la lista entera y ExoPlayer se encarga de
+     * barajar y encadenar. No hay temporizador propio ni logica de "siguiente
+     * pista" — el reproductor ya sabe hacerlo y ademas cruza las pistas sin
+     * hueco de silencio.
+     */
+    fun playBackgroundPlaylist(urls: List<String>, volume: Float = 0.25f) {
+        if (urls.isEmpty()) { stopBackgroundTrack(); return }
+        backgroundMusicPlayer.setMediaItems(urls.map { MediaItem.fromUri(it) })
+        backgroundMusicPlayer.shuffleModeEnabled = true
+        backgroundMusicPlayer.repeatMode = Player.REPEAT_MODE_ALL
+        backgroundMusicPlayer.volume = volume
+        backgroundMusicPlayer.prepare()
         backgroundMusicPlayer.playWhenReady = true
         backgroundMusicPlayer.play()
     }
@@ -141,6 +162,7 @@ class AudioService : MediaLibraryService() {
         ): MediaSession.ConnectionResult {
             val customCommands = setOf(
                 SessionCommand("SET_BACKGROUND_TRACK",  Bundle.EMPTY),
+                SessionCommand("SET_BACKGROUND_SHUFFLE", Bundle.EMPTY),
                 SessionCommand("STOP_BACKGROUND_TRACK", Bundle.EMPTY),
                 SessionCommand("SET_BACKGROUND_VOLUME", Bundle.EMPTY),
                 SessionCommand(CMD_SEEK_BACK, Bundle.EMPTY),
@@ -167,6 +189,11 @@ class AudioService : MediaLibraryService() {
                     val url    = args.getString("url") ?: return Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_BAD_VALUE))
                     val volume = args.getFloat("volume", 0.25f)
                     playBackgroundTrack(url, volume)
+                }
+                "SET_BACKGROUND_SHUFFLE" -> {
+                    val urls   = args.getStringArrayList("urls") ?: arrayListOf()
+                    val volume = args.getFloat("volume", 0.25f)
+                    playBackgroundPlaylist(urls, volume)
                 }
                 "STOP_BACKGROUND_TRACK" -> stopBackgroundTrack()
                 "SET_BACKGROUND_VOLUME" -> {

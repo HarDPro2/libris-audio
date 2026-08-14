@@ -10,7 +10,6 @@ import androidx.compose.material.icons.filled.PlaylistRemove
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -51,7 +50,6 @@ fun BookCard(
         (currentUserId.isNotBlank() && book.addedBy == currentUserId) ||
         (currentUserEmail.isNotBlank() && book.addedBy.equals(currentUserEmail, ignoreCase = true))
     )
-    var showMenu by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
@@ -117,50 +115,6 @@ fun BookCard(
                             )
                         }
                     }
-                    // El menú aparece si hay algo que ofrecer: quitar de la
-                    // biblioteca (todos) o editar/eliminar (solo propietario).
-                    val enBiblioteca = book.progressPercent > 0
-                    val hayMenu = isOwner || (onRemoveFromLibrary != null && enBiblioteca)
-                    if (hayMenu) {
-                        Box {
-                            IconButton(onClick = { showMenu = true }, modifier = Modifier.size(36.dp)) {
-                                Icon(
-                                    Icons.Default.MoreVert,
-                                    contentDescription = "Opciones",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                            DropdownMenu(
-                                expanded = showMenu,
-                                onDismissRequest = { showMenu = false },
-                                modifier = Modifier.background(Color(0xFF1E293B))
-                            ) {
-                                if (onRemoveFromLibrary != null && enBiblioteca) {
-                                    DropdownMenuItem(
-                                        text = { Text("Quitar de mi biblioteca", color = Color.White) },
-                                        onClick = { showMenu = false; onRemoveFromLibrary(book) },
-                                        leadingIcon = {
-                                            Icon(Icons.Default.PlaylistRemove, contentDescription = null,
-                                                 tint = Color(0xFF94A3B8))
-                                        }
-                                    )
-                                }
-                                if (isOwner) {
-                                    DropdownMenuItem(
-                                        text = { Text("Editar nombre/categoría", color = Color.White) },
-                                        onClick = { showMenu = false; showEditDialog = true },
-                                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = currentTheme.primary) }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Eliminar definitivamente", color = Color(0xFFEF4444)) },
-                                        onClick = { showMenu = false; showDeleteConfirm = true },
-                                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFEF4444)) }
-                                    )
-                                }
-                            }
-                        }
-                    }
                 }
                 // Progress bar at bottom
                 if (book.progressPercent > 0) {
@@ -198,6 +152,48 @@ fun BookCard(
                         fontSize = 10.sp,
                         color = currentTheme.secondary
                     )
+                }
+
+                // ── Acciones ─────────────────────────────────────────────────
+                // Antes esto era un menu de tres puntos de 18dp encima de la
+                // portada: sobre una foto clara desaparecia. Ahora son botones
+                // etiquetados, siempre visibles, debajo del titulo.
+                //
+                // "Quitar" sale SIEMPRE que se pueda quitar (antes exigia
+                // progreso > 0, asi que en un libro sin empezar no habia menu).
+                // "Borrar" sale solo si el libro es tuyo: no se puede borrar de
+                // verdad el archivo de otra persona.
+                val puedeQuitar = onRemoveFromLibrary != null
+                if (puedeQuitar || isOwner) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (puedeQuitar) {
+                            BotonAccion(
+                                icono = Icons.Default.PlaylistRemove,
+                                texto = "Quitar",
+                                color = Color(0xFF94A3B8),
+                                modifier = Modifier.weight(1f)
+                            ) { onRemoveFromLibrary?.invoke(book) }
+                        }
+                        if (isOwner) {
+                            BotonAccion(
+                                icono = Icons.Default.Edit,
+                                texto = "Editar",
+                                color = currentTheme.primary,
+                                modifier = Modifier.weight(1f)
+                            ) { showEditDialog = true }
+                            BotonAccion(
+                                icono = Icons.Default.Delete,
+                                texto = "Borrar",
+                                color = Color(0xFFEF4444),
+                                modifier = Modifier.weight(1f)
+                            ) { showDeleteConfirm = true }
+                        }
+                    }
                 }
             }
         }
@@ -327,6 +323,37 @@ private fun EditBookDialog(
                     ) { Text("Guardar") }
                 }
             }
+        }
+    }
+}
+
+/**
+ * Boton de accion de la tarjeta: icono + etiqueta, borde del color de la accion.
+ * Con etiqueta y no solo icono porque "quitar de mi biblioteca" y "borrar para
+ * siempre" no se distinguen por un pictograma, y confundirlas cuesta un libro.
+ */
+@Composable
+private fun BotonAccion(
+    icono: androidx.compose.ui.graphics.vector.ImageVector,
+    texto: String,
+    color: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = color.copy(alpha = 0.15f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.45f)),
+        modifier = modifier.clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier.padding(vertical = 6.dp, horizontal = 4.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(icono, contentDescription = null, tint = color, modifier = Modifier.size(13.dp))
+            Spacer(modifier = Modifier.width(3.dp))
+            Text(texto, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = color, maxLines = 1)
         }
     }
 }

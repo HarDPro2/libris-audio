@@ -305,6 +305,7 @@ class MainActivity : ComponentActivity() {
                 // Background music state — tracked in PlayerViewModel so AudioService receives commands
                 val selectedMusicTrack by playerViewModel.selectedMusicTrack.collectAsState()
                 val backgroundVolume   by playerViewModel.backgroundVolume.collectAsState()
+                val musicaAleatoria    by playerViewModel.musicaAleatoria.collectAsState()
 
                 // Libro 3D text state
                 val currentPartText by playerViewModel.currentPartText.collectAsState()
@@ -520,6 +521,8 @@ class MainActivity : ComponentActivity() {
                                 durationMs = durationMs,
                                 currentTheme = currentTheme,
                                 selectedMusicTrack = selectedMusicTrack,
+                                musicaAleatoria = musicaAleatoria,
+                                onToggleMusicaAleatoria = { on -> playerViewModel.setMusicaAleatoria(on) },
                                 backgroundVolume = backgroundVolume,
                                 currentPartText = currentPartText,
                                 isTextLoading = isTextLoading,

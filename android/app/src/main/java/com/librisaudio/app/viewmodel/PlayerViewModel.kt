@@ -344,6 +344,64 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     // META 3.7 — bookId en el que el usuario eligio pista a mano (null = ninguno).
     private var musicaElegidaEnLibro: String? = null
 
+    // Modo aleatorio de musica ambiental. Tres estados posibles en total:
+    //   aleatorio=true                    -> baraja las pistas del genero
+    //   aleatorio=false, pista != null    -> suena esa pista en bucle
+    //   aleatorio=false, pista == null    -> sin musica
+    private val _musicaAleatoria = MutableStateFlow(
+        prefs.getBoolean("musica_aleatoria", false)
+    )
+    val musicaAleatoria: StateFlow<Boolean> = _musicaAleatoria.asStateFlow()
+
+    /**
+     * Pistas entre las que barajar. Se queda con las del genero del libro para
+     * que lo aleatorio no rompa la ambientacion; si ese genero tiene menos de
+     * tres, abre a todo el catalogo — con dos pistas no se percibe aleatorio.
+     */
+    private fun bolsaAleatoria(): List<com.librisaudio.app.data.model.MusicTrack> {
+        val libro = _currentBook.value
+        val delGenero = if (libro == null) emptyList()
+            else com.librisaudio.app.data.model.GenreMusic.pistasPara(
+                com.librisaudio.app.data.model.GenreMusic.estiloPara(libro)
+            )
+        return if (delGenero.size >= 3) delGenero
+               else com.librisaudio.app.data.model.BackgroundMusicCatalog.tracks
+    }
+
+    fun setMusicaAleatoria(activo: Boolean) {
+        _musicaAleatoria.value = activo
+        prefs.edit().putBoolean("musica_aleatoria", activo).apply()
+        if (activo) {
+            musicaElegidaEnLibro = _currentBook.value?.bookId
+            _selectedMusicTrack.value = null
+            enviarBolsaAleatoria()
+        } else {
+            detenerMusica()
+        }
+    }
+
+    private fun enviarBolsaAleatoria() {
+        val controller = mediaController ?: return
+        val urls = ArrayList(bolsaAleatoria().map { it.streamUrl })
+        if (urls.isEmpty()) return
+        val extras = android.os.Bundle().apply {
+            putStringArrayList("urls", urls)
+            putFloat("volume", _backgroundVolume.value)
+        }
+        controller.sendCustomCommand(
+            androidx.media3.session.SessionCommand("SET_BACKGROUND_SHUFFLE", android.os.Bundle.EMPTY),
+            extras
+        )
+    }
+
+    private fun detenerMusica() {
+        val controller = mediaController ?: return
+        controller.sendCustomCommand(
+            androidx.media3.session.SessionCommand("STOP_BACKGROUND_TRACK", android.os.Bundle.EMPTY),
+            android.os.Bundle.EMPTY
+        )
+    }
+
     /**
      * Ajusta la musica de fondo al genero del libro que se abre.
      *
@@ -353,6 +411,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      * Tampoco pisa una eleccion manual hecha en este mismo libro.
      */
     fun aplicarMusicaDeGenero(book: Book) {
+        // En aleatorio se rehace la bolsa con el genero del libro nuevo.
+        if (_musicaAleatoria.value) { enviarBolsaAleatoria(); return }
         if (_selectedMusicTrack.value == null) return          // apagada: se respeta
         if (musicaElegidaEnLibro == book.bookId) return        // el usuario ya eligio aqui
         val sugerida = com.librisaudio.app.data.model.GenreMusic.pistaSugerida(book) ?: return
@@ -470,6 +530,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             try {
                 mediaController = controllerFuture.get()
                 setupPlayerListener()
+                // El modo aleatorio se recuerda entre sesiones, pero al arrancar
+                // el controlador aun no existe: se reengancha aqui, cuando ya lo hay.
+                if (_musicaAleatoria.value) enviarBolsaAleatoria()
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -954,6 +1017,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         // META 3.7 — si la eleccion viene del usuario queda anclada a ESTE libro:
         // mientras siga en el, la autoseleccion por genero no se la pisa.
         if (manual) musicaElegidaEnLibro = _currentBook.value?.bookId
+        // Elegir una pista concreta sale del modo aleatorio: el usuario pidio
+        // ESA, no una cualquiera.
+        if (manual && _musicaAleatoria.value) {
+            _musicaAleatoria.value = false
+            prefs.edit().putBoolean("musica_aleatoria", false).apply()
+        }
         _selectedMusicTrack.value = track
 
         val controller = mediaController ?: return

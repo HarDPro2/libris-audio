@@ -38,6 +38,8 @@ fun MusicSelectorDialog(
     // META 3.7 — marco del libro abierto. Si viene, el selector pone arriba las
     // pistas que pegan con ese genero. Si es null se comporta como antes.
     estiloGenero: BookBindingStyle? = null,
+    aleatorio: Boolean = false,
+    onToggleAleatorio: (Boolean) -> Unit = {},
     onSelectTrack: (MusicTrack?) -> Unit,
     onVolumeChange: (Float) -> Unit,
     onDismiss: () -> Unit
@@ -125,8 +127,39 @@ fun MusicSelectorDialog(
                     .height(320.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // Aleatorio arriba del todo: es el modo que mas se va a usar.
                 item {
-                    val isSelected = selectedTrack == null
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (aleatorio) PurpleAccent else CardSurface,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onToggleAleatorio(!aleatorio) }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    stringResource(R.string.music_shuffle),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                                Text(
+                                    stringResource(R.string.music_shuffle_hint),
+                                    fontSize = 11.sp,
+                                    color = if (aleatorio) Color.White.copy(alpha = 0.8f) else TextMuted
+                                )
+                            }
+                            if (aleatorio) Text("\u25B6", fontSize = 16.sp)
+                        }
+                    }
+                }
+
+                item {
+                    val isSelected = selectedTrack == null && !aleatorio
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = if (isSelected) PurpleAccent else CardSurface,

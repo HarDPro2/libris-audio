@@ -88,6 +88,8 @@ fun PlayerScreen(
     durationMs: Long,
     currentTheme: AppThemePreset,
     selectedMusicTrack: MusicTrack?,
+    musicaAleatoria: Boolean = false,
+    onToggleMusicaAleatoria: (Boolean) -> Unit = {},
     backgroundVolume: Float,
     currentPartText: String = "",
     isTextLoading: Boolean = false,
@@ -372,7 +374,7 @@ fun PlayerScreen(
                         Icon(Icons.Default.Bookmark, contentDescription = stringResource(R.string.player_bookmarks), tint = Color.White)
                     }
                     TooltipIconButton(stringResource(R.string.player_bg_music), onClick = { isMusicDialogVisible = true }) {
-                        Icon(Icons.Default.MusicNote, contentDescription = stringResource(R.string.player_bg_music), tint = if (selectedMusicTrack != null) CyanAccent else Color.White)
+                        Icon(Icons.Default.MusicNote, contentDescription = stringResource(R.string.player_bg_music), tint = if (selectedMusicTrack != null || musicaAleatoria) CyanAccent else Color.White)
                     }
                     TooltipIconButton(
                         stringResource(R.string.player_keep_awake),
@@ -612,7 +614,7 @@ fun PlayerScreen(
                     .background(Color(0x66000000))
             ) {
                 Icon(Icons.Default.MusicNote, contentDescription = stringResource(R.string.player_bg_music),
-                    tint = if (selectedMusicTrack != null) CyanAccent else Color.White)
+                    tint = if (selectedMusicTrack != null || musicaAleatoria) CyanAccent else Color.White)
             }
             Row(
                 modifier = Modifier
@@ -696,6 +698,8 @@ fun PlayerScreen(
                 backgroundVolume = backgroundVolume,
                 // META 3.7 — el selector se ordena segun el marco del libro abierto
                 estiloGenero = com.librisaudio.app.data.model.GenreMusic.estiloPara(book),
+                aleatorio = musicaAleatoria,
+                onToggleAleatorio = onToggleMusicaAleatoria,
                 onSelectTrack = { track -> onSelectMusicTrack(track) },
                 onVolumeChange = onBackgroundVolumeChange,
                 onDismiss = { isMusicDialogVisible = false }

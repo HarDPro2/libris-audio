@@ -18,19 +18,6 @@
     <string name="logout_confirm_msg">Are you sure you want to sign out?</string>
     <string name="settings_help">User guide</string>
     <string name="settings_section_help">❓ Help</string>
-    <string name="guide_title">User guide</string>
-    <string name="guide_s1_title">🎧 Player</string>
-    <string name="guide_s1_body">Tap a book to start. Use ▶/⏸ to play or pause. Long-press any icon to see its name.</string>
-    <string name="guide_s2_title">📖 Reading modes</string>
-    <string name="guide_s2_body">Classic (audio only), Book (text highlighted in sync with the voice) and Read (text only, no narration).</string>
-    <string name="guide_s3_title">⬇️ Downloads</string>
-    <string name="guide_s3_body">Tap the download icon in the player to save a book and listen offline. Find them in the Downloads tab.</string>
-    <string name="guide_s4_title">🎙️ Voice &amp; speed</string>
-    <string name="guide_s4_body">Change the narrator with the voice icon and adjust the reading speed to your liking.</string>
-    <string name="guide_s5_title">✨ AI assistant</string>
-    <string name="guide_s5_body">Ask the AI about the book you\'re listening to. You can use your own OpenRouter API key for more quota.</string>
-    <string name="guide_s6_title">👤 Profile &amp; language</string>
-    <string name="guide_s6_body">Customize your name and avatar, choose the visual theme and change the app language from Settings.</string>
 
     <!-- Language selector -->
     <string name="language_system">Automatic (system)</string>
@@ -196,9 +183,11 @@
     <string name="music_volume">Background Music Volume</string>
     <string name="music_choose">Choose a masterpiece:</string>
     <string name="music_none">🔇 No background music</string>
-    <!-- META 3.7 - selector sections based on book genre -->
+    <!-- META 3.7 - genre-based music selector -->
     <string name="music_for_genre">For %1$s</string>
     <string name="music_rest">Rest of the catalogue</string>
+    <string name="music_shuffle">🔀 Shuffle (keeps changing)</string>
+    <string name="music_shuffle_hint">Shuffles tracks matching the book genre</string>
 
     <!-- Dialog: Profile -->
     <string name="profile_title">My Profile</string>
@@ -270,4 +259,90 @@
     <string name="info_database">🗄️ Database</string>
     <string name="info_auth">🔐 Authentication</string>
     <string name="info_version">📱 Version</string>
+
+    <!-- Pantalla: Todo lo que puedes hacer -->
+    <string name="guia_title">Everything you can do</string>
+    <string name="guia_intro">Libris Audio does considerably more than meets the eye. Here it all is, along with where to tap for each thing.</string>
+    <string name="guia_g_library">Your library</string>
+    <string name="guia_upload_t">Upload your own books</string>
+    <string name="guia_upload_d">Turn any document of yours into an audiobook. Over 20 formats: PDF, EPUB, MOBI, AZW3, FB2, CBZ, DOCX, TXT and more.</string>
+    <string name="guia_upload_h">Upload tab, in the bottom bar.</string>
+    <string name="guia_ocr_t">Reads scanned documents</string>
+    <string name="guia_ocr_d">If the PDF is a photo of the pages with no text layer, the app recognises it with OCR in Spanish and English and reads it anyway.</string>
+    <string name="guia_ocr_h">Automatic on upload. Nothing to switch on.</string>
+    <string name="guia_lang_t">Detects the book\'s language</string>
+    <string name="guia_lang_d">Works out whether the document is in Spanish or English and picks a native voice for it.</string>
+    <string name="guia_lang_h">Automatic. You can still change the voice by hand.</string>
+    <string name="guia_edit_t">Fix title and category</string>
+    <string name="guia_edit_d">If the filename gave a bad title, change it. The category also decides the book\'s frame and music.</string>
+    <string name="guia_edit_h">Edit button, under your books in the library.</string>
+    <string name="guia_delete_t">Two ways to delete</string>
+    <string name="guia_delete_d">Remove takes the book out of your library but deletes nothing. Delete really does remove the document, its text and its audio, and only appears on books you uploaded.</string>
+    <string name="guia_delete_h">Remove and Delete buttons, under each book.</string>
+    <string name="guia_fav_t">Favourites</string>
+    <string name="guia_fav_d">Flag the books you want within reach.</string>
+    <string name="guia_fav_h">Heart, top right of the cover.</string>
+    <string name="guia_g_listen">Listening</string>
+    <string name="guia_voices_t">Natural voices</string>
+    <string name="guia_voices_d">Several male and female voices in Spanish and English, with natural intonation.</string>
+    <string name="guia_voices_h">Voice icon, in the player bar.</string>
+    <string name="guia_speed_t">Speed up to 4x</string>
+    <string name="guia_speed_d">Speed up without the voice going squeaky: pitch holds even at quadruple speed.</string>
+    <string name="guia_speed_h">Speed button in the player. 1x, 1.25x, 1.5x, 1.75x, 2x, 2.5x, 3x and 4x.</string>
+    <string name="guia_karaoke_t">Word-by-word karaoke</string>
+    <string name="guia_karaoke_d">The word being spoken is highlighted in the text. And you can tap any word to jump the audio right there.</string>
+    <string name="guia_karaoke_h">✨ Sync button inside the 3D book.</string>
+    <string name="guia_marks_t">Bookmarks</string>
+    <string name="guia_marks_d">Save the exact spot you\'re at, with its part and its second.</string>
+    <string name="guia_marks_h">Bookmark icon in the player.</string>
+    <string name="guia_sleep_t">Sleep timer</string>
+    <string name="guia_sleep_d">Switches itself off after the time you choose, so you can listen in bed without losing your place.</string>
+    <string name="guia_sleep_h">Clock icon in the player.</string>
+    <string name="guia_car_t">Car mode</string>
+    <string name="guia_car_d">A screen with huge buttons you can use at a glance while driving.</string>
+    <string name="guia_car_h">Car icon in the player.</string>
+    <string name="guia_voicecmd_t">Voice commands</string>
+    <string name="guia_voicecmd_d">Control playback by speaking: play, pause, forward, back, faster, slower, stop, go to a part, or ask where you are.</string>
+    <string name="guia_voicecmd_h">Microphone icon in the player.</string>
+    <string name="guia_g_immersive">Immersive reading</string>
+    <string name="guia_frames_t">3D frames by genre</string>
+    <string name="guia_frames_d">Twelve illustrated settings — classic, medieval, fantasy, romance, paranormal, noir, cosmic and more — framing the text. The frame is chosen automatically from the book\'s genre.</string>
+    <string name="guia_frames_h">🎨 Themes button inside the 3D book. 🖼️ 3D turns them on and off.</string>
+    <string name="guia_fx_t">Ambient effects</string>
+    <string name="guia_fx_d">An animated layer matching the genre: ash for war, rain for noir, stars for cosmic, petals for romance.</string>
+    <string name="guia_fx_h">🎇 Effects button inside the 3D book.</string>
+    <string name="guia_music_t">Background music</string>
+    <string name="guia_music_d">Fifteen public-domain classical pieces playing under the narration. On shuffle it keeps changing between the ones that suit the genre; or pick one and it loops.</string>
+    <string name="guia_music_h">Music note icon in the player. Volume lives there too.</string>
+    <string name="guia_easy_t">Easy reading mode</string>
+    <string name="guia_easy_d">Wide line height and letter spacing, unjustified. Built for more comfortable reading and for dyslexia.</string>
+    <string name="guia_easy_h">🔠 Easy button inside the 3D book. It is remembered.</string>
+    <string name="guia_theme_t">Colour themes</string>
+    <string name="guia_theme_d">Change the palette of the whole app.</string>
+    <string name="guia_theme_h">Settings, right at the top.</string>
+    <string name="guia_g_study">Studying</string>
+    <string name="guia_chat_t">Ask the book</string>
+    <string name="guia_chat_d">AI chat about what you are reading: summaries, questions, explanations of a particular passage.</string>
+    <string name="guia_chat_h">Chat icon in the player. You can add your own OpenRouter key in Settings for more quota.</string>
+    <string name="guia_modes_t">Three reading modes</string>
+    <string name="guia_modes_d">Classic is audio only. Book shows the text highlighted in time with the voice. Read is text only, no narration.</string>
+    <string name="guia_modes_h">Mode selector, at the top of the player.</string>
+    <string name="guia_stats_t">Your stats</string>
+    <string name="guia_stats_d">How much you have listened, how many books you have got through, and your streak.</string>
+    <string name="guia_stats_h">Stats icon in the player.</string>
+    <string name="guia_g_anywhere">Anywhere</string>
+    <string name="guia_offline_t">Download and listen without data</string>
+    <string name="guia_offline_d">Save the parts on your phone and they keep playing offline, with their text and their karaoke.</string>
+    <string name="guia_offline_h">Download icon in the player. Managed in the Downloads tab.</string>
+    <string name="guia_sync_t">Carry on from another device</string>
+    <string name="guia_sync_d">Your reading position travels with you: close on your phone and pick up where you were somewhere else.</string>
+    <string name="guia_sync_h">Automatic while you are signed in.</string>
+    <string name="guia_applang_t">App in Spanish or English</string>
+    <string name="guia_applang_d">The whole interface switches language.</string>
+    <string name="guia_applang_h">Settings, language section.</string>
+    <string name="guia_update_t">Updates</string>
+    <string name="guia_update_d">The app tells you when a new version is out and installs it by itself.</string>
+    <string name="guia_update_h">Automatic, or Check for updates in Settings.</string>
+    <string name="guia_open">Everything you can do</string>
+    <string name="guia_open_sub">Guide to the app\'s features</string>
 </resources>
