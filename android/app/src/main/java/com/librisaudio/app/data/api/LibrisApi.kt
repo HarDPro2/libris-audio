@@ -45,6 +45,13 @@ interface LibrisApiService {
         @Body body: UserStateDto
     ): ResponseBody
 
+    /** Quita el libro del historial del usuario. No borra contenido. */
+    @DELETE("api/library/{bookId}")
+    suspend fun removeFromLibrary(
+        @Path("bookId") bookId: String,
+        @Header("Authorization") authorization: String
+    ): Response<Unit>
+
     @DELETE("api/books/{bookId}")
     suspend fun deleteBook(
         @Path("bookId") bookId: String,
@@ -64,7 +71,10 @@ interface LibrisApiService {
         @Part file: MultipartBody.Part,
         @Part("title") title: RequestBody,
         @Part("category") category: RequestBody,
-        @Part("added_by") addedBy: RequestBody
+        @Part("added_by") addedBy: RequestBody,
+        // El backend deriva el propietario de este token, no del campo
+        // added_by (que era falsificable). Sin cabecera, responde 401.
+        @Header("Authorization") authorization: String
     ): Response<UploadResponse>
 
     /** Asistente de voz A2: interpreta lenguaje natural → acción. */

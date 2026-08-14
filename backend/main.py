@@ -448,6 +448,73 @@ async def _verify_appwrite_session(session_id: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Propiedad y visibilidad de libros
+#
+# visibility = "catalog"  -> dominio público / CC. Lo ve todo el mundo.
+# visibility = "private"  -> subido por un usuario. SOLO su propietario.
+#
+# Los libros sin el campo (los de antes de esta versión) se tratan como
+# "catalog" para no romper el catálogo existente. La migración de los que
+# subieron usuarios se hace marcándolos como private en Appwrite.
+# ---------------------------------------------------------------------------
+
+_BOOK_META_CACHE: dict = {}
+
+
+async def _get_book_meta(book_id: str):
+    """Devuelve {owner_id, visibility, doc_id} o None. Cacheado en memoria."""
+    if book_id in _BOOK_META_CACHE:
+        return _BOOK_META_CACHE[book_id]
+    try:
+        docs = await _appwrite_list_documents(
+            "global_books",
+            queries=[{"method": "equal", "attribute": "book_id", "values": [book_id]}]
+        )
+    except Exception as e:
+        print(f"[Acceso] Error consultando {book_id}: {e}", flush=True)
+        return None
+    if not docs:
+        return None
+    d = docs[0]
+    meta = {
+        "owner_id":   d.get("added_by") or "",
+        "visibility": d.get("visibility") or "catalog",
+        "doc_id":     d.get("$id"),
+    }
+    _BOOK_META_CACHE[book_id] = meta
+    return meta
+
+
+def _invalidate_book_meta(book_id: str) -> None:
+    _BOOK_META_CACHE.pop(book_id, None)
+
+
+async def _user_from_header(authorization: str):
+    """userId si viene un Bearer válido, None si no viene cabecera."""
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    return await _verify_appwrite_session(authorization.split(" ", 1)[1])
+
+
+async def _assert_can_read(book_id: str, authorization: str):
+    """
+    Deja pasar si el libro es de catálogo. Si es privado, exige sesión válida
+    y que el solicitante sea el propietario. Devuelve el userId o None.
+    """
+    meta = await _get_book_meta(book_id)
+    if meta is None or meta["visibility"] != "private":
+        return None
+    user_id = await _user_from_header(authorization)
+    if user_id is None:
+        raise HTTPException(status_code=401,
+                            detail="Este documento es privado. Inicia sesión.")
+    if user_id != meta["owner_id"]:
+        raise HTTPException(status_code=403,
+                            detail="No tienes acceso a este documento.")
+    return user_id
+
+
+# ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
 
@@ -502,8 +569,18 @@ async def _appwrite_update_document(collection: str, doc_id: str, data: dict):
 
 
 @app.get("/api/books")
-async def get_all_books():
-    """Catálogo global desde Appwrite con fallback a libros de ejemplo."""
+async def get_all_books(authorization: str = Header(default=None)):
+    """
+    Devuelve el catálogo público MÁS los documentos privados del usuario que
+    llama. Sin sesión, solo catálogo. Los documentos de otros usuarios no se
+    listan nunca.
+    """
+    requester = None
+    try:
+        requester = await _user_from_header(authorization)
+    except HTTPException:
+        requester = None   # sesión caducada: se sirve solo el catálogo
+
     books = []
     try:
         documents = await _appwrite_list_documents(
@@ -511,6 +588,9 @@ async def get_all_books():
             queries=[{"method": "limit", "values": [500]}]
         )
         for doc in documents:
+            visibility = doc.get("visibility") or "catalog"
+            if visibility == "private" and doc.get("added_by") != requester:
+                continue
             books.append({
                 "id":         doc.get("$id") or doc.get("book_id"),
                 "book_id":    doc.get("book_id"),
@@ -562,9 +642,17 @@ async def upload_pdf(
     file:     UploadFile = File(...),
     title:    str        = Form(None),
     category: str        = Form("General"),
-    added_by: str        = Form("upload"),
+    added_by: str        = Form("upload"),   # ignorado: se toma del token
+    authorization: str   = Header(default=None),
 ):
     print(f"[Upload] Recibiendo: {file.filename}")
+    # El propietario SIEMPRE sale de la sesión verificada. El campo del
+    # formulario era falsificable: cualquiera podía atribuirse un documento
+    # ajeno o negar el propio.
+    owner_id = await _user_from_header(authorization)
+    if owner_id is None:
+        raise HTTPException(status_code=401,
+                            detail="Debes iniciar sesión para subir documentos.")
     try:
         if not R2_ENDPOINT_URL:
             raise HTTPException(status_code=500, detail="Cloudflare R2 no configurado")
@@ -630,7 +718,8 @@ async def upload_pdf(
                     "book_id":    book_id,
                     "title":      title,
                     "category":   category,
-                    "added_by":   added_by,
+                    "added_by":   owner_id,
+                    "visibility": "private",   # nunca al catálogo público
                     "cover_url":  cover_url or "",
                     "parts_count": len(chunks),
                 }
@@ -654,8 +743,10 @@ async def upload_pdf(
 
 
 @app.get("/api/audio/{book_id}/{part_index}")
-async def get_book_audio(book_id: str, part_index: int, voice: str = "es-MX-JorgeNeural"):
+async def get_book_audio(book_id: str, part_index: int, voice: str = "es-MX-JorgeNeural",
+                         authorization: str = Header(default=None)):
     """Motor JIT: genera y cachea MP3 en R2. Streamea directamente al cliente."""
+    await _assert_can_read(book_id, authorization)
     if not R2_ENDPOINT_URL:
         raise HTTPException(status_code=500, detail="Cloudflare R2 no configurado")
 
@@ -721,7 +812,9 @@ async def get_book_audio(book_id: str, part_index: int, voice: str = "es-MX-Jorg
 # ---------------------------------------------------------------------------
 
 @app.get("/api/timing/{book_id}/{part_index}")
-async def get_book_timing(book_id: str, part_index: int, voice: str = "es-MX-JorgeNeural"):
+async def get_book_timing(book_id: str, part_index: int, voice: str = "es-MX-JorgeNeural",
+                          authorization: str = Header(default=None)):
+    await _assert_can_read(book_id, authorization)
     """Devuelve [{"w":palabra,"s":inicio_ms,"e":fin_ms}, ...] para resaltar
     cada palabra mientras suena el audio. Genera el JSON (y el MP3) si falta."""
     if not R2_ENDPOINT_URL:
@@ -774,12 +867,14 @@ async def get_book_timing(book_id: str, part_index: int, voice: str = "es-MX-Jor
 # ---------------------------------------------------------------------------
 
 @app.get("/api/text/{book_id}/{part_index}")
-async def get_book_text(book_id: str, part_index: int):
+async def get_book_text(book_id: str, part_index: int,
+                        authorization: str = Header(default=None)):
     """
     Devuelve el texto plano de una parte del libro desde Cloudflare R2.
-    Usado por el modo 'Libro 3D' de la app Android para mostrar el texto mientras se lee.
-    No requiere autenticación — el catálogo es público.
+    El catálogo público sigue abierto; los documentos privados exigen sesión
+    y propiedad.
     """
+    private = await _assert_can_read(book_id, authorization) is not None
     if not R2_ENDPOINT_URL:
         raise HTTPException(status_code=500, detail="Cloudflare R2 no configurado")
 
@@ -791,7 +886,7 @@ async def get_book_text(book_id: str, part_index: int):
         raise HTTPException(status_code=404, detail=f"Texto no encontrado para parte {part_index}")
 
     return PlainTextResponse(content=text, headers={
-        "Cache-Control": "public, max-age=3600",
+        "Cache-Control": "private, no-store" if private else "public, max-age=3600",
     })
 
 
@@ -849,7 +944,65 @@ async def delete_book(book_id_hex: str, authorization: str = Header(default=None
     except Exception as e:
         print(f"[Delete] Warning Appwrite delete: {e}")
 
+    _invalidate_book_meta(book_id_hex)
     return {"status": "deleted", "book_id": book_id_hex}
+
+
+# ---------------------------------------------------------------------------
+# Biblioteca del usuario — quitar del historial (NO borra el libro)
+# ---------------------------------------------------------------------------
+
+# Claves que la app guarda por libro en el estado del usuario.
+_LIBRARY_KEY_PREFIXES = ("part_", "pct_", "pos_")
+
+
+@app.delete("/api/library/{book_id_hex}")
+async def remove_from_library(book_id_hex: str, authorization: str = Header(default=None)):
+    """
+    Quita un libro de la biblioteca/historial del usuario. El libro sigue
+    existiendo: si vuelve a abrirlo, reaparece. Vale para CUALQUIER libro,
+    también los del catálogo. No borra contenido.
+    """
+    user_id = await _user_from_header(authorization)
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="Token de autenticación requerido")
+
+    try:
+        docs = await _appwrite_list_documents(
+            "user_state",
+            queries=[{"method": "equal", "attribute": "user_id", "values": [user_id]}]
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error leyendo el estado: {e}")
+
+    if not docs:
+        return {"status": "ok", "book_id": book_id_hex, "removed": 0}
+
+    doc   = docs[0]
+    state = json.loads(doc.get("data") or "{}")
+
+    removed = 0
+    for key in [k for k in list(state.keys())
+                if k in (p + book_id_hex for p in _LIBRARY_KEY_PREFIXES)]:
+        state.pop(key, None)
+        removed += 1
+
+    started = state.get("started_books")
+    if isinstance(started, list) and book_id_hex in started:
+        state["started_books"] = [b for b in started if b != book_id_hex]
+        removed += 1
+
+    if state.get("last_book_id") == book_id_hex:
+        state.pop("last_book_id", None)
+        removed += 1
+
+    try:
+        await _appwrite_update_document("user_state", doc.get("$id"),
+                                        {"data": json.dumps(state, ensure_ascii=False)})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error guardando el estado: {e}")
+
+    return {"status": "ok", "book_id": book_id_hex, "removed": removed}
 
 
 @app.patch("/api/books/{book_id_hex}")

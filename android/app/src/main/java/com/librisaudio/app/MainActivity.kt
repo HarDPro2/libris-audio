@@ -447,6 +447,7 @@ class MainActivity : ComponentActivity() {
                             MainTab.UPLOAD -> UploadScreen(
                                 currentTheme = currentTheme,
                                 currentUserId = session?.userId ?: "",
+                                sessionId = session?.sessionId ?: "",
                                 onUploadSuccess = {
                                     playerViewModel.loadBooks()
                                     selectedTab = MainTab.LIBRARY

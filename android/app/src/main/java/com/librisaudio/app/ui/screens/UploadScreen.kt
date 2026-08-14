@@ -41,6 +41,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 fun UploadScreen(
     currentTheme: AppThemePreset,
     currentUserId: String,
+    sessionId: String,
     onUploadSuccess: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -239,7 +240,8 @@ fun UploadScreen(
                                 val addedByBody = currentUserId.toRequestBody("text/plain".toMediaTypeOrNull())
 
                                 val response = ApiClient.backendService.uploadPdf(
-                                    filePart, titleBody, categoryBody, addedByBody
+                                    filePart, titleBody, categoryBody, addedByBody,
+                                    "Bearer $sessionId"
                                 )
 
                                 withContext(Dispatchers.Main) {

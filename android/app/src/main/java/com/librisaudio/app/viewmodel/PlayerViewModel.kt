@@ -648,6 +648,38 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // ── Biblioteca del usuario: dos modos de borrado ──────────────────────
+    //
+    //  1. quitarDeBiblioteca  -> solo historial. Vale para CUALQUIER libro.
+    //                            El libro sigue existiendo; si lo reabre, vuelve.
+    //  2. eliminarDocumento   -> borrado total. SOLO para los que subió él:
+    //                            documento, texto y todos los audios de R2.
+
+    /** Quita el libro del historial local (y del estado en la nube). */
+    fun removeFromLibrary(bookId: String, sessionId: String = "") {
+        val set = (prefs.getStringSet("started_books", emptySet()) ?: emptySet()).toMutableSet()
+        set.remove(bookId)
+        val editor = prefs.edit()
+            .putStringSet("started_books", set)
+            .remove("part_$bookId")
+            .remove("pct_$bookId")
+            .remove("pos_$bookId")
+        if (prefs.getString("last_book_id", null) == bookId) editor.remove("last_book_id")
+        editor.apply()
+
+        _books.value = _books.value.map {
+            if (it.bookId == bookId) it.copy(progressPercent = 0, currentPartIndex = 0) else it
+        }
+
+        if (sessionId.isNotBlank()) {
+            viewModelScope.launch {
+                try {
+                    ApiClient.backendService.removeFromLibrary(bookId, "Bearer $sessionId")
+                } catch (_: Exception) { /* el borrado local ya surtió efecto */ }
+            }
+        }
+    }
+
     private fun markStarted(bookId: String) {
         val set = (prefs.getStringSet("started_books", emptySet()) ?: emptySet()).toMutableSet()
         if (set.add(bookId)) prefs.edit().putStringSet("started_books", set).apply()
@@ -870,6 +902,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 if (response.isSuccessful || response.code() == 404) {
                     // Remove from local list regardless
                     _books.value = _books.value.filter { it.id != book.id }
+                    // Limpiar tambien el historial: si no, quedaban huerfanas
+                    // las claves part_/pct_/pos_ y el id en started_books.
+                    removeFromLibrary(book.bookId)
                     if (_currentBook.value?.id == book.id) {
                         _currentBook.value = null
                         _isPlaying.value = false
