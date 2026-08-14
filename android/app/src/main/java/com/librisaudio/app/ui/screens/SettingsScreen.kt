@@ -81,6 +81,8 @@ fun SettingsScreen(
     onSelectLanguage: (String) -> Unit = {},
     frames3dEnabled: Boolean = false,
     onToggleFrames3d: (Boolean) -> Unit = {},
+    premiumEnabled: Boolean = false,
+    onTogglePremium: (Boolean) -> Unit = {},
     onCheckUpdates: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -242,6 +244,35 @@ fun SettingsScreen(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
+
+            // ─── Premium (provisional hasta la META 5) ────────────────────
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color(0x22FFFFFF))
+                    .clickable { onTogglePremium(!premiumEnabled) }
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Premium", fontSize = 14.sp,
+                         fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("Desbloquea los 12 marcos 3D. Provisional: se sustituirá " +
+                         "por la suscripción real.",
+                         fontSize = 11.sp, color = TextMuted)
+                }
+                Switch(
+                    checked = premiumEnabled,
+                    onCheckedChange = { onTogglePremium(it) },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = currentTheme.primary
+                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
 
             // ─── Marcos 3D (premium, opt-in) ──────────────────────────────
             Row(

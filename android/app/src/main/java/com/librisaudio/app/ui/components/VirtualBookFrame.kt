@@ -253,8 +253,10 @@ fun VirtualBookFrame(
                                 .clickable { selectedStyle = style }
                                 .padding(horizontal = 10.dp, vertical = 5.dp)
                         ) {
+                            val bloqueado = frames3dOn &&
+                                !com.librisaudio.app.data.model.Premium.marcoDisponible(ctx, style)
                             Text(
-                                text = "${style.emblem} ${style.title}",
+                                text = "${style.emblem} ${style.title}" + if (bloqueado) " 🔒" else "",
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (selected) Color.White else Color(0xFF94A3B8)
@@ -455,7 +457,23 @@ fun VirtualBookFrame(
             // exactamente con el borde exterior del marco base, así la
             // decoración (espada, hiedra, lupa…) queda por fuera.
             if (frames3dOn) {
-                GenreFrame3d(style = selectedStyle)
+                if (com.librisaudio.app.data.model.Premium.marcoDisponible(ctx, selectedStyle)) {
+                    GenreFrame3d(style = selectedStyle)
+                } else {
+                    // Marco premium: se mantiene el marco animado de siempre y
+                    // se avisa sin bloquear la lectura.
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 6.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xCC1E293B))
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text("🔒 Marco premium", fontSize = 10.sp,
+                             fontWeight = FontWeight.Bold, color = Color(0xFFE2E8F0))
+                    }
+                }
             }
         }   // fin del contenedor sin recorte
     }
