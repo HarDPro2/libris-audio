@@ -120,10 +120,31 @@ try:
 except ImportError:
     sys.exit("Falta boto3.  Instálalo con:  pip install boto3")
 
-faltan = [v for v in ("R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_ENDPOINT_URL")
-          if not os.environ.get(v)]
+_REQUERIDAS = ("R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_ENDPOINT_URL")
+
+faltan = [v for v in _REQUERIDAS if not os.environ.get(v)]
 if faltan:
     sys.exit("Faltan variables de entorno: " + ", ".join(faltan))
+
+# Detectar valores de ejemplo pegados tal cual desde la documentacion.
+_ejemplo = [v for v in _REQUERIDAS
+            if os.environ[v].strip() in ("...", "") or "<" in os.environ[v]]
+if _ejemplo:
+    sys.exit(
+        "Estas variables tienen valores de ejemplo, no los reales: "
+        + ", ".join(_ejemplo)
+        + "\nSacalos de Cloud Run (son las mismas que ya usa el backend):\n"
+        "    gcloud run services describe libris-backend --region us-central1 "
+        "--format=\"value(spec.template.spec.containers[0].env)\""
+    )
+
+_ep = os.environ["R2_ENDPOINT_URL"].strip()
+if not _ep.startswith("https://") or not _ep.endswith(".r2.cloudflarestorage.com"):
+    sys.exit(
+        "R2_ENDPOINT_URL no tiene la forma esperada.\n"
+        "  Esperado: https://<id-de-cuenta>.r2.cloudflarestorage.com\n"
+        f"  Recibido: {_ep}"
+    )
 
 s3 = boto3.client(
     "s3",
@@ -133,6 +154,14 @@ s3 = boto3.client(
     region_name="auto",
 )
 bucket = os.environ.get("R2_BUCKET_NAME", "libris-audio")
+
+import shutil
+if not shutil.which("ffmpeg"):
+    sys.exit(
+        "No encuentro ffmpeg en el PATH.\n"
+        "  Windows:  winget install Gyan.FFmpeg   (y reabre PowerShell)\n"
+        "  Comprueba con:  ffmpeg -version"
+    )
 
 tmp = Path(tempfile.mkdtemp(prefix="musica_"))
 subido = 0
@@ -151,6 +180,7 @@ for p in pistas:
                       ContentType="audio/mpeg")
     print(f"  OK  {p['mb']:6.1f} -> {nuevo_mb:5.1f} MB   {p['clave']}")
     p["mb_final"] = nuevo_mb
+    p["ok"] = True
     subido += 1
     salida.unlink(missing_ok=True)
 
@@ -158,8 +188,15 @@ print(f"\n{subido}/{len(pistas)} pistas subidas. "
       f"{total:.0f} MB -> {sum(p.get('mb_final', 0) for p in pistas):.0f} MB")
 
 # ── Catálogo Kotlin ─────────────────────────────────────────────────────────
+subidas = [p for p in pistas if p.get("ok")]
+if not subidas:
+    sys.exit("No se subio ninguna pista; no toco el catalogo.")
+if len(subidas) < len(pistas):
+    print(f"  AVISO: {len(pistas) - len(subidas)} pista(s) fallaron y "
+          "quedan fuera del catalogo.")
+
 lineas = []
-for i, p in enumerate(pistas, start=1):
+for i, p in enumerate(subidas, start=1):
     ruta = p["clave"][len("music/"):]
     lineas.append(
         f'        MusicTrack("m{i}", "{p["titulo"]}", "{p["compositor"]}", '
