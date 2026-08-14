@@ -694,6 +694,8 @@ fun PlayerScreen(
             MusicSelectorDialog(
                 selectedTrack = selectedMusicTrack,
                 backgroundVolume = backgroundVolume,
+                // META 3.7 — el selector se ordena segun el marco del libro abierto
+                estiloGenero = com.librisaudio.app.data.model.GenreMusic.estiloPara(book),
                 onSelectTrack = { track -> onSelectMusicTrack(track) },
                 onVolumeChange = onBackgroundVolumeChange,
                 onDismiss = { isMusicDialogVisible = false }

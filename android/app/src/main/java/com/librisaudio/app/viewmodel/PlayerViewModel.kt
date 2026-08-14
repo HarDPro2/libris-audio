@@ -341,6 +341,25 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _backgroundVolume = MutableStateFlow(0.25f)
     val backgroundVolume: StateFlow<Float> = _backgroundVolume.asStateFlow()
 
+    // META 3.7 — bookId en el que el usuario eligio pista a mano (null = ninguno).
+    private var musicaElegidaEnLibro: String? = null
+
+    /**
+     * Ajusta la musica de fondo al genero del libro que se abre.
+     *
+     * Regla deliberada: NO enciende la musica por su cuenta. Si esta apagada
+     * sigue apagada; solo cambia QUE suena cuando ya hay musica puesta. Quien
+     * no quiere musica de fondo no debe encontrarsela sonando en cada libro.
+     * Tampoco pisa una eleccion manual hecha en este mismo libro.
+     */
+    fun aplicarMusicaDeGenero(book: Book) {
+        if (_selectedMusicTrack.value == null) return          // apagada: se respeta
+        if (musicaElegidaEnLibro == book.bookId) return        // el usuario ya eligio aqui
+        val sugerida = com.librisaudio.app.data.model.GenreMusic.pistaSugerida(book) ?: return
+        if (sugerida.id == _selectedMusicTrack.value?.id) return
+        setBackgroundTrack(sugerida, manual = false)
+    }
+
     // ── Voz del narrador (Edge TTS) ────────────────────────────────────────
     private val _selectedVoice = MutableStateFlow(
         prefs.getString("voice", com.librisaudio.app.data.model.VoiceCatalog.DEFAULT)
@@ -556,8 +575,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun playBook(book: Book, partIndex: Int = 0, seekToMs: Long = 0L) {
-        if (_currentBook.value?.bookId != book.bookId) aplicarIdiomaDocumento(book.bookId)
+        val libroNuevo = _currentBook.value?.bookId != book.bookId
+        if (libroNuevo) aplicarIdiomaDocumento(book.bookId)
         _currentBook.value = book
+        if (libroNuevo) aplicarMusicaDeGenero(book)
         _currentPartIndex.value = partIndex
 
         // Persist which part we're on so HistoryScreen can show progress
@@ -926,7 +947,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      * Set (or clear) the background ambient track.
      * Sends a Media3 Custom Command to AudioService via the MediaController.
      */
-    fun setBackgroundTrack(track: com.librisaudio.app.data.model.MusicTrack?) {
+    fun setBackgroundTrack(
+        track: com.librisaudio.app.data.model.MusicTrack?,
+        manual: Boolean = true
+    ) {
+        // META 3.7 — si la eleccion viene del usuario queda anclada a ESTE libro:
+        // mientras siga en el, la autoseleccion por genero no se la pisa.
+        if (manual) musicaElegidaEnLibro = _currentBook.value?.bookId
         _selectedMusicTrack.value = track
 
         val controller = mediaController ?: return

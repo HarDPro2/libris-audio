@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.librisaudio.app.R
 import com.librisaudio.app.data.model.BackgroundMusicCatalog
+import com.librisaudio.app.data.model.GenreMusic
 import com.librisaudio.app.data.model.MusicTrack
 import com.librisaudio.app.ui.theme.CardSurface
 import com.librisaudio.app.ui.theme.CyanAccent
@@ -34,6 +35,9 @@ import com.librisaudio.app.ui.theme.TextMuted
 fun MusicSelectorDialog(
     selectedTrack: MusicTrack?,
     backgroundVolume: Float,
+    // META 3.7 — marco del libro abierto. Si viene, el selector pone arriba las
+    // pistas que pegan con ese genero. Si es null se comporta como antes.
+    estiloGenero: BookBindingStyle? = null,
     onSelectTrack: (MusicTrack?) -> Unit,
     onVolumeChange: (Float) -> Unit,
     onDismiss: () -> Unit
@@ -107,6 +111,14 @@ fun MusicSelectorDialog(
             Text(stringResource(R.string.music_choose), fontSize = 12.sp, color = TextMuted)
             Spacer(modifier = Modifier.height(8.dp))
 
+            val recomendadas = remember(estiloGenero) {
+                if (estiloGenero == null) emptyList()
+                else GenreMusic.pistasPara(estiloGenero)
+            }
+            val resto = remember(recomendadas) {
+                BackgroundMusicCatalog.tracks.filter { t -> recomendadas.none { it.id == t.id } }
+            }
+
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -131,38 +143,70 @@ fun MusicSelectorDialog(
                     }
                 }
 
-                items(BackgroundMusicCatalog.tracks) { track ->
-                    val isSelected = selectedTrack?.id == track.id
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (isSelected) PurpleAccent else CardSurface,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSelectTrack(track) }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = track.title,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                                Text(
-                                    text = "${track.composer} • ${track.category}",
-                                    fontSize = 11.sp,
-                                    color = if (isSelected) Color.White.copy(alpha = 0.8f) else TextMuted
-                                )
-                            }
-                            if (isSelected) {
-                                Text("▶", fontSize = 16.sp)
-                            }
+                if (recomendadas.isEmpty()) {
+                    items(BackgroundMusicCatalog.tracks) { track ->
+                        PistaFila(track, selectedTrack?.id == track.id) { onSelectTrack(track) }
+                    }
+                } else {
+                    item {
+                        EncabezadoSeccion(
+                            stringResource(R.string.music_for_genre, estiloGenero!!.title)
+                        )
+                    }
+                    items(recomendadas) { track ->
+                        PistaFila(track, selectedTrack?.id == track.id) { onSelectTrack(track) }
+                    }
+                    if (resto.isNotEmpty()) {
+                        item { EncabezadoSeccion(stringResource(R.string.music_rest)) }
+                        items(resto) { track ->
+                            PistaFila(track, selectedTrack?.id == track.id) { onSelectTrack(track) }
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EncabezadoSeccion(texto: String) {
+    Text(
+        text = texto,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.Bold,
+        color = CyanAccent,
+        modifier = Modifier.padding(top = 6.dp, bottom = 2.dp)
+    )
+}
+
+@Composable
+private fun PistaFila(track: MusicTrack, isSelected: Boolean, onClick: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = if (isSelected) PurpleAccent else CardSurface,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = track.title,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Text(
+                    text = "${track.composer} \u2022 ${track.category}",
+                    fontSize = 11.sp,
+                    color = if (isSelected) Color.White.copy(alpha = 0.8f) else TextMuted
+                )
+            }
+            if (isSelected) {
+                Text("\u25B6", fontSize = 16.sp)
             }
         }
     }

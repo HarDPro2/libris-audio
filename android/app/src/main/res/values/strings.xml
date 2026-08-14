@@ -198,6 +198,9 @@
     <string name="music_volume">Volumen de Música de Fondo</string>
     <string name="music_choose">Elige una obra maestra:</string>
     <string name="music_none">🔇 Sin música de fondo</string>
+    <!-- META 3.7 — secciones del selector segun el genero del libro -->
+    <string name="music_for_genre">Para %1$s</string>
+    <string name="music_rest">Resto del catálogo</string>
 
     <!-- Diálogo: Perfil -->
     <string name="profile_title">Mi Perfil</string>

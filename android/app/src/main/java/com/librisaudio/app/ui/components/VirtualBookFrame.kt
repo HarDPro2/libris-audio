@@ -148,7 +148,12 @@ fun VirtualBookFrame(
     modifier: Modifier = Modifier
 ) {
     val ctx = LocalContext.current
-    var selectedStyle by remember { mutableStateOf(BookBindingStyle.CLASSIC) }
+    // META 3.7 — el marco arranca en el que corresponde al genero del libro en
+    // vez de siempre en Clasico. Se re-evalua al cambiar de libro (clave del
+    // remember), asi que un cambio manual sobrevive mientras se lee ese libro.
+    var selectedStyle by remember(book.bookId) {
+        mutableStateOf(com.librisaudio.app.data.model.GenreMusic.estiloPara(book))
+    }
     var fontSizeSp by remember { mutableStateOf(16) }
     var fontMode by remember { mutableStateOf(0) }   // 0 = Género, 1 = Serif, 2 = Sans
     var highlightOn by remember { mutableStateOf(true) }

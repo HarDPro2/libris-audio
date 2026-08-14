@@ -196,6 +196,9 @@
     <string name="music_volume">Background Music Volume</string>
     <string name="music_choose">Choose a masterpiece:</string>
     <string name="music_none">🔇 No background music</string>
+    <!-- META 3.7 - selector sections based on book genre -->
+    <string name="music_for_genre">For %1$s</string>
+    <string name="music_rest">Rest of the catalogue</string>
 
     <!-- Dialog: Profile -->
     <string name="profile_title">My Profile</string>
