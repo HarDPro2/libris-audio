@@ -105,7 +105,7 @@ fun PlayerScreen(
     todayMinutes: Int = 0,
     streakDays: Int = 0,
     totalHours: Double = 0.0,
-    selectedVoice: String = "es-MX-JorgeNeural",
+    selectedVoice: String = com.librisaudio.app.data.model.VoiceCatalog.DEFAULT,
     onSelectVoice: (String) -> Unit = {},
     wordTimings: List<WordTiming> = emptyList(),
     onStopPlayback: () -> Unit = {},

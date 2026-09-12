@@ -255,22 +255,37 @@ Clásicos · Ficción · Ciencia · Historia · Filosofía · Aventura · Romanc
 
 ---
 
-## 🤖 IA — OpenRouter Cascada Gratuita
+## 🤖 IA — OpenRouter (MEDIDO el 2026-09-12, la cascada vieja NO funciona)
 
-### Estrategia MONO-API SINGLE-KEY CASCADE
-- Una sola API Key de OpenRouter para todos los modelos
-- Usuarios pueden traer su propia key (BYOK)
-- Escudo `:free` — solo modelos 100% gratuitos
+La estrategia de "solo modelos `:free`" **dejó de funcionar**. Comprobado uno por
+uno con `backend/probar_ia.py`:
 
-### Cascada de modelos (orden de fallback)
-1. `openrouter/auto` (enrutador dinámico)
-2. `deepseek/deepseek-r1:free`
-3. `meta-llama/llama-3.3-70b-instruct:free`
-4. `qwen/qwen-2.5-coder-32b-instruct:free`
-5. `google/gemma-2-9b-it:free`
+| Modelo | Resultado |
+|:---|:---|
+| `openrouter/free` | HTTP 200 pero **contenido vacío** |
+| `deepseek/deepseek-r1:free` | HTTP 404 — "unavailable for free" |
+| `meta-llama/llama-3.3-70b-instruct:free` | HTTP 404 — ídem |
+| `qwen/qwen-2.5-coder-32b-instruct:free` | HTTP 404 — ídem |
+| `google/gemma-2-9b-it:free` | HTTP 404 — "no endpoints found" |
+| `qwen/qwen-2.5-coder-32b-instruct` (de pago) | **timeout a los 60 s** |
+| `deepseek/deepseek-r1` (de pago) | HTTP 402 — sin saldo |
+| `meta-llama/llama-3.3-70b-instruct` (de pago) | ✅ 3,9 s y devuelve el JSON pedido |
 
-### Tratamiento de 429
-Si un modelo supera 20 RPM → salto instantáneo al siguiente en la cascada.
+La cascada quedó en **un solo modelo probado**, el de Llama, y el timeout bajó de
+60 a 25 s porque un modelo colgado se come el presupuesto de la subida entera.
+Antes de añadir cualquier modelo nuevo hay que pasarlo por `probar_ia.py`.
+
+**Por qué esto estuvo invisible tanto tiempo:** un HTTP 429 o 402 no es una
+excepción de Python, así que el bucle saltaba al siguiente modelo en silencio y
+el informe decía "la IA no devolvió nada" sin una sola línea en los logs. Ya se
+registran los no-200 y los lotes que no traen JSON.
+
+**Estado hoy:** la capa de IA está APAGADA en producción con `REVISION_IA=0`,
+porque la cuenta de OpenRouter no tiene saldo. Los guiones y la detección de
+errores siguen funcionando, que es lo que de verdad arregla la lectura, y no
+cuestan nada. Las candidatas de cada libro quedan anotadas en su
+`{book_id}/revision.json`, de modo que la pasada de IA se puede hacer después en
+lotes, sin prisa y aprovechando cuota gratuita por días.
 
 ---
 
@@ -283,6 +298,72 @@ Ver `MATRIZ_DE_MEJORAS.md` para el historial completo. Resumen de la sesión 202
 **FASE 2** — `addedBy` mapeado en `loadBooks()` (el menú propietario nunca aparecía)  
 **FASE 3** — Login Android: `network_security_config.xml`, logging mejorado en Auth, OAuth deep link robusto  
 **FASE 4** — Progreso persistido en SharedPreferences; música de fondo conectada a AudioService via Custom Commands
+
+---
+
+## 🧹 MOTOR DE CALIDAD DE TEXTO (2026-09-12)
+
+Corrige el texto **al subir el libro**, porque lo que se guarda en R2 es lo que
+el TTS leerá durante años. Todo el motor es código propio y sus únicas
+dependencias externas son el diccionario (MPL-2.0) y `spylls` (MIT), de modo que
+es portable a Quantum Text Codex sin cambios.
+
+### Módulos
+
+| Archivo | Qué hace |
+|:---|:---|
+| `guiones.py` | Une palabras partidas por guion; deshace pegotes; separa palabras pegadas |
+| `basura.py` | Quita encabezados y pies de página incrustados en las frases |
+| `calidad.py` | Detecta errores de OCR con tres filtros; carga el diccionario |
+| `calidad_ia.py` | Capa de IA para los errores sistemáticos (hoy apagada) |
+| `revision.py` | Orquesta todo al subir, con presupuesto de tiempo |
+| `diccionarios/` | es_ES.aff + es_ES.dic, 850 KB, **empaquetados en el repo** |
+
+### La idea central
+
+**El documento es su propio diccionario.** Si "ingenioso" aparece entero en otra
+página, unir "inge-" + "nioso" es correcto; y así se acierta con "Motecuhzoma" o
+"periespíritu", que no están en ningún diccionario del mundo. El diccionario de
+español solo entra para decidir lo que el documento no puede resolver.
+
+### Reglas que costaron sangre, y por qué
+
+- **Un corte de palabra deja un TROZO a la izquierda** ("espo-", "cor-"). Si los
+  dos lados son palabras enteras y el pegote no lo es, el guion era un guion:
+  "septiembre- octubre", "parece- que". Ahí no se toca nada.
+- **Enclíticos, prefijos, adverbios en -mente y diminutivos no se parten.** El
+  diccionario no conoce "persuadirlo" ni "desaprendemos" ni "mujercita", y sin
+  estas guardas los destrozaba.
+- **Las palabras de UNA letra van en lista cerrada** (a, y, e, o, u). El
+  diccionario acepta "d" como abreviatura y eso partía "Durand" en "Duran d".
+- **Un romano suelto es basura solo si sale en cada página** (≥10 veces). Con
+  menos, es una referencia: "el párrafo XII de la introducción".
+- **Una cabecera repetida se quita siempre, salvo que delante haya mayúscula.**
+  Eso salva la portada: "COMPILADA POR ALLAN KARDEC Traducción de...".
+- **El motor de separar palabras pegadas NO se aplica solo.** Acierta 10 de 51
+  propuestas en un libro real; vale como diagnóstico, no como reparación.
+
+### Herramientas de operación
+
+Todas simulan por defecto y hay que pasarles `--aplicar` o `--subir`:
+
+| Script | Para qué |
+|:---|:---|
+| `diagnostico_texto.py` | Mide un libro sin tocarlo: 7 formas de palabra partida, basura, pegadas. Con `--revision` lee el informe de la subida |
+| `reparar_libros.py` | Repara libros ya subidos. Modos: guiones, `--basura`, `--despegar`, `--restaurar`. **Respalda en `{book_id}/text_original/`** |
+| `comparar.py` | Diff del texto contra su respaldo, clasificando los cambios. Es la verificación objetiva |
+| `resetear_libros.py` | Borra un libro de R2 y de Appwrite (la app no puede: exige propiedad) |
+| `subir_biblioteca.py` | Vuelve a subir la biblioteca desde los PDF, emparejando por título |
+| `catalogo.py` | Empareja archivos del disco con fichas del catálogo |
+| `probar_ia.py` | Prueba la cascada de OpenRouter modelo por modelo |
+| `cuentas.py` | Lista usuarios de Appwrite y pone contraseñas nuevas |
+
+### Pruebas
+
+**14 archivos de prueba, más de 440 comprobaciones, 0 fallos.** Las de
+`test_guiones_reales.py` son **casos reales sacados de la biblioteca**: 148
+fragmentos que salieron de las reparaciones del 12-09-2026, incluidos los 48 que
+una versión anterior destrozaba. Corren sin red y sin levantar el backend.
 
 ---
 
@@ -358,6 +439,11 @@ libris-audio-main/
 | `R2_BUCKET` | Nombre del bucket R2 |
 | `R2_PUBLIC_URL` | URL pública del bucket R2 |
 | `OPENROUTER_API_KEY` | Key para chat IA (opcional) |
+| `MODO_COMUNIDAD` | `1` por defecto. Lo que sube uno lo ven todos. A `0` vuelve el aislamiento por usuario, que es lo que necesita Quantum Text Codex |
+| `REVISION_AL_SUBIR` | `1` por defecto. A `0` apaga TODO el motor de calidad al subir |
+| `REVISION_IA` | `1` por defecto. A `0` apaga SOLO la capa de IA; los guiones y la detección siguen. **Hoy está en 0** |
+| `LIMITE_PETICION_S` | `300` por defecto, **puesto en 600**. Es el presupuesto de tiempo que el motor reparte; debe coincidir con el `--timeout` del servicio |
+| `VOZ_POR_DEFECTO` | `es-MX-JorgeNeural`. Antes estaba escrita a mano en cinco firmas distintas |
 
 ---
 
@@ -368,7 +454,22 @@ libris-audio-main/
 3. **AutoMirrored icons** no compatibles con el runner de GitHub Actions — usar `Icons.Default.*`
 4. **Google OAuth** requiere que el dominio de callback esté configurado en Google Cloud Console
 5. **Appwrite `global_books`** necesita tener los atributos `title`, `category`, `added_by`, `book_id`, `cover_url`, `parts_count` creados como atributos de la colección
-6. **DIRECTIVA_CERO_HARDCODING** — `APPWRITE_API_KEY` y todas las credenciales SOLO desde variables de entorno, sin valores por defecto hardcodeados
+6. **NUNCA modificar `backend/diccionarios/es_ES.aff` ni `es_ES.dic`.** Son
+   triple licencia MPL-2.0 / LGPL-3 / GPL-3+ y se incluyen bajo MPL-2.0, que
+   permite uso comercial cerrado **siempre que no se modifiquen**. Si hacen
+   falta palabras propias, van en un archivo aparte. Ver
+   `backend/diccionarios/LICENCIA.md`.
+7. **El frontend web está DESCARTADO a propósito** (ver punto 5 de
+   `PLAN_PERMISOS_Y_PROPIEDAD.md`). Se quedó a medias en la migración de
+   Supabase a Appwrite y no se va a arreglar: lo sustituye la versión de
+   Windows. No perder tiempo ahí.
+8. **PyMuPDF (AGPL) y edge-tts (GPL + uso personal) bloquean la versión
+   comercial.** Sustitutos ya elegidos: pypdfium2 y Kokoro. El motor de calidad
+   NO tiene este problema y es portable tal cual.
+9. **Antes de aplicar cualquier reparación masiva, simular y comparar.** Todos
+   los scripts simulan por defecto y respaldan antes de escribir. El 12-09-2026
+   una reparación sin respaldo y con un informe que mentía dañó 4 libros.
+10. **DIRECTIVA_CERO_HARDCODING** — `APPWRITE_API_KEY` y todas las credenciales SOLO desde variables de entorno, sin valores por defecto hardcodeados
 
 ---
 
@@ -380,4 +481,10 @@ libris-audio-main/
 | `5f4c994` | fix(auth): fix email registration + Google OAuth Chrome Custom Tab |
 | `a992df7` | fix(backend): remove Supabase dependency from /api/audio and /api/upload-pdf |
 | `2b771d9` | feat: full PWA parity — LibraryScreen tabs+categories+search, BookCard owner actions, HistoryScreen, UploadScreen mandatory fields, SettingsScreen profile+logout, backend Appwrite-auth |
+| `eb2468e` | feat: unir palabras partidas por guion + modo comunidad |
+| `3233525` | feat: script de reparacion de palabras partidas en libros ya subidos |
+| `584e492` | feat: motor de calidad al subir, diccionario empaquetado y reseteo de biblioteca |
+| `086f9e4` | feat: limpieza de texto con diccionario y reseteo de biblioteca |
+| `bf435c5` | feat: comparar.py — diff del texto contra su respaldo |
+| `52adb02` | fix(ia): cascada de modelos real, y que los fallos se vean |
 | `pendiente` | fix: remove Supabase+Render; fix login (network_security_config, async session verify, OAuth parser); persist progress SharedPreferences; background music Custom Commands |

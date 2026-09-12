@@ -11,6 +11,9 @@ data class TtsVoice(
 )
 
 object VoiceCatalog {
+    // El cache de audio en R2 lleva la voz dentro de la clave
+    // (part_3_es-MX-JorgeNeural.mp3), de modo que cambiar esta constante no
+    // invalida nada de lo ya generado, porque cada voz tiene su propio cache.
     const val DEFAULT = "es-MX-JorgeNeural"
     const val DEFAULT_EN = "en-US-AriaNeural"
 

@@ -45,6 +45,11 @@ from appwrite.services.databases import Databases as AppwriteDatabases
 # ---------------------------------------------------------------------------
 # Appwrite — base de datos principal (24/7, sin pausas)
 # ---------------------------------------------------------------------------
+# Voz por defecto del TTS. Estaba escrita a mano en cinco sitios, asi que
+# cambiarla obligaba a encontrarlos todos. Vive aqui y se lee una vez.
+# Venezolana desde el 12-09-2026 (antes es-MX-JorgeNeural).
+VOZ_POR_DEFECTO = os.environ.get("VOZ_POR_DEFECTO", "es-VE-SebastianNeural")
+
 APPWRITE_ENDPOINT   = os.environ.get("APPWRITE_ENDPOINT", "https://nyc.cloud.appwrite.io/v1")
 APPWRITE_PROJECT_ID = os.environ.get("APPWRITE_PROJECT_ID", "6a72f5d6002eeff78bc2")
 APPWRITE_API_KEY    = os.environ.get("APPWRITE_API_KEY")  # obligatorio en Cloud Run env vars
@@ -357,7 +362,7 @@ def _split_entry_to_words(text, s, e):
     return out
 
 
-async def text_to_mp3(text: str, output_path: Path, voice: str = "es-MX-JorgeNeural",
+async def text_to_mp3(text: str, output_path: Path, voice: str = VOZ_POR_DEFECTO,
                       timing_path: Path | None = None):
     """Genera MP3 completo con reintentos y fallback a gTTS por segmento.
     Si timing_path se indica, guarda un JSON con los tiempos de cada palabra
@@ -663,7 +668,7 @@ async def get_all_books(authorization: str = Header(default=None)):
 
 
 @app.get("/api/tts-sample")
-async def get_tts_sample(voice: str = "es-MX-JorgeNeural"):
+async def get_tts_sample(voice: str = VOZ_POR_DEFECTO):
     """Genera y cachea una muestra de voz corta."""
     safe_voice  = sanitize_filename(voice)
     sample_path = AUDIO_DIR / f"sample_{safe_voice}.mp3"
@@ -853,7 +858,7 @@ async def upload_pdf(
 
 
 @app.get("/api/audio/{book_id}/{part_index}")
-async def get_book_audio(book_id: str, part_index: int, voice: str = "es-MX-JorgeNeural",
+async def get_book_audio(book_id: str, part_index: int, voice: str = VOZ_POR_DEFECTO,
                          authorization: str = Header(default=None)):
     """Motor JIT: genera y cachea MP3 en R2. Streamea directamente al cliente."""
     await _assert_can_read(book_id, authorization)
@@ -922,7 +927,7 @@ async def get_book_audio(book_id: str, part_index: int, voice: str = "es-MX-Jorg
 # ---------------------------------------------------------------------------
 
 @app.get("/api/timing/{book_id}/{part_index}")
-async def get_book_timing(book_id: str, part_index: int, voice: str = "es-MX-JorgeNeural",
+async def get_book_timing(book_id: str, part_index: int, voice: str = VOZ_POR_DEFECTO,
                           authorization: str = Header(default=None)):
     await _assert_can_read(book_id, authorization)
     """Devuelve [{"w":palabra,"s":inicio_ms,"e":fin_ms}, ...] para resaltar
@@ -1059,7 +1064,7 @@ async def delete_book(book_id_hex: str, authorization: str = Header(default=None
 
 
 @app.get("/api/export-mp3/{book_id}")
-async def export_mp3(book_id: str, voice: str = "es-MX-JorgeNeural",
+async def export_mp3(book_id: str, voice: str = VOZ_POR_DEFECTO,
                      authorization: str = Header(default=None)):
     """
     META 3.6 — descarga el libro entero como un solo MP3.
