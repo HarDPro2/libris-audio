@@ -10,8 +10,15 @@ Lo que hay que garantizar:
      cacheado seguiria leyendo la palabra partida.
   4. No toca la portada ni las partes sanas.
 """
+import datetime as _dt
 import sys, io
 sys.path.insert(0, '.')
+
+# part_0 hace como si se hubiese reescrito hoy; el resto conserva la fecha de
+# subida. Es lo que prueba el filtro --desde.
+VIEJA  = _dt.datetime(2026, 1, 5, tzinfo=_dt.timezone.utc)
+HOY    = _dt.datetime(2026, 9, 12, tzinfo=_dt.timezone.utc)
+FECHAS = {"LIBRO/text/part_0.txt": HOY}
 
 ok = fallos = 0
 def c(n, cond):
@@ -38,7 +45,9 @@ def montar():
 
     class FakeS3:
         def list_objects_v2(self, Bucket, Prefix, **kw):
-            return {"Contents": [{"Key": k} for k in almacen if k.startswith(Prefix)],
+            # part_0 se "reescribio" hoy; las demas conservan la fecha vieja.
+            return {"Contents": [{"Key": k, "LastModified": FECHAS.get(k, VIEJA)}
+                                 for k in almacen if k.startswith(Prefix)],
                     "IsTruncated": False}
         def get_object(self, Bucket, Key):
             v = almacen[Key]
@@ -74,7 +83,12 @@ c("parte 0 arreglada",               "carácter" in almacen["LIBRO/text/part_0.t
 c("parte 0 sin restos",              "carác- ter" not in almacen["LIBRO/text/part_0.txt"])
 c("parte 1 arreglada",               "infancia" in almacen["LIBRO/text/part_1.txt"])
 c("parte 2 intacta",                 almacen["LIBRO/text/part_2.txt"].startswith("Sin ningun"))
-c("solo reescribe 2 partes",         len(h["escritos"]) == 2)
+texto_escrito = [k for k in h["escritos"] if "/text/" in k]
+respaldos     = [k for k in h["escritos"] if "/text_original/" in k]
+c("solo reescribe 2 partes",         len(texto_escrito) == 2)
+c("respalda esas 2 antes de tocarlas", len(respaldos) == 2)
+c("el respaldo guarda el texto ROTO, no el arreglado",
+  "carác- ter" in almacen["LIBRO/text_original/part_0.txt"])
 
 print("\nEl audio y el karaoke viejos quedan invalidados:")
 c("audio 0 borrado",    "LIBRO/audio/part_0_es-MX-JorgeNeural.mp3" not in almacen)
@@ -85,6 +99,15 @@ c("karaoke 1 borrado",  "LIBRO/timing/part_1_es-MX-JorgeNeural_v3.json" not in a
 c("karaoke 2 CONSERVADO","LIBRO/timing/part_2_es-MX-JorgeNeural_v3.json" in almacen)
 c("portada intacta",    "LIBRO/cover.png" in almacen)
 c("borra exactamente 4 archivos", len(h["borrados"]) == 4)
+
+print("\n--desde: solo toca las partes reescritas en esa fecha:")
+R, almacen, h = montar()
+sys.argv = ["x", "--aplicar", "--sin-ejemplos", "--desde", "2026-09-12"]
+try: R.main()
+except SystemExit: pass
+tocadas = [k for k in h["escritos"] if "/text/" in k]
+c("solo reescribe part_0",  tocadas == ["LIBRO/text/part_0.txt"])
+c("deja part_1 en paz",     "infan- cia" in almacen["LIBRO/text/part_1.txt"])
 
 print("\n" + "=" * 54)
 print(f"{ok} OK · {fallos} fallos")

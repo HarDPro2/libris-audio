@@ -15,6 +15,9 @@ venv/
 .env.local
 .env.production
 
+# Registros locales de los scripts de migracion (no son del proyecto)
+backend/migracion_biblioteca.json
+
 # Generated audio & data
 backend/static/audio/*.mp3
 backend/static/audio/*.wav

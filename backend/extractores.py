@@ -26,6 +26,25 @@ import fitz  # PyMuPDF
 from guiones import vocabulario, unir_palabras_cortadas
 
 
+def _es_valida():
+    """El diccionario empaquetado, si esta. Distingue un corte de palabra
+    ("inge-nioso") de un guion de verdad ("septiembre- octubre"). Si falta, se
+    decide solo con el vocabulario del documento, como antes."""
+    global _ES_VALIDA
+    try:
+        return _ES_VALIDA
+    except NameError:
+        pass
+    try:
+        from calidad import Diccionario
+        d = Diccionario()
+        _ES_VALIDA = (lambda w: d.existe(w) or d.existe(w.lower())) \
+            if d.disponible else None
+    except Exception:
+        _ES_VALIDA = None
+    return _ES_VALIDA
+
+
 # ---------------------------------------------------------------------------
 # Estructura normalizada
 # ---------------------------------------------------------------------------
@@ -231,7 +250,7 @@ def limpiar_bloque(texto: str, filtro_academico: bool = True,
             continue
         lineas.append(s)
     if vocab is not None:
-        lineas = unir_palabras_cortadas(lineas, vocab)
+        lineas = unir_palabras_cortadas(lineas, vocab, _es_valida())
     salida = " ".join(lineas)
     if filtro_academico:
         salida = _quitar_ruido_academico(salida)

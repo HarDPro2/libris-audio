@@ -10,6 +10,7 @@ print("=== STARTING LIBRIS AUDIO BACKEND — Google Cloud Run ===", flush=True)
 import asyncio
 import os
 import re
+import time
 import uuid
 import json
 from pathlib import Path
@@ -477,6 +478,18 @@ async def _verify_appwrite_session(session_id: str) -> str:
 # ---------------------------------------------------------------------------
 
 from ajustes import MODO_COMUNIDAD, VISIBILIDAD_AL_SUBIR, visible_para
+import revision
+
+# Cloud Run corta la peticion a los LIMITE_PETICION_S segundos. Un PDF escaneado
+# gasta ~134 s solo en OCR, asi que la revision de calidad no puede correr "lo
+# que haga falta": recibe lo que sobra y, si no sobra, se salta la parte de IA.
+# Subir el limite del servicio (gcloud run deploy --timeout=600) ensancha esto
+# sin tocar el codigo.
+LIMITE_PETICION_S = float(os.environ.get("LIMITE_PETICION_S", "300"))
+# Lo que hay que reservar para subir partes, portada e indice despues.
+MARGEN_SUBIDA_S = 60.0
+# Interruptor: REVISION_AL_SUBIR=0 desactiva el motor sin redesplegar codigo.
+REVISION_AL_SUBIR = os.environ.get("REVISION_AL_SUBIR", "1") != "0"
 
 print(f"[Arranque] Modo comunidad: {'SI' if MODO_COMUNIDAD else 'NO'} "
       f"· los libros nuevos entran como '{VISIBILIDAD_AL_SUBIR}'", flush=True)
@@ -670,6 +683,7 @@ async def upload_pdf(
     added_by: str        = Form("upload"),   # ignorado: se toma del token
     authorization: str   = Header(default=None),
 ):
+    t_peticion = time.monotonic()
     print(f"[Upload] Recibiendo: {file.filename}")
     # El propietario SIEMPRE sale de la sesión verificada. El campo del
     # formulario era falsificable: cualquiera podía atribuirse un documento
@@ -713,11 +727,44 @@ async def upload_pdf(
             raise HTTPException(status_code=422,
                                 detail="No se pudo extraer texto del archivo.")
 
+        # REVISION DE CALIDAD — antes de trocear, porque lo que se guarda en R2
+        # es lo que el TTS leera durante anos. Une las palabras partidas por el
+        # guion de maquina de escribir y corrige los errores de OCR evidentes.
+        informe_revision = None
+        if REVISION_AL_SUBIR:
+            transcurrido = time.monotonic() - t_peticion
+            presupuesto  = max(0.0, LIMITE_PETICION_S - transcurrido - MARGEN_SUBIDA_S)
+            try:
+                text, informe_revision = await revision.revisar(
+                    text, presupuesto_s=presupuesto)
+                print(f"[Upload] Revision: {revision.resumen_humano(informe_revision)}",
+                      flush=True)
+            except Exception as e:
+                # La revision NUNCA puede tumbar una subida.
+                print(f"[Upload] Revision fallo, se sigue sin ella: {e}", flush=True)
+
         chunks  = chunk_text(text, max_chars=3800)
         if not chunks:
             raise HTTPException(status_code=422, detail="No se pudo extraer texto suficiente.")
 
         book_id = uuid.uuid4().hex[:12]
+
+        # EL ARCHIVO ORIGINAL — se guarda tal cual, antes que nada.
+        #
+        # Hasta hoy R2 solo tenia el texto ya extraido, asi que ESE era el
+        # unico master: si una reparacion lo estropeaba, no habia nada de
+        # donde volver a partir. Con el original guardado, cualquier libro se
+        # puede reprocesar de cero cuando el motor mejore, sin depender de que
+        # alguien conserve el PDF en su disco.
+        try:
+            limpio = re.sub(r"[^A-Za-z0-9._-]+", "_", file.filename)[:120] or "original"
+            await asyncio.to_thread(
+                r2_upload, f"{book_id}/original/{limpio}", pdf_bytes,
+                "application/octet-stream")
+            print(f"[Upload] Original guardado: {book_id}/original/{limpio} "
+                  f"({len(pdf_bytes) / 1048576:.1f} MB)")
+        except Exception as e:
+            print(f"[Upload] Warning original: {e}")
 
         # Portada
         cover_url = None
@@ -740,6 +787,17 @@ async def upload_pdf(
 
         await asyncio.gather(*[upload_chunk(i, c) for i, c in enumerate(chunks)])
         print(f"[Upload] {len(chunks)} partes subidas a R2 para {book_id}")
+
+        # Informe de la revision, junto al libro: que se corrigio y que quedo
+        # pendiente de que lo mire una persona.
+        if informe_revision:
+            try:
+                await asyncio.to_thread(
+                    r2_upload, f"{book_id}/revision.json",
+                    json.dumps(informe_revision, ensure_ascii=False).encode("utf-8"),
+                    "application/json; charset=utf-8")
+            except Exception as e:
+                print(f"[Upload] Warning informe de revision: {e}")
 
         # Índice de capítulos (del TOC real del EPUB/MOBI/FB2, o heurístico en PDF)
         try:

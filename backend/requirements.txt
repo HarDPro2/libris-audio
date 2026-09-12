@@ -10,3 +10,4 @@ appwrite
 requests
 pytesseract==0.3.13
 Pillow>=10.0.0
+spylls==0.1.7

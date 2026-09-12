@@ -18,6 +18,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# El diccionario espanol viaja en backend/diccionarios/ (ver su LICENCIA.md),
+# por eso ya no se instala el paquete hunspell-es del sistema.
 COPY . .
 
 EXPOSE 8080
