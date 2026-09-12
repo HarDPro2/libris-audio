@@ -21,6 +21,10 @@ from dataclasses import dataclass, field
 
 import fitz  # PyMuPDF
 
+# Union de palabras cortadas por guion. Modulo aparte y sin dependencias
+# pesadas, para que sus pruebas corran en cualquier maquina.
+from guiones import vocabulario, unir_palabras_cortadas
+
 
 # ---------------------------------------------------------------------------
 # Estructura normalizada
@@ -210,7 +214,8 @@ def _quitar_ruido_academico(texto: str) -> str:
 
 
 def limpiar_bloque(texto: str, filtro_academico: bool = True,
-                   repetidas: set | None = None) -> str:
+                   repetidas: set | None = None,
+                   vocab: set | None = None) -> str:
     """
     `repetidas` son las líneas que aparecen en casi todas las páginas
     (encabezados y pies de página); se calculan a nivel de documento.
@@ -225,6 +230,8 @@ def limpiar_bloque(texto: str, filtro_academico: bool = True,
         if filtro_academico and _NOTA_PIE.match(s):
             continue
         lineas.append(s)
+    if vocab is not None:
+        lineas = unir_palabras_cortadas(lineas, vocab)
     salida = " ".join(lineas)
     if filtro_academico:
         salida = _quitar_ruido_academico(salida)
@@ -284,13 +291,23 @@ def _ocr_documento(datos: bytes, tipo: str) -> tuple[list[str], int, bool]:
     doc = fitz.open(stream=datos, filetype=tipo)
     total = doc.page_count
     limite = min(total, OCR_MAX_PAGS)
-    textos = []
+
+    # Dos pasadas a proposito. Primero se reconocen TODAS las paginas en crudo;
+    # solo entonces hay vocabulario suficiente para decidir que hacer con las
+    # palabras cortadas por guion. Limpiar pagina a pagina, como se hacia
+    # antes, dejaba "inge- nioso" y el TTS leia dos palabras.
+    # Esta es la ruta de los libros escaneados, que es justo donde mas
+    # abundan los cortes de linea.
+    crudas = []
     for i in range(limite):
         try:
-            textos.append(limpiar_bloque(_ocr_pagina(doc.load_page(i))))
+            crudas.append(_ocr_pagina(doc.load_page(i)))
         except Exception:
-            textos.append("")
+            crudas.append("")
     doc.close()
+
+    vocab  = vocabulario(crudas)
+    textos = [limpiar_bloque(t, True, None, vocab) for t in crudas]
     return textos, limite, total > limite
 
 
@@ -321,7 +338,10 @@ def _extraer_mupdf(datos: bytes, ext: str, titulo: str,
 
     crudas   = [doc.load_page(i).get_text() for i in range(doc.page_count)]
     repetidas = _lineas_repetidas(crudas)
-    paginas  = [limpiar_bloque(t, filtro_academico, repetidas) for t in crudas]
+    # El vocabulario sale del documento entero: es lo que permite decidir si
+    # un guion de final de linea sobra o forma parte de la palabra.
+    vocab    = vocabulario(crudas)
+    paginas  = [limpiar_bloque(t, filtro_academico, repetidas, vocab) for t in crudas]
     total_paginas = doc.page_count
     doc.close()
 
@@ -390,7 +410,8 @@ def _extraer_plano(datos: bytes, ext: str, titulo: str) -> Documento:
                 actual.bloques.append(linea.strip())
         capitulos.append(actual)
     else:
-        capitulos.append(Capitulo("Documento", 0, [limpiar_bloque(texto)]))
+        capitulos.append(Capitulo("Documento", 0,
+                                  [limpiar_bloque(texto, True, None, vocabulario([texto]))]))
 
     capitulos = [c for c in capitulos if c.texto.strip()] or [Capitulo("Documento", 0, [])]
     return Documento(titulo=titulo, formato=ext, capitulos=capitulos)

@@ -461,9 +461,25 @@ async def _verify_appwrite_session(session_id: str) -> str:
 # visibility = "private"  -> subido por un usuario. SOLO su propietario.
 #
 # Los libros sin el campo (los de antes de esta versión) se tratan como
-# "catalog" para no romper el catálogo existente. La migración de los que
-# subieron usuarios se hace marcándolos como private en Appwrite.
+# "catalog" para no romper el catálogo existente.
+#
+# MODO COMUNIDAD (Libris Audio)
+# -----------------------------
+# Libris es la versión gratuita de uso personal: lo que sube uno lo ven todos,
+# estilo biblioteca compartida entre amigos y familia. Con el modo comunidad
+# encendido, cada libro nuevo entra al catálogo común y el filtro de privacidad
+# no se aplica al leer.
+#
+# El aislamiento por usuario NO se ha borrado: sigue entero detrás de este
+# interruptor. Apagarlo (MODO_COMUNIDAD=0) devuelve el comportamiento privado,
+# que es el que necesita la versión comercial (Quantum Text Codex), donde cada
+# usuario solo puede ver los documentos que subió él.
 # ---------------------------------------------------------------------------
+
+from ajustes import MODO_COMUNIDAD, VISIBILIDAD_AL_SUBIR, visible_para
+
+print(f"[Arranque] Modo comunidad: {'SI' if MODO_COMUNIDAD else 'NO'} "
+      f"· los libros nuevos entran como '{VISIBILIDAD_AL_SUBIR}'", flush=True)
 
 _BOOK_META_CACHE: dict = {}
 
@@ -508,6 +524,8 @@ async def _assert_can_read(book_id: str, authorization: str):
     Deja pasar si el libro es de catálogo. Si es privado, exige sesión válida
     y que el solicitante sea el propietario. Devuelve el userId o None.
     """
+    if MODO_COMUNIDAD:
+        return None
     meta = await _get_book_meta(book_id)
     if meta is None or meta["visibility"] != "private":
         return None
@@ -595,8 +613,8 @@ async def get_all_books(authorization: str = Header(default=None)):
             queries=[{"method": "limit", "values": [500]}]
         )
         for doc in documents:
-            visibility = doc.get("visibility") or "catalog"
-            if visibility == "private" and doc.get("added_by") != requester:
+            if not visible_para(doc.get("visibility"),
+                                doc.get("added_by"), requester):
                 continue
             books.append({
                 "id":         doc.get("$id") or doc.get("book_id"),
@@ -749,7 +767,7 @@ async def upload_pdf(
                     "title":      title,
                     "category":   category,
                     "added_by":   owner_id,
-                    "visibility": "private",   # nunca al catálogo público
+                    "visibility": VISIBILIDAD_AL_SUBIR,
                     "cover_url":  cover_url or "",
                     "parts_count": len(chunks),
                 }
