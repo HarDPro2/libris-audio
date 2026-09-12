@@ -118,3 +118,53 @@ def unir_palabras_cortadas(lineas: list[str], vocab: Counter) -> list[str]:
         salida.append(actual)
         i += 1
     return salida
+
+
+# ---------------------------------------------------------------------------
+# Reparacion de texto YA guardado
+#
+# Los libros subidos antes de este arreglo tienen el texto guardado en R2 ya
+# limpio: las lineas se unieron con espacios y los saltos desaparecieron. El
+# corte quedo dentro del texto, como "carac- ter", y unir_palabras_cortadas()
+# no sirve porque ya no hay lineas que unir.
+#
+# Ojo: en un PDF recien extraido, un "palabra- palabra" a media linea NO suele
+# ser un corte, sino un inciso con raya mal codificada; por eso el extractor
+# solo mira el final de linea. Aqui el contexto es otro — este texto viene de
+# un pipeline que convirtio los saltos en espacios — asi que si es un corte.
+# Aun asi se pasa por la misma decision, que es la que protege de los casos
+# raros.
+# ---------------------------------------------------------------------------
+
+_CORTE_EN_TEXTO = re.compile(
+    rf"([^\W\d_]+)[{_GUIONES}][ \t]+([a-záéíóúüñ][^\W\d_]*)", re.UNICODE
+)
+
+
+def reparar_texto_plano(texto: str, vocab: Counter) -> tuple[str, int]:
+    """Repara cortes dentro de un texto ya unido. Devuelve (texto, arreglos)."""
+    arreglos = 0
+
+    def _sustituir(m):
+        nonlocal arreglos
+        unida = decidir_union(m.group(1), m.group(2), vocab)
+        if unida is None:
+            return m.group(0)          # se deja tal cual
+        arreglos += 1
+        return unida
+
+    return _CORTE_EN_TEXTO.sub(_sustituir, texto), arreglos
+
+
+def vocabulario_de_textos(textos: list[str]) -> Counter:
+    """Vocabulario a partir de textos ya unidos (una sola linea cada uno).
+
+    Se ignoran los fragmentos pegados a un guion, que son justo los rotos.
+    """
+    vocab: Counter = Counter()
+    for t in textos:
+        limpio = _CORTE_EN_TEXTO.sub(" ", t)
+        for w in _PALABRA.findall(limpio):
+            if len(w) > 2:
+                vocab[w.lower()] += 1
+    return vocab

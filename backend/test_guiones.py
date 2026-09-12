@@ -90,6 +90,38 @@ c("con testigo, une igual",
 print("\nGuion blando (U+00AD) tambien cuenta como corte:")
 c("guion blando", "ingenioso" in procesar("El inge­\nnioso hidalgo"))
 
+print("\nReparacion de texto YA guardado (libros subidos antes del arreglo):")
+from guiones import reparar_texto_plano, vocabulario_de_textos
+
+# Fragmento REAL de la parte 100 de El libro de los espiritus, tal como esta
+# guardado hoy en R2: ya limpio, sin saltos de linea, con los cortes dentro.
+kardec = ("¿De dónde procede el cambio que se opera en el carác- ter a cierta edad, "
+          "particularmente al salir de la adolescen- cia? La benevoloen- cia que hasta "
+          "entonces mostraba cambia notablamen- te a la asisten- cia que se le presta. "
+          "En la infan- cia? En ella los pensamien- tos, los caracteres y las "
+          "inclinacio- nes. Muchos pensamientos y muchas inclinaciones nacen en la "
+          "adolescencia y en la infancia, cuando el carácter aún no existe. La "
+          "asistencia de los padres importa.")
+vocab_k = vocabulario_de_textos([kardec])
+rep, n = reparar_texto_plano(kardec, vocab_k)
+c("arregla los 8 cortes del fragmento real", n == 8, f"n={n}")
+for esperado in ("carácter", "adolescencia", "notablamente", "asistencia",
+                 "infancia", "pensamientos", "inclinaciones"):
+    c(f"  {esperado}", esperado in rep)
+c("no quedan restos", not re.search(r"[^\W\d_]+-\s+[a-záéíóúüñ]+", rep))
+
+print("\n...y sigue respetando lo que no debe tocar:")
+texto = "el metodo teorico- practico y el enfoque teorico-practico son iguales"
+v = vocabulario_de_textos([texto])
+r, _ = reparar_texto_plano(texto, v)
+c("conserva el guion del compuesto", "teorico-practico" in r and "teoricopractico" not in r)
+
+texto2 = ("el cuerpo corporai- para para el alma para todos para siempre "
+          "para que se vea para bien")
+v2 = vocabulario_de_textos([texto2])
+r2, _ = reparar_texto_plano(texto2, v2)
+c("no fusiona OCR roto con palabra frecuente", "corporaipara" not in r2)
+
 print("\n" + "=" * 54)
 print(f"{ok} OK · {fallos} fallos")
 sys.exit(1 if fallos else 0)
