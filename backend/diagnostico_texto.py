@@ -54,6 +54,8 @@ def main():
     ap.add_argument("--parte", type=int, help="ensena esta parte entera")
     ap.add_argument("--ver", action="store_true", help="con --parte, la imprime")
     ap.add_argument("--ejemplos", type=int, default=8)
+    ap.add_argument("--revision", action="store_true",
+                    help="ensena el informe de calidad que dejo la subida")
     args = ap.parse_args()
 
     s3 = cliente_r2()
@@ -76,6 +78,42 @@ def main():
         sys.exit("Ese libro no tiene texto en R2.")
 
     print(f"{titulo}  ·  {len(claves)} partes\n")
+
+    if args.revision:
+        import json
+        # Lo que la subida dejo escrito: que corrigio y que dejo pendiente.
+        try:
+            crudo = s3.get_object(Bucket=bucket,
+                                  Key=f"{args.libro}/revision.json")["Body"].read()
+            inf = json.loads(crudo)
+        except Exception as e:
+            sys.exit(f"Ese libro no tiene revision.json ({e}).\n"
+                     "Los subidos antes del motor de calidad no lo tienen.")
+        ia = inf.get("ia", {})
+        print(f"  guiones unidos     : {inf.get('guiones_unidos', 0)}")
+        print(f"  palabras sospechosas: {inf.get('candidatas', {})}")
+        print(f"  segundos           : {inf.get('segundos')}")
+        print(f"  IA ejecutada       : {ia.get('ejecutada')}"
+              + (f"  ({ia.get('motivo_omitida')})" if not ia.get("ejecutada") else ""))
+        for d in ia.get("aplicadas", [])[:20]:
+            print(f"     corregido  {d['palabra']} -> {d['correcta']}"
+                  f"  ({d['confianza']})")
+        for d in ia.get("pendientes", [])[:20]:
+            print(f"     pendiente  {d['palabra']} -> {d.get('propuesta')}"
+                  f"  ({d.get('motivo')})")
+
+        # Y comprobar que el original quedo guardado.
+        originales = s3.list_objects_v2(Bucket=bucket,
+                                        Prefix=f"{args.libro}/original/")
+        archivos = [o["Key"] for o in originales.get("Contents", [])]
+        if archivos:
+            tam = originales["Contents"][0]["Size"] / 1048576
+            print(f"\n  ARCHIVO ORIGINAL guardado: {archivos[0]}  ({tam:.1f} MB)")
+            print("  -> este libro se puede reprocesar de cero cuando el "
+                  "motor mejore.")
+        else:
+            print("\n  sin archivo original (subido antes de guardarlos)")
+        return
 
     if args.parte is not None:
         clave = f"{args.libro}/text/part_{args.parte}.txt"

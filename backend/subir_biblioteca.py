@@ -52,6 +52,102 @@ REGISTRO = "migracion_biblioteca.json"
 
 
 # ── Sesion de Appwrite ──────────────────────────────────────────────────────
+class AppwriteError(RuntimeError):
+    pass
+
+
+def _pedir(url: str, cuerpo=None, metodo="GET", con_key=False):
+    cabeceras = {"Content-Type": "application/json",
+                 "X-Appwrite-Project": reset.AW_PROJECT}
+    if con_key:
+        cabeceras["X-Appwrite-Key"] = reset.AW_KEY
+    datos = json.dumps(cuerpo).encode() if cuerpo is not None else None
+    pet = urllib.request.Request(url, data=datos, method=metodo,
+                                 headers=cabeceras)
+    try:
+        with urllib.request.urlopen(pet, timeout=30) as r:
+            texto = r.read()
+            return json.loads(texto) if texto else {}
+    except urllib.error.HTTPError as e:
+        # Appwrite explica el fallo en el cuerpo; sin esto solo se ve
+        # "HTTP Error 404" y hay que adivinar.
+        detalle = e.read().decode("utf-8", "replace")[:400]
+        try:
+            detalle = json.loads(detalle).get("message", detalle)
+        except Exception:
+            pass
+        raise AppwriteError(f"{metodo} {url.split('/v1')[-1]} -> "
+                            f"HTTP {e.code}: {detalle}") from None
+
+
+def usuarios() -> list[dict]:
+    """Los usuarios del proyecto. Necesita la API key."""
+    return _pedir(f"{reset.AW_ENDPOINT}/users", con_key=True).get("users", [])
+
+
+def abrir_sesion_con_api_key(email: str | None = None) -> str:
+    """Sesion SIN contrasena, usando la API key del servidor.
+
+    Appwrite deja que el servidor cree un token de un solo uso para un
+    usuario y luego lo canjee por sesion. Es mas robusto que pedir la
+    contrasena — que ya dio un 401 por teclear un email distinto del de la
+    cuenta — y no hace falta que nadie escriba credenciales.
+
+    Si hay un solo usuario en el proyecto, se usa ese. Si hay varios, se
+    busca por email.
+    """
+    lista = usuarios()
+    if not lista:
+        raise SystemExit("El proyecto de Appwrite no tiene usuarios.")
+    if email:
+        elegidos = [u for u in lista
+                    if (u.get("email") or "").lower() == email.lower()]
+        if not elegidos:
+            correos = ", ".join((u.get("email") or "?") for u in lista)
+            raise SystemExit(f"No hay ningun usuario con el email {email}.\n"
+                             f"Los que hay: {correos}")
+    elif len(lista) == 1:
+        elegidos = lista
+    else:
+        correos = ", ".join((u.get("email") or "?") for u in lista)
+        raise SystemExit(f"Hay {len(lista)} usuarios; dime cual con --email.\n"
+                         f"   {correos}")
+
+    usuario = elegidos[0]
+    token = _pedir(f"{reset.AW_ENDPOINT}/users/{usuario['$id']}/tokens",
+                   {"length": 64, "expire": 600}, "POST", con_key=True)
+    # El canje del token es POST /account/sessions/token. En versiones viejas
+    # de Appwrite era PUT, asi que si el POST da 404 se prueba con el otro.
+    cuerpo = {"userId": usuario["$id"], "secret": token["secret"]}
+    url = f"{reset.AW_ENDPOINT}/account/sessions/token"
+
+    # CON la API key. Appwrite solo pone el secreto de sesion en el cuerpo de
+    # la respuesta cuando la peticion viene de un servidor; sin la key lo
+    # manda como cookie y el campo 'secret' llega vacio.
+    intentos = [("POST", True), ("POST", False), ("PUT", True)]
+    sesion, ultimo = {}, ""
+    for metodo, con_key in intentos:
+        try:
+            sesion = _pedir(url, cuerpo, metodo, con_key=con_key)
+        except AppwriteError as e:
+            ultimo = str(e)
+            continue
+        if sesion.get("secret"):
+            break
+
+    secreto = sesion.get("secret") or ""
+    if not secreto:
+        campos = ", ".join(sorted(sesion)) if sesion else "(respuesta vacia)"
+        raise SystemExit(
+            "El canje del token no devolvio 'secret'.\n"
+            f"  lo que devolvio: {campos}\n"
+            + (f"  ultimo error: {ultimo}\n" if ultimo else "")
+            + "  Alternativa: usa la contrasena de la cuenta con --con-clave.")
+    print(f"sesion abierta como {usuario.get('email') or usuario['$id']} "
+          f"(sin contrasena, con la API key)")
+    return secreto
+
+
 def abrir_sesion(email: str, password: str) -> str:
     """Devuelve el secreto de sesion, que es lo que el backend espera como
     `Authorization: Bearer ...` (lo usa como cookie a_session_<proyecto>)."""
@@ -122,14 +218,30 @@ def guardar_registro(reg):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--carpeta", required=True, help="carpeta con los archivos")
+    ap.add_argument("--carpeta", help="carpeta con los archivos")
     ap.add_argument("--subir", action="store_true", help="hazlo de verdad")
     ap.add_argument("--archivo", action="append",
                     help="solo este archivo; se puede repetir")
     ap.add_argument("--limite", type=int, help="corta despues de N libros")
+    ap.add_argument("--usuarios", action="store_true",
+                    help="lista los usuarios de Appwrite con su email y sale")
+    ap.add_argument("--email",
+                    help="email de la cuenta con la que subir; si el proyecto "
+                         "tiene un solo usuario, no hace falta")
+    ap.add_argument("--con-clave", action="store_true",
+                    help="pedir email y contrasena en vez de usar la API key")
     ap.add_argument("--sin-borrar", action="store_true",
                     help="sube sin borrar el libro viejo (quedaran duplicados)")
     args = ap.parse_args()
+    if not args.carpeta and not args.usuarios:
+        ap.error("hace falta --carpeta")
+
+    if args.usuarios:
+        reset.comprobar_aw_key()
+        for u in usuarios():
+            print(f"  {u['$id']}  {u.get('email') or '(sin email)':38} "
+                  f"{u.get('name') or ''}")
+        return
 
     if not os.path.isdir(args.carpeta):
         sys.exit(f"No existe la carpeta: {args.carpeta}")
@@ -166,9 +278,16 @@ def main():
         print(f"\n[SIMULACION] Nada tocado. Revisa las tres listas y anade --subir.")
         return
 
-    email = os.environ.get("LIBRIS_EMAIL") or input("\nEmail de tu cuenta: ").strip()
-    password = os.environ.get("LIBRIS_PASSWORD") or getpass.getpass("Clave: ")
-    token = abrir_sesion(email, password)
+    if not args.con_clave:
+        reset.comprobar_aw_key()
+    if args.con_clave or not reset.AW_KEY:
+        email = (args.email or os.environ.get("LIBRIS_EMAIL")
+                 or input("\nEmail de tu cuenta: ").strip())
+        password = os.environ.get("LIBRIS_PASSWORD") or getpass.getpass("Clave: ")
+        token = abrir_sesion(email, password)
+    else:
+        token = abrir_sesion_con_api_key(args.email
+                                         or os.environ.get("LIBRIS_EMAIL"))
 
     s3 = cliente_r2()
     bucket = os.environ.get("R2_BUCKET_NAME") or os.environ.get("R2_BUCKET", "libris-audio")
@@ -204,7 +323,10 @@ def main():
                     ficha.get("category") or "General", token)
         segundos = time.time() - t0
         if res["ok"]:
-            nuevo = (res["respuesta"] or {}).get("book_id", "?")
+            r = res["respuesta"] or {}
+            # El endpoint responde con "bookId" (camelCase); "book_id" es como
+            # se llama dentro de R2 y de Appwrite. Se miran los dos.
+            nuevo = r.get("bookId") or r.get("book_id") or "?"
             print(f"OK {nuevo} ({segundos:.0f}s)")
             reg[archivo] = {"ok": True, "book_id_viejo": book_id,
                             "book_id_nuevo": nuevo, "segundos": round(segundos)}

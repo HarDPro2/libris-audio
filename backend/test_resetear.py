@@ -94,6 +94,22 @@ sys.stdout = real
 c("aborta", codigo is not None and codigo != 0)
 c("y no ha borrado nada de R2", not h["borrados"])
 
+print("\nLa guarda de la clave de ejemplo:")
+R, almacen, h = montar(con_original=True)
+for mala in ("", "...", "…", "<TU_CLAVE>", "TU_CLAVE"):
+    R.AW_KEY = mala
+    try:
+        R.comprobar_aw_key()
+        c(f"detecta la clave {mala!r}", False, "la dejo pasar")
+    except SystemExit as e:
+        c(f"detecta la clave {mala!r}", "no tiene una clave de verdad" in str(e))
+R.AW_KEY = "standard_bb434ca194434c1144b8419ad413abd9"
+try:
+    R.comprobar_aw_key()
+    c("deja pasar una clave con pinta buena", True)
+except SystemExit as e:
+    c("deja pasar una clave con pinta buena", False, str(e))
+
 print("\n" + "=" * 54)
 print(f"{ok} OK · {fallos} fallos")
 sys.exit(1 if fallos else 0)

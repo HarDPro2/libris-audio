@@ -50,6 +50,9 @@ def montar():
     S.reset.ficha_appwrite = lambda b: {"$id": f"DOC{b}"}
     S.reset._aw = lambda m, r, cuerpo=None: huellas["appwrite"].append((m, r)) or {}
     S.abrir_sesion = lambda e, p: "SECRETO"
+    S.abrir_sesion_real = S.abrir_sesion_con_api_key   # la de verdad
+    S.abrir_sesion_con_api_key = lambda email=None: "SECRETO"
+    S.reset.AW_KEY = "standard_clave_falsa_de_pruebas"
     S.REGISTRO = os.path.join(carpeta, "registro.json")
     def falso_subir(ruta, titulo, categoria, token, espera=900):
         huellas["subidas"].append((os.path.basename(ruta), titulo, categoria, token))
@@ -142,6 +145,80 @@ S4.subir = lambda ruta, *a, **k: h4["subidas"].append(os.path.basename(ruta)) or
     {"ok": True, "respuesta": {"book_id": "Z"}}
 correr(S4, "--subir")
 c("el reintento si los sube", len(h4["subidas"]) == 2, str(h4["subidas"]))
+
+print("\nLee el id del libro tal como lo devuelve el endpoint:")
+R, almacen, h = montar()
+R.subir = lambda *a, **k: {"ok": True, "respuesta": {"status": "success",
+                                                    "bookId": "abc123"}}
+correr("--subir")
+reg = json.load(open(os.path.join(carpeta, "registro.json"), encoding="utf-8"))
+c("guarda el bookId nuevo",
+  all(v.get("book_id_nuevo") == "abc123" for v in reg.values()), str(reg))
+
+print("\nLa sesion sin contrasena (token de servidor):")
+import subir_biblioteca as SB2
+llamadas = []
+def _falso(url, cuerpo=None, metodo="GET", con_key=False):
+    llamadas.append((metodo, url.split("/v1")[-1]))
+    if url.endswith("/tokens"):
+        return {"secret": "TOK", "userId": "U1"}
+    return {"secret": "SESION"}
+guardado = SB2._pedir
+SB2._pedir = _falso
+SB2.usuarios = lambda: [{"$id": "U1", "email": "yo@ejemplo.com"}]
+secreto = SB2.abrir_sesion_real("yo@ejemplo.com")
+c("devuelve el secreto de sesion", secreto == "SESION", secreto)
+c("crea el token con la API key", ("POST", "/users/U1/tokens") in llamadas)
+c("canjea con POST", ("POST", "/account/sessions/token") in llamadas, str(llamadas))
+
+# Appwrite devuelve el secreto SOLO si la peticion lleva la API key.
+llamadas.clear()
+con_key_vistas = []
+def _falso_sin_secreto(url, cuerpo=None, metodo="GET", con_key=False):
+    llamadas.append((metodo, url.split("/v1")[-1]))
+    if url.endswith("/tokens"):
+        return {"secret": "TOK", "userId": "U1"}
+    con_key_vistas.append(con_key)
+    return {"secret": "SESION"} if con_key else {"$id": "s1", "secret": ""}
+SB2._pedir = _falso_sin_secreto
+c("canjea CON la api key", SB2.abrir_sesion_real("yo@ejemplo.com") == "SESION"
+  and con_key_vistas and con_key_vistas[0] is True, str(con_key_vistas))
+
+# Y si aun asi no hay secreto, lo dice con lo que recibio.
+def _falso_nunca(url, cuerpo=None, metodo="GET", con_key=False):
+    if url.endswith("/tokens"):
+        return {"secret": "TOK", "userId": "U1"}
+    return {"$id": "s1", "userId": "U1"}
+SB2._pedir = _falso_nunca
+try:
+    SB2.abrir_sesion_real("yo@ejemplo.com")
+    c("explica que no hubo secreto", False)
+except SystemExit as e:
+    c("explica que no hubo secreto",
+      "lo que devolvio" in str(e) and "--con-clave" in str(e), str(e)[:120])
+
+# Appwrite viejo: el POST da 404 y hay que caer al PUT.
+llamadas.clear()
+def _falso_viejo(url, cuerpo=None, metodo="GET", con_key=False):
+    llamadas.append((metodo, url.split("/v1")[-1]))
+    if url.endswith("/tokens"):
+        return {"secret": "TOK", "userId": "U1"}
+    if metodo == "POST":
+        raise SB2.AppwriteError("POST ... -> HTTP 404: Not Found")
+    return {"secret": "SESION"}
+SB2._pedir = _falso_viejo
+c("si el POST da 404, prueba con PUT",
+  SB2.abrir_sesion_real("yo@ejemplo.com") == "SESION" and
+  ("PUT", "/account/sessions/token") in llamadas, str(llamadas))
+
+# Un email que no existe se dice claro, no con una traza.
+SB2._pedir = _falso
+try:
+    SB2.abrir_sesion_real("nadie@ejemplo.com")
+    c("avisa si el email no existe", False)
+except SystemExit as e:
+    c("avisa si el email no existe", "No hay ningun usuario" in str(e))
+SB2._pedir = guardado
 
 print("\n" + "=" * 54)
 print(f"{ok} OK · {fallos} fallos")

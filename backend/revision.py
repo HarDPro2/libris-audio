@@ -30,6 +30,7 @@ segundo.
 """
 from __future__ import annotations
 
+import os
 import time
 
 import calidad
@@ -41,6 +42,11 @@ import guiones
 MAX_CANDIDATAS_IA = 60
 # Segundos que hay que tener libres para siquiera empezar con la IA.
 MINIMO_PARA_IA = 25.0
+# REVISION_IA=0 apaga SOLO la capa de IA. Los guiones y la deteccion siguen,
+# que son gratis y no dependen de la red. Sirve cuando la cascada de modelos
+# no responde: medido en una subida real, la IA se llevo 50 de los 57 segundos
+# de revision para no devolver nada.
+IA_ACTIVA = os.environ.get("REVISION_IA", "1") != "0"
 
 # El diccionario tarda ~0,7 s en cargarse y ocupa poco: se carga una vez por
 # proceso y se reutiliza en todas las subidas.
@@ -144,6 +150,8 @@ async def revisar(texto: str, *, presupuesto_s: float = 90.0,
         return _sin_ia("", texto, n_guiones, cands, t0)
     if not con_ia:
         return _sin_ia("desactivada", texto, n_guiones, cands, t0)
+    if not IA_ACTIVA:
+        return _sin_ia("apagada con REVISION_IA=0", texto, n_guiones, cands, t0)
 
     restante = presupuesto_s - (time.monotonic() - t0)
     if restante < MINIMO_PARA_IA:

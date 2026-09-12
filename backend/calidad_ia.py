@@ -32,12 +32,25 @@ from calidad import Candidata, Diccionario
 
 MAX_DISTANCIA   = 3      # "carirulo" -> "capitulo" son 2; 3 da margen
 LOTE            = 15     # candidatas por llamada
+# Probado el 12-09-2026 con probar_ia.py: los cuatro modelos ":free" que habia
+# aqui devuelven HTTP 404 — "This model is unavailable for free. The paid
+# version is available now - use this slug instead: <slug>". Y "openrouter/free"
+# responde 200 con contenido VACIO, que es lo que hacia que el informe dijera
+# "la IA no devolvio nada" sin un solo error en los logs.
+#
+# Estos son los slugs que el propio error de OpenRouter recomienda. Son de
+# pago, pero el gasto es ridiculo: unas 5.000 fichas por libro, asi que los 83
+# de la biblioteca salen por centimos. Ordenados de mas barato y mas apto para
+# espanol a mas caro.
+# Medido con probar_ia.py el 12-09-2026:
+#   meta-llama/llama-3.3-70b-instruct   3,9 s  y devuelve el JSON pedido
+#   qwen/qwen-2.5-coder-32b-instruct   60,1 s  TIMEOUT
+#   deepseek/deepseek-r1                0,7 s  HTTP 402, sin saldo
+# Un modelo colgado dentro de la cascada se come el presupuesto de tiempo de
+# la subida, asi que aqui solo entra lo que esta probado. Para anadir otro:
+# pasarlo antes por probar_ia.py.
 MODELOS = [
-    "openrouter/free",
-    "deepseek/deepseek-r1:free",
-    "meta-llama/llama-3.3-70b-instruct:free",
-    "qwen/qwen-2.5-coder-32b-instruct:free",
-    "google/gemma-2-9b-it:free",
+    "meta-llama/llama-3.3-70b-instruct",
 ]
 
 INSTRUCCIONES = """Eres un corrector de errores de OCR en libros escaneados en español.
@@ -181,6 +194,8 @@ async def revisar(cands: list[Candidata], dic: Diccionario,
         bruto = await pedir(INSTRUCCIONES, _prompt(lote))
         datos = _extraer_json(bruto or "")
         if not isinstance(datos, list):
+            print(f"[Calidad] lote {i // LOTE + 1}: la respuesta no traia JSON "
+                  f"({(bruto or '')[:120]!r})", flush=True)
             continue                      # lote perdido, no se inventa nada
         por_palabra = {str(x.get("palabra", "")).lower(): x
                        for x in datos if isinstance(x, dict)}
@@ -206,15 +221,23 @@ def _pedir_openrouter(api_key: str):
             "max_tokens": 1200,
             "temperature": 0,      # correccion, no creatividad
         }
-        async with httpx.AsyncClient(timeout=60.0) as cli:
+        # 25 s y no 60: un modelo que tarda mas de eso no cabe en el
+        # presupuesto de una subida, y colgarse es peor que fallar.
+        async with httpx.AsyncClient(timeout=25.0) as cli:
             for modelo in MODELOS:
                 try:
                     r = await cli.post("https://openrouter.ai/api/v1/chat/completions",
                                        headers=headers, json={**cuerpo, "model": modelo})
                     if r.status_code == 200:
                         return r.json()["choices"][0]["message"]["content"]
+                    # Un 429 o un 402 NO son excepciones: antes se pasaba al
+                    # siguiente modelo en silencio y el informe decia "la IA no
+                    # devolvio nada" sin una sola linea que explicara por que.
+                    print(f"[Calidad] {modelo} -> HTTP {r.status_code}: "
+                          f"{r.text[:160]}", flush=True)
                 except Exception as e:
                     print(f"[Calidad] {modelo} fallo: {e}", flush=True)
+        print("[Calidad] ningun modelo de la cascada respondio", flush=True)
         return None
     return _pedir
 

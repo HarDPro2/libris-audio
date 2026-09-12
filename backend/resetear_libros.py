@@ -42,6 +42,30 @@ AW_DB       = os.environ.get("APPWRITE_DATABASE_ID", "libris_db")
 COLECCION   = "global_books"
 
 
+# Valores que la gente pega cuando el comando traia un hueco por rellenar.
+# Sin esta comprobacion, una clave "..." da un HTTP 401 con traza de treinta
+# lineas y nadie entiende que el problema era el portapapeles.
+PLACEHOLDERS = ("", "...", "…", "TU_CLAVE", "XXX")
+
+
+def comprobar_aw_key():
+    clave = (AW_KEY or "").strip()
+    if clave in PLACEHOLDERS or "<" in clave or clave.count(".") == len(clave):
+        raise SystemExit(
+            "APPWRITE_API_KEY no tiene una clave de verdad"
+            + (f" (vale {clave!r})" if len(clave) < 20 else "")
+            + ".\n"
+            "  Sacala de Cloud Run, en la variable APPWRITE_API_KEY:\n"
+            "    gcloud run services describe libris-audio-backend "
+            "--region us-west1 \\\n"
+            "      --format=\"value(spec.template.spec.containers[0].env)\"\n"
+            "  Empieza por 'standard_'. Y luego, en PowerShell:\n"
+            "    $env:APPWRITE_API_KEY = \"standard_...la clave entera...\"")
+    if not clave.startswith("standard_"):
+        print("  aviso: la APPWRITE_API_KEY no empieza por 'standard_'; "
+              "si falla, revisa que sea la buena.")
+
+
 def _aw(metodo: str, ruta: str, cuerpo=None):
     url = f"{AW_ENDPOINT}/databases/{AW_DB}/collections/{COLECCION}{ruta}"
     datos = json.dumps(cuerpo).encode() if cuerpo is not None else None
@@ -99,9 +123,8 @@ def main():
                     help="borra de verdad (sin esto solo informa)")
     args = ap.parse_args()
 
-    if args.borrar and not AW_KEY:
-        sys.exit("Falta APPWRITE_API_KEY: sin ella se borraria R2 y quedaria "
-                 "la ficha huerfana en el catalogo.")
+    if args.borrar:
+        comprobar_aw_key()
 
     s3 = cliente_r2()
     bucket = os.environ.get("R2_BUCKET_NAME") or os.environ.get("R2_BUCKET", "libris-audio")
