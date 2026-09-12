@@ -220,7 +220,40 @@ def procesar(s3, bucket, libro, args, es_valida):
 
     cambiadas, total, ejemplos = [], 0, []
 
-    if args.despegar:
+    if args.basura:
+        import basura as B
+        frec_b = B.frecuencias(textos)
+        tokens = B.detectar_basura(frec_b, es_valida, args.min_basura)
+        cabeceras = B.detectar_cabeceras(textos)
+        # Las dos cosas son independientes: "Los Mediums" no tiene NI UN token
+        # suelto y sin embargo arrastra 415 cabeceras. Cortar aqui por falta de
+        # tokens dejaba ese libro sin limpiar.
+        if not tokens and not cabeceras:
+            print(f"  --  {titulo:46} sin basura detectada")
+            return 0, 0, 0
+        ordenados = sorted(tokens, key=lambda w: -frec_b[w])
+        if tokens:
+            print(f"  ..  {titulo:46} {len(tokens)} tokens sospechosos: "
+                  + ", ".join(f"{w}({frec_b[w]})" for w in ordenados[:12])
+                  + (" ..." if len(ordenados) > 12 else ""))
+        if cabeceras:
+            print(f"      {len(cabeceras)} cabeceras repetidas: "
+                  + " · ".join(f"«{c}»" for c in cabeceras[:4]))
+        encontradas = sum(frec_b[w] for w in tokens)
+        for k in partes:
+            reg = []
+            # Las cabeceras primero: son frases enteras y se comen los tokens
+            # que llevan dentro.
+            nuevo_txt, n = B.limpiar_cabeceras(originales[k], cabeceras, reg)
+            nuevo_txt, n2 = B.limpiar(nuevo_txt, tokens, reg)
+            n += n2
+            if n:
+                total += n
+                cambiadas.append((k, nuevo_txt))
+                ejemplos += reg
+        etiqueta = "quitados de dentro de frases"
+
+    elif args.despegar:
         from collections import Counter
         from guiones import _PALABRA
         frec: Counter = Counter()
@@ -283,7 +316,7 @@ def procesar(s3, bucket, libro, args, es_valida):
         if len(vistos) < len({a.lower() for a, _ in ejemplos}):
             pass
     sin_tocar = encontradas - total
-    if sin_tocar > 0 and not args.despegar:
+    if sin_tocar > 0 and not (args.despegar or args.basura):
         print(f"        ({sin_tocar} sin tocar: o eran guiones de verdad, "
               f"o la salvaguarda dijo que no)")
 
@@ -319,6 +352,10 @@ def main():
     ap.add_argument("--aplicar", action="store_true", help="escribe de verdad")
     ap.add_argument("--despegar", action="store_true",
                     help="deshace los pegotes de la version vieja")
+    ap.add_argument("--basura", action="store_true",
+                    help="quita encabezados y pies incrustados en las frases")
+    ap.add_argument("--min-basura", type=int, default=5,
+                    help="apariciones minimas para considerar un token basura")
     ap.add_argument("--restaurar", action="store_true",
                     help="vuelve al texto de text_original/")
     ap.add_argument("--laxo", action="store_true",
@@ -331,8 +368,10 @@ def main():
     ap.add_argument("--sin-ejemplos", action="store_true")
     args = ap.parse_args()
 
-    if args.despegar and args.restaurar:
-        sys.exit("--despegar y --restaurar son cosas distintas; uno cada vez.")
+    modos = sum(bool(x) for x in (args.despegar, args.restaurar, args.basura))
+    if modos > 1:
+        sys.exit("--despegar, --basura y --restaurar son cosas distintas; "
+                 "uno cada vez.")
 
     es_valida, ruta = (None, None)
     if not args.restaurar:
@@ -352,7 +391,8 @@ def main():
             sys.exit(f"No encuentro el libro {args.libro} en {API}/api/books")
 
     modo = ("RESTAURANDO" if args.restaurar else
-            "DESPEGANDO" if args.despegar else "REPARANDO")
+            "DESPEGANDO" if args.despegar else
+            "QUITANDO BASURA" if args.basura else "REPARANDO")
     print(f"{len(libros)} libro(s) · bucket {bucket} · {modo} · "
           f"{'APLICANDO CAMBIOS' if args.aplicar else 'SIMULACION'}")
     if ruta:

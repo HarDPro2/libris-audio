@@ -168,6 +168,27 @@ FREC_ZARATUSTRA = Counter({
  "encontrarla": 3, "con": 90, "ocio": 2,
 })
 
+# ---------------------------------------------------------------------------
+# Espacios que faltan — parrafo REAL de "El libro de los espiritus" (Kardec),
+# parte 100. Es el problema que de verdad estropea ese libro; los 17 guiones
+# que tiene son legitimos.
+# ---------------------------------------------------------------------------
+PARRAFO_KARDEC = (
+    "les ha dadoeste aspecto, los rodean delos más exquisitos cuidados, "
+    "que seuniese a vuestras filas, tiene ademásotra utilidad, "
+    "accesiblesa los consejos, Estaes el deber."
+)
+PEGADAS_ESPERADAS = ["dado este", "se uniese", "además otra",
+                     "accesibles a", "Esta es"]
+
+FREC_KARDEC = Counter({
+    "dado": 30, "este": 120, "de": 900, "los": 700, "se": 400, "uniese": 2,
+    "además": 40, "otra": 35, "accesibles": 3, "a": 800, "esta": 90,
+    "es": 500, "dad": 1, "oeste": 1, "recodo": 3, "codos": 2, "re": 1,
+    "renta": 4, "duran": 3, "rusia": 9, "mujer": 90, "cita": 8, "años": 30,
+    "hurra": 4, "troika": 5, "limitó": 12, "sentó": 15,
+})
+
 # LIMITES CONOCIDOS — no fallan la prueba, pero quedan escritos.
 # Extranjerismos donde NINGUNO de los dos lados esta en un diccionario
 # espanol: no hay senal para distinguirlos de un corte. Una aparicion en
@@ -250,6 +271,25 @@ def main():
     print(f"  despegar: {tocadas} palabras sin tilde tocadas (debe ser 0)")
     if tocadas:
         fallos.append(("sin tilde", str(tocadas), "", "", salida))
+
+    # --- Espacios que faltan ---
+    from guiones import separar_pegadas
+    reg: list = []
+    salida, n = separar_pegadas(PARRAFO_KARDEC, FREC_KARDEC, es_valida, reg)
+    puestos = [b for _, b in reg]
+    print(f"  espacios: {n}/{len(PEGADAS_ESPERADAS)} arreglados en el parrafo "
+          f"real de Kardec")
+    for esperado in PEGADAS_ESPERADAS:
+        if esperado not in puestos:
+            fallos.append(("espacios", "no lo arregla", esperado, "", salida))
+
+    rotas = []
+    for w in CORRECTAS + ["recodos", "mujercita", "rental", "Durand"]:
+        _, k = separar_pegadas(w, FREC_KARDEC, es_valida)
+        if k:
+            rotas.append(w)
+            fallos.append(("espacios", "parte una buena", w, "", ""))
+    print(f"  espacios: {len(rotas)} palabras correctas partidas (debe ser 0)")
 
     # Sin diccionario se pegaba TODO: es la prueba de que la regla hace falta.
     pegados = sum(1 for e, i, d in CASOS

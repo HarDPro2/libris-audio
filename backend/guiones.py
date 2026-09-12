@@ -290,9 +290,16 @@ FUNCIONALES = {"el", "la", "los", "las", "un", "una", "unos", "unas", "lo",
                "son", "fue", "fueron", "eran", "sea", "está", "están"}
 
 
-# "mente" es un sustantivo valido, asi que "insondablemente" se partia en
-# "insondable"+"mente". Ningun adverbio en -mente se parte nunca.
-SUFIJOS = ("mente",)
+# Terminaciones que son palabras por su cuenta y por eso enganaban:
+#   "mente" -> "insondablemente" se partia en "insondable"+"mente"
+#   "cita"  -> "mujercita" se partia en "mujer"+"cita"
+# Ninguna palabra que acabe asi se parte nunca.
+SUFIJOS = ("mente", "cita", "cito", "citas", "citos",
+           "illa", "illo", "illas", "illos",
+           # derivaciones que tambien son palabras por su cuenta y por eso
+           # partian "ocultamiento", "barrancada", "irrealizado"
+           "miento", "mientos", "ada", "adas", "ado", "ados",
+           "izado", "izada", "izados", "izadas", "cada", "cado")
 
 
 def _no_partir(izq: str, der: str) -> bool:
@@ -421,3 +428,123 @@ def despegar_texto(texto: str, frec: Counter, es_valida,
 
 
 _PALABRA_SUELTA = re.compile(r"[^\W\d_]{%d,}" % MIN_LARGO_PEGOTE, re.UNICODE)
+
+# ---------------------------------------------------------------------------
+# Espacios que faltan
+#
+# El otro mal de los libros escaneados, y en "El libro de los espiritus"
+# (Kardec) el que de verdad estropea la lectura: el extractor pega dos
+# palabras. Medido en su parte 100, 3.759 caracteres:
+#
+#   "les ha dadoeste aspecto"          -> dado este
+#   "rodean delos mas exquisitos"      -> de los
+#   "que seuniese a vuestras filas"    -> se uniese
+#   "tiene ademasotra utilidad"        -> ademas otra
+#   "accesiblesa los consejos"         -> accesibles a
+#   "Estaes el deber"                  -> Esta es
+#
+# El TTS los lee como palabras inventadas. Se detectan igual que los pegotes
+# de guion — palabra que no es espanola y se parte en dos que si lo son — con
+# las mismas guardas y una mas: las palabras de UNA letra estan en lista
+# cerrada, porque el diccionario acepta "d" y eso partia "Durand".
+# ---------------------------------------------------------------------------
+
+UNA_LETRA = {"a", "y", "e", "o", "u"}
+MIN_LARGO_PEGADA = 5
+# Solo palabras RARAS. Medido en "El libro de Los Mediums": "Erasto" (el
+# nombre de un Espiritu) sale 15 veces, no esta en el diccionario, y se partia
+# en "Eras to". Lo mismo "mixtificadores" -> "mixtificado res". Si una palabra
+# se repite, es del libro aunque el diccionario no la conozca.
+MAX_USOS_PEGADA = 3
+
+# AVISO: este motor NO se aplica solo en ningun sitio, y es a proposito.
+# En el libro de los Mediums acierta 10 de sus 51 propuestas. Vale como
+# diagnostico; para arreglar de verdad hace falta que una IA lea la frase.
+
+
+def _es_palabra(w: str, es_valida) -> bool:
+    if len(w) == 1:
+        return w.lower() in UNA_LETRA
+    return bool(es_valida(w))
+
+
+# Palabras de funcion que cuentan como "usadas en el libro" aunque no se
+# hayan contado: en cualquier texto espanol salen si o si.
+SIEMPRE_PRESENTES = UNA_LETRA | {"de", "la", "el", "en", "se", "es", "los",
+                                 "las", "un", "una", "que", "no", "su", "al"}
+
+
+def mejor_separacion(palabra: str, frec: Counter, es_valida):
+    """Donde va el espacio, o None.
+
+    Tres exigencias, y las tres salieron de romper cosas:
+      - Las DOS mitades tienen que usarse sueltas en el propio libro. Sin
+        esto, el latin y los nombres propios se parten: "habere" -> "hab ere",
+        "Milton" -> "Mil ton".
+      - Si ALGUN corte de la palabra es un verbo con enclitico o una
+        derivacion, no se toca la palabra entera. "habiase" tiene el corte
+        bueno "habia"+"se" (enclitico) y otro absurdo "habias"+"e": mirando
+        solo el ganador se colaba el absurdo.
+      - El corte se elige por el uso de las mitades en el libro, no por el
+        primero que valga: "dadoeste" da "dad oeste" antes que "dado este".
+    """
+    # Guardas que anulan la palabra completa, mire donde mire.
+    for i in range(1, len(palabra)):
+        izq, der = palabra[:i], palabra[i:]
+        d = der.lower()
+        if d in SUFIJOS:
+            return None
+        if d in ENCLITICOS and izq.lower().endswith(FIN_VERBAL):
+            return None
+
+    mejor, puntos_mejor = None, -1
+    for i in range(1, len(palabra)):
+        izq, der = palabra[:i], palabra[i:]
+        if not (_es_palabra(izq, es_valida) and _es_palabra(der, es_valida)):
+            continue
+        f_izq = frec.get(izq.lower(), 0)
+        f_der = frec.get(der.lower(), 0)
+        if not (f_izq or izq.lower() in SIEMPRE_PRESENTES):
+            continue
+        if not (f_der or der.lower() in SIEMPRE_PRESENTES):
+            continue
+        if _no_partir(izq, der):
+            continue
+        puntos = (f_izq + 1) * (f_der + 1)
+        if puntos > puntos_mejor:
+            mejor, puntos_mejor = (izq, der), puntos
+    if mejor and _no_partir(*mejor):
+        return None
+    return mejor
+
+
+def separar_pegadas(texto: str, frec: Counter, es_valida,
+                    registro: list | None = None,
+                    evitar: set | None = None) -> tuple[str, int]:
+    """Mete los espacios que faltan. Devuelve (texto, arreglos)."""
+    arreglos = 0
+    evitar = evitar or set()
+
+    def _sustituir(m):
+        nonlocal arreglos
+        w = m.group(0)
+        plano = sin_ligaduras(w)
+        if (len(w) < MIN_LARGO_PEGADA
+                or w.lower() in evitar
+                or frec.get(w.lower(), 0) > MAX_USOS_PEGADA
+                or es_valida(w)
+                or (plano != w and es_valida(plano))):
+            return w
+        corte = mejor_separacion(w, frec, es_valida)
+        if corte is None:
+            return w
+        arreglos += 1
+        nuevo = f"{corte[0]} {corte[1]}"
+        if registro is not None:
+            registro.append((w, nuevo))
+        return nuevo
+
+    return _PALABRA_LARGA.sub(_sustituir, texto), arreglos
+
+
+_PALABRA_LARGA = re.compile(r"[^\W\d_]{%d,}" % MIN_LARGO_PEGADA, re.UNICODE)

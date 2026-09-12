@@ -100,6 +100,39 @@ c("karaoke 2 CONSERVADO","LIBRO/timing/part_2_es-MX-JorgeNeural_v3.json" in alma
 c("portada intacta",    "LIBRO/cover.png" in almacen)
 c("borra exactamente 4 archivos", len(h["borrados"]) == 4)
 
+print("\n--basura: quita los encabezados incrustados:")
+R, almacen, h = montar()
+for i in range(3):
+    almacen[f"LIBRO/text/part_{i}.txt"] = (
+        "Los hombres LS profesan su fe y las mujeres LS tambien lo hacen. "
+        "El capitulo II de la obra. LS es la abreviatura. "
+        "Las leyes divinas y los hombres LS de buena voluntad.")
+sys.argv = ["x", "--basura", "--aplicar", "--sin-ejemplos", "--min-basura", "5"]
+try: R.main()
+except SystemExit: pass
+texto = almacen["LIBRO/text/part_0.txt"]
+c("quita los LS de dentro de las frases", "hombres LS" not in texto)
+c("conserva el capitulo II",              "capitulo II" in texto)
+c("conserva el LS que empieza frase",     "LS es la abreviatura" in texto)
+c("respalda antes de tocar",              "LIBRO/text_original/part_0.txt" in almacen)
+
+print("\n--basura con SOLO cabeceras y ningun token suelto:")
+R, almacen, h = montar()
+for i in range(3):
+    almacen[f"LIBRO/text/part_{i}.txt"] = (
+        "los espiritus se manifiestan de mil maneras y el observador atento "
+        "las distingue. ALLAN KARDEC En este caso la comunicacion es directa "
+        "y el medium recibe el mensaje sin esfuerzo alguno de su parte. "
+        "ALLAN KARDEC Los hechos hablan por si solos y nadie los discute. "
+        "ALLAN KARDEC Asi lo entendemos nosotros. ALLAN KARDEC Y punto.")
+sys.argv = ["x", "--basura", "--aplicar", "--sin-ejemplos", "--min-basura", "5"]
+try: R.main()
+except SystemExit: pass
+texto = almacen["LIBRO/text/part_0.txt"]
+c("limpia aunque no haya tokens sueltos", "ALLAN KARDEC" not in texto)
+c("reescribe las 3 partes",
+  len([k for k in h["escritos"] if "/text/" in k]) == 3)
+
 print("\n--desde: solo toca las partes reescritas en esa fecha:")
 R, almacen, h = montar()
 sys.argv = ["x", "--aplicar", "--sin-ejemplos", "--desde", "2026-09-12"]
