@@ -35,3 +35,6 @@ Thumbs.db
 # Salida de cifras_base.py: son datos regenerables, no del proyecto
 backend/cifras_base_textos/
 backend/cifras_base.json
+
+# Notas internas: no van a un repositorio publico
+CONTEXTO_PERMANENTE.md

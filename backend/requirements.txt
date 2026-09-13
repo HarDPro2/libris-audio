@@ -3,7 +3,12 @@ uvicorn==0.29.0
 python-multipart==0.0.9
 edge-tts
 gTTS
-PyMuPDF==1.24.1
+# 1.24.1 no sabe leer el espaciado de ciertas fuentes y devuelve las letras
+# separadas una por una ("d in a br e su s pe t a l o s"). Salio midiendo el
+# corpus contra pypdfium2: un libro de poesia con el 74,8% de sus "palabras"
+# de una sola letra. 1.27 lo saca perfecto.
+# Comprobado el 13-09-2026: extractores.py funciona igual sin cambiar nada.
+PyMuPDF==1.27.2.2
 httpx==0.27.0
 boto3==1.35.0
 appwrite
