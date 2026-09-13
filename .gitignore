@@ -31,3 +31,7 @@ Thumbs.db
 .vscode/
 .idea/
 *.log
+
+# Salida de cifras_base.py: son datos regenerables, no del proyecto
+backend/cifras_base_textos/
+backend/cifras_base.json
