@@ -160,7 +160,8 @@ def _contexto_bueno_despues(texto: str, i: int) -> bool:
 
 def limpiar(texto: str, basura: set[str],
             registro: list | None = None,
-            pares_siempre: bool = True) -> tuple[str, int]:
+            pares_siempre: bool = True,
+            sueltos: bool = True) -> tuple[str, int]:
     """Quita los encabezados incrustados. Devuelve (texto, quitados).
 
     `pares_siempre`: la forma CODIGO—ROMANO ("LS—CVII", "LT—CVIII") se quita
@@ -169,6 +170,25 @@ def limpiar(texto: str, basura: set[str],
     el encabezado de la pagina escaneada. Sin esto se quedaban todos los que
     caen justo detras de un punto, que el TTS lee igual.
     Los tokens SUELTOS siguen necesitando estar rodeados de minusculas.
+
+    `sueltos=False`: solo se quita el par SIGLA—ROMANO. Un token SUELTO no se
+    toca nunca, por bien que encaje en la regla del contexto. Esto sale de
+    medirlo, no de suponerlo:
+
+        "...del siglo XVI al XIX, el autor da una idea..."   XIX = un siglo
+        "...la vida de la autora en el XVIII o la vida..."   XVIII = un siglo
+        "...(Se van JOAB y los guerreros.) Alza, hijo..."    JOAB = un personaje
+        "...editada por la BNF en su coleccion..."           BNF = una biblioteca
+
+    Los cuatro van rodeados de minusculas, igual que un encabezado caido, y la
+    lista de REFERENCIAS no salva a ninguno porque la palabra de delante es
+    "al", "el" o "van. Sobre el corpus de pruebas de Quantum Text Codex, la
+    regla de los sueltos dio 33 borrados y los 33 estaban mal.
+
+    Por eso AL INGERIR se usa False: sin nadie mirando, solo se quita lo que no
+    admite otra lectura. Queda en True para el camino de reparacion, que es
+    supervisado — compara contra el respaldo y enseña ejemplos antes de
+    aplicar nada.
     """
     if not basura:
         return texto, 0
@@ -205,6 +225,8 @@ def limpiar(texto: str, basura: set[str],
     trozos, ultimo = [], 0
     for m in patron.finditer(texto):
         par = bool(_es_par.match(m.group(0)))
+        if not par and not sueltos:
+            continue
         if not (pares_siempre and par):
             if not (_contexto_bueno_antes(texto, m.start())
                     and _contexto_bueno_despues(texto, m.end())):
