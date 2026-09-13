@@ -85,12 +85,20 @@ def vocabulario(paginas: list[str]) -> Counter:
 
 
 def decidir_union(izq: str, der: str, vocab: Counter,
-                  es_valida=None) -> str | None:
+                  es_valida=None, cauto: bool = False) -> str | None:
     """Devuelve la palabra ya reunida, o None si no hay que unir.
 
     `es_valida(palabra) -> bool` es opcional: un diccionario de espanol de
     verdad. Sin el, se decide solo con el vocabulario del documento (que es
     como funcionaba antes). Con el, se salvan los compuestos y los rangos.
+
+    `cauto=True` apaga la ultima regla, la de "sin pistas, une". Es para
+    cuando el texto NO ESTA EN ESPANOL y por tanto el diccionario no puede
+    opinar: ahi "sin pistas" no significa "seguramente sea un corte", significa
+    "no tengo ni idea". Medido sobre una antologia bilingue espanol-azeri:
+    sin esto se pegaban 10 guiones que eran de verdad, entre ellos la
+    reduplicacion "kisneye-kisneye". Quien lo enciende es `revision.py`, y
+    solo cuando el diccionario rechaza mas de la mitad del libro.
     """
     junto    = izq + der
     guionado = izq + "-" + der
@@ -136,12 +144,13 @@ def decidir_union(izq: str, der: str, vocab: Counter,
         return None      # continuacion sospechosa: mejor no tocar
 
     # Sin pistas: los cortes de linea son mucho mas frecuentes que los
-    # compuestos con guion, asi que se une.
-    return junto
+    # compuestos con guion, asi que se une... salvo que ni siquiera sepamos
+    # en que idioma esta el texto, y entonces no se toca.
+    return None if cauto else junto
 
 
 def unir_palabras_cortadas(lineas: list[str], vocab: Counter,
-                           es_valida=None) -> list[str]:
+                           es_valida=None, cauto: bool = False) -> list[str]:
     """Une la ultima palabra de una linea con la primera de la siguiente
     cuando la primera acaba en guion de corte."""
     salida: list[str] = []
@@ -161,7 +170,7 @@ def unir_palabras_cortadas(lineas: list[str], vocab: Counter,
                 break
             delante, izq = m_izq.group(1), m_izq.group(2)
             der, resto   = m_der.group(1), m_der.group(2)
-            unida = decidir_union(izq, der, vocab, es_valida)
+            unida = decidir_union(izq, der, vocab, es_valida, cauto)
             if unida is None:
                 break
             actual = delante + unida + resto
@@ -193,7 +202,8 @@ CORTE_EN_TEXTO = re.compile(
 
 
 def reparar_texto_plano(texto: str, vocab: Counter, es_valida=None,
-                       registro: list | None = None) -> tuple[str, int]:
+                       registro: list | None = None,
+                       cauto: bool = False) -> tuple[str, int]:
     """Repara cortes dentro de un texto ya unido. Devuelve (texto, arreglos).
 
     `registro`, si se pasa, recibe tuplas (antes, despues) de los cambios
@@ -204,7 +214,8 @@ def reparar_texto_plano(texto: str, vocab: Counter, es_valida=None,
 
     def _sustituir(m):
         nonlocal arreglos
-        unida = decidir_union(m.group(1), m.group(2), vocab, es_valida)
+        unida = decidir_union(m.group(1), m.group(2), vocab,
+                              es_valida, cauto)
         if unida is None:
             return m.group(0)          # se deja tal cual
         arreglos += 1
