@@ -1,6 +1,68 @@
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 
+// ─────────────────────────────────────────────────────────────────────────
+// DE DONDE SALE LA LLAVE DE FIRMA. Ver el comentario en signingConfigs.
+// Orden: variable de entorno (el CI) → archivo .properties (tu maquina).
+// ─────────────────────────────────────────────────────────────────────────
+def firmaProps = new Properties()
+def firmaArchivo = file(System.getenv("LIBRIS_KEYSTORE_PROPS")
+        ?: "${rootDir}/keystore.properties")
+if (firmaArchivo.exists()) {
+    firmaArchivo.withInputStream { firmaProps.load(it) }
+}
+
+def firmaRuta        = System.getenv("LIBRIS_KEYSTORE_FILE") ?: firmaProps.getProperty("storeFile")
+def firmaClaveAlmacen = System.getenv("LIBRIS_KEYSTORE_PASS") ?: firmaProps.getProperty("storePassword")
+def firmaAlias       = System.getenv("LIBRIS_KEY_ALIAS")     ?: firmaProps.getProperty("keyAlias")
+def firmaClaveAlias  = System.getenv("LIBRIS_KEY_PASS")      ?: firmaProps.getProperty("keyPassword")
+
+def firmaLista = firmaRuta && firmaClaveAlmacen && firmaAlias && firmaClaveAlias \
+        && file(firmaRuta).exists()
+
+// ─────────────────────────────────────────────────────────────────────────
+// EL AVISO DICE QUE FALTA, NO SOLO QUE NO HAY. 15-09-2026.
+//
+// La primera version decia «sin llave de firma» y se callaba el resto, y
+// eso obligo a adivinar entre cuatro causas -archivo que no existe, ruta con
+// barras invertidas, contrasena vacia, variable de entorno que no llega-.
+// Un aviso que no dice que miro no sirve de nada.
+//
+// El BOM es el sospechoso numero uno: `Set-Content -Encoding UTF8` en
+// PowerShell 5 escribe tres bytes invisibles al principio del archivo, y
+// Properties.load() de Java los pega a la PRIMERA clave. `storeFile` pasa a
+// llamarse «\uFEFFstoreFile» y devuelve null, con el archivo viendose
+// perfecto en cualquier editor.
+// ─────────────────────────────────────────────────────────────────────────
+if (!firmaLista) {
+    def faltan = []
+    if (!firmaRuta)          faltan << "storeFile"
+    if (!firmaClaveAlmacen)  faltan << "storePassword"
+    if (!firmaAlias)         faltan << "keyAlias"
+    if (!firmaClaveAlias)    faltan << "keyPassword"
+
+    logger.lifecycle("")
+    logger.lifecycle("[Libris] SIN LLAVE DE FIRMA. El APK saldra firmado de "
+            + "depuracion y NO servira para actualizar instalaciones existentes.")
+    logger.lifecycle("[Libris]   archivo buscado: ${firmaArchivo}")
+    logger.lifecycle("[Libris]   existe:          ${firmaArchivo.exists()}")
+    if (firmaArchivo.exists()) {
+        logger.lifecycle("[Libris]   claves leidas:   ${firmaProps.stringPropertyNames().sort()}")
+    }
+    if (faltan) {
+        logger.lifecycle("[Libris]   FALTAN:          ${faltan.join(', ')}")
+        if (firmaArchivo.exists() && faltan.contains("storeFile")) {
+            logger.lifecycle("[Libris]   Si arriba ves algo como «?storeFile», el archivo")
+            logger.lifecycle("[Libris]   tiene un BOM al principio. Reescribelo sin BOM.")
+        }
+    } else if (firmaRuta) {
+        logger.lifecycle("[Libris]   El .properties esta completo, pero el keystore NO esta en:")
+        logger.lifecycle("[Libris]   ${firmaRuta}")
+        logger.lifecycle("[Libris]   Usa barras normales: E:/carpeta/llave.jks")
+    }
+    logger.lifecycle("")
+}
+
 android {
     namespace "com.librisaudio.app"
     compileSdk 34
@@ -24,28 +86,53 @@ android {
     }
 
     signingConfigs {
-        // Clave de firma ESTABLE, la misma en todos los builds, para que las
-        // actualizaciones instalen sin "conflicto con un paquete existente".
-        // El keystore va versionado en el repo (app de distribución sideload
-        // vía GitHub Releases; no Play Store). Si algún día se sube a Play,
-        // migrar a Play App Signing / secrets.
+        // ─────────────────────────────────────────────────────────────────
+        // LA CLAVE NO VIVE AQUI. 14-09-2026.
+        //
+        // Hasta hoy el keystore iba versionado en el repositorio y la
+        // contrasena estaba escrita tres lineas mas abajo, en claro. El
+        // repositorio era publico. Con esas dos cosas, cualquiera podia
+        // firmar un APK que Android acepta como actualizacion legitima de
+        // esta app: se instala encima de la real y hereda sus datos y sus
+        // permisos. No es un secreto que se pueda «desactivar»; la unica
+        // salida fue retirar la llave y generar otra.
+        //
+        // Ahora la ruta y las contrasenas vienen de FUERA del arbol:
+        //   1. variables de entorno  → es lo que usa el CI, con secrets
+        //   2. un archivo .properties → es lo que usas tu en local
+        //
+        // El archivo se busca donde diga LIBRIS_KEYSTORE_PROPS, y si no,
+        // en android/keystore.properties, que esta en .gitignore. Ponlo
+        // fuera del repositorio si puedes: un despiste en el .gitignore no
+        // puede filtrar lo que no esta dentro.
+        //
+        // Y si no hay nada configurado, el build NO falla: sale firmado de
+        // depuracion. Asi un clon limpio compila sin pedirle la llave a
+        // nadie; lo que no hace es publicar.
+        // ─────────────────────────────────────────────────────────────────
         release {
-            storeFile file("libris-release.keystore")
-            storePassword "librisaudio"
-            keyAlias "libris"
-            keyPassword "librisaudio"
+            if (firmaLista) {
+                storeFile file(firmaRuta)
+                storePassword firmaClaveAlmacen
+                keyAlias firmaAlias
+                keyPassword firmaClaveAlias
+            }
         }
     }
 
     buildTypes {
         debug {
-            // El CI compila assembleDebug → lo firmamos con la clave estable
-            signingConfig signingConfigs.release
+            // El CI compila assembleDebug, asi que tambien va con la clave
+            // estable: sin eso, cada build usaria un debug keystore distinto
+            // y las actualizaciones fallarian con «conflicto con un paquete
+            // existente». Si no hay llave configurada, cae al debug de
+            // siempre y el APK simplemente no sirve para actualizar.
+            signingConfig firmaLista ? signingConfigs.release : signingConfigs.debug
         }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.release
+            signingConfig firmaLista ? signingConfigs.release : signingConfigs.debug
         }
     }
 

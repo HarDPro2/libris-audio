@@ -59,12 +59,38 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
+      # ── 5b. Montar la llave de firma desde los secrets ───────────
+      # El keystore ya NO va en el repositorio. Viaja como secret en base64
+      # y se escribe en el runner, que es efimero y se destruye al acabar.
+      #
+      # Si los secrets no estan puestos, el paso NO falla: avisa y sigue. El
+      # APK saldra firmado de depuracion, servira para instalar desde cero y
+      # NO servira para actualizar. Es preferible a un CI en rojo sin decir
+      # por que.
+      - name: Preparar llave de firma
+        id: firma
+        env:
+          KEYSTORE_B64: ${{ secrets.LIBRIS_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::warning::Sin LIBRIS_KEYSTORE_B64: el APK saldra firmado de depuracion y no servira para actualizar."
+            exit 0
+          fi
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/libris-release.jks"
+          echo "LIBRIS_KEYSTORE_FILE=$RUNNER_TEMP/libris-release.jks" >> $GITHUB_ENV
+          echo "Llave montada ✅"
+
       # ── 6. Build debug APK ───────────────────────────────────────
       # Inyectamos versionName (de package.json) y versionCode (nº de run,
       # siempre creciente) para que la app conozca su propia versión y el
       # auto-actualizador pueda comparar contra el último release.
       - name: Build Native Debug APK
         working-directory: android
+        env:
+          # LIBRIS_KEYSTORE_FILE lo pone el paso anterior en GITHUB_ENV.
+          LIBRIS_KEYSTORE_PASS: ${{ secrets.LIBRIS_KEYSTORE_PASS }}
+          LIBRIS_KEY_ALIAS: ${{ secrets.LIBRIS_KEY_ALIAS }}
+          LIBRIS_KEY_PASS: ${{ secrets.LIBRIS_KEY_PASS }}
         run: >-
           ./gradlew assembleDebug --no-daemon --stacktrace
           -PlibrisVersionName=${{ steps.version.outputs.VERSION }}
