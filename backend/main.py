@@ -20,6 +20,10 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 import edge_tts
 
+# Como se DICE un texto: «1605» no es un fonema, es «mil seiscientos
+# cinco». Compartido byte a byte con Quantum Text Codex.
+from decir import normalizar_mapeado
+
 from extractores import (
     extraer as extraer_documento,
     DocumentoProtegido,
@@ -362,14 +366,52 @@ def _split_entry_to_words(text, s, e):
     return out
 
 
+def _tiempos_por_palabra_escrita(tiempos, grupos, escritas):
+    """Pasa los tiempos de las palabras DICHAS a las palabras ESCRITAS.
+
+    POR QUE HACE FALTA
+    Normalizar cambia la cuenta: «El 3 de mayo de 1605» son seis palabras
+    escritas y ocho dichas. El karaoke de la app ilumina sobre el texto que se
+    VE, y los tiempos vienen del que se OYE. Sin coser las dos cuentas, el
+    resaltado se corre dos posiciones en cuanto aparece una cifra, y el error
+    crece con cada una: en un capitulo con fechas acaba iluminando renglones
+    enteros por detras de la voz.
+
+    Aqui «1605» empieza donde empieza «mil» y acaba donde acaba «cinco».
+
+    Si las cuentas no cuadran —edge-tts a veces junta o se salta palabras— NO
+    se fuerza: se devuelven los tiempos como estaban. Un resaltado un poco
+    tosco es mejor que uno desplazado, porque el desplazado parece correcto.
+    """
+    if not tiempos or not grupos:
+        return tiempos
+    dichas = sum(grupos)
+    if abs(dichas - len(tiempos)) > max(2, len(tiempos) // 20):
+        print(f"[TTS] los tiempos ({len(tiempos)}) no cuadran con lo dicho "
+              f"({dichas}): se dejan sin agrupar")
+        return tiempos
+
+    salida, cursor = [], 0
+    for palabra, n in zip(escritas, grupos):
+        trozo = tiempos[cursor:cursor + n]
+        cursor += max(n, 0)
+        if trozo:
+            salida.append({"w": palabra, "s": trozo[0]["s"], "e": trozo[-1]["e"]})
+    return salida
+
+
 async def text_to_mp3(text: str, output_path: Path, voice: str = VOZ_POR_DEFECTO,
                       timing_path: Path | None = None):
     """Genera MP3 completo con reintentos y fallback a gTTS por segmento.
     Si timing_path se indica, guarda un JSON con los tiempos de cada palabra
     (para el resaltado sincronizado tipo karaoke en la app)."""
-    segments = _split_for_tts(text)
+    # El texto se DICE antes de sintetizarlo, y se guarda el puente de vuelta
+    # al escrito para que el karaoke siga cuadrando. Ver
+    # _tiempos_por_palabra_escrita.
+    dicho, grupos = normalizar_mapeado(text)
+    segments = _split_for_tts(dicho)
     if not segments:
-        segments = [(text or ".").strip() or "."]
+        segments = [(dicho or ".").strip() or "."]
 
     out = bytearray()
     timings = []
@@ -425,6 +467,7 @@ async def text_to_mp3(text: str, output_path: Path, voice: str = VOZ_POR_DEFECTO
 
     if timing_path is not None:
         try:
+            timings = _tiempos_por_palabra_escrita(timings, grupos, text.split())
             with open(timing_path, "w", encoding="utf-8") as f:
                 json.dump(timings, f, ensure_ascii=False)
         except Exception as e:
