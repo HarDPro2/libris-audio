@@ -138,6 +138,49 @@ def main():
     prueba("sin abreviaturas", "Dr." in normalizar("Dr. X",
                                                    con_abreviaturas=False))
 
+    print("\nUN CODIGO NO ES UN RANGO — salio del corpus, no de pensarlo:")
+    # Al pasar el motor por «El libro de los espiritus» aparecio esto en la
+    # pagina de creditos. La regla de rangos se estaba comiendo ISBN, codigos
+    # postales y telefonos, y leer mal un codigo es PEOR que leerlo en cifras:
+    # es mas largo y sigue sin entenderse.
+    for texto, esperado in (
+            ("ISBN 978-85-98161-66-2", "ISBN 978-85-98161-66-2"),
+            ("70790-090 Brasilia", "70790-090 Brasilia"),
+            ("codigo 1-2-3", "codigo 1-2-3"),
+            ("del 20-25", "del veinte a veinticinco"),
+            ("vivio 1804-1869",
+             "vivio mil ochocientos cuatro a mil ochocientos sesenta y nueve"),
+    ):
+        prueba(f"«{texto[:24]}»", normalizar(texto) == esperado, normalizar(texto))
+    prueba("el orden al reves no es rango", "tres a uno" not in normalizar("tomos 3-1"),
+           normalizar("tomos 3-1"))
+    # El marcador que aparta los codigos NO puede llevar digitos: la propia
+    # regla de enteros se lo comeria. Paso al escribirlo, y «978-85-...»
+    # acabo saliendo como «cero».
+    prueba("un telefono no se lee como cantidades",
+           normalizar("+ 55 61 3038 8425") == "+ 55 61 3038 8425",
+           normalizar("+ 55 61 3038 8425"))
+    prueba("pero «2 + 3» sigue siendo una suma",
+           "más" in normalizar("2 + 3 son 5"), normalizar("2 + 3 son 5"))
+    # `simbolos()` corre DOS fases antes que `numeros()` y convertia el «+»
+    # en «mas»: cuando la regla del telefono llegaba a mirar ya no quedaba
+    # ningun «+» que reconocer. Por eso los codigos se apartan ANTES de todo.
+    prueba("el «+» del telefono sobrevive a la fase de simbolos",
+           "más" not in normalizar("llame al + 34 91 123 4567"),
+           normalizar("llame al + 34 91 123 4567"))
+    # En espanol el decimal lleva coma: un punto entre cifras es miles o es
+    # un codigo. «CDD: 133.93» salia «ciento treinta y tres.noventa y tres».
+    for texto, esperado in (
+            ("CDD: 133.93", "CDD: 133.93"),
+            ("CDU: 133.7", "CDU: 133.7"),
+            ("de 1.250 euros", "de mil doscientos cincuenta euros"),
+            ("1.250.000 personas", "un millón doscientos cincuenta mil personas"),
+    ):
+        prueba(f"«{texto[:22]}»", normalizar(texto) == esperado, normalizar(texto))
+    prueba("el marcador sobrevive a la regla de enteros",
+           "cero" not in normalizar("ISBN 978-85-98161-66-2"),
+           normalizar("ISBN 978-85-98161-66-2"))
+
     print("\nEL PUENTE entre lo escrito y lo dicho:")
     # Normalizar cambia la CUENTA de palabras, y el karaoke ilumina sobre lo
     # escrito. Sin coser las dos cuentas, el resaltado se corre en cuanto

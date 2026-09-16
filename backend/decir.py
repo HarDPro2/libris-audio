@@ -74,6 +74,55 @@ _ABREV = re.compile(r"\b([A-Za-zÁÉÍÓÚÑáéíóúñ]{1,6})\.(?=[\s,;:)\]}»
 # Una inicial suelta: «H.» en «D. H. Lawrence».
 _INICIAL = re.compile(r"\s*[A-ZÁÉÍÓÚÑ]\.")
 _RANGO = re.compile(r"\b(\d+)\s*[-–—]\s*(\d+)\b")
+# Una cadena de tres o mas grupos unidos por guion no es un rango: es un
+# codigo. Ver `_es_rango`.
+_CADENA = re.compile(r"\b\d+(?:\s*[-–—]\s*\d+){2,}\b")
+# Un «+» seguido de VARIOS grupos de cifras es un telefono internacional, no
+# una suma. Se exigen dos grupos o mas para no tocar «2 + 3».
+_TELEFONO = re.compile(r"\+\s*\d+(?:\s+\d+){1,}")
+# En espanol el decimal lleva coma, asi que un punto entre cifras solo puede
+# ser dos cosas: separador de miles («1.250») o un codigo («CDD: 133.93»).
+# Este coge los dos y `_son_miles` decide cual es cual.
+_PUNTO_ENTRE_CIFRAS = re.compile(r"\b\d+(?:\.\d+)+\b")
+_SON_MILES = re.compile(r"^\d{1,3}(?:\.\d{3})+$")
+
+
+def _son_miles(s: str) -> bool:
+    """«1.250» son miles; «133.93» es una clasificacion decimal.
+
+    La diferencia esta en los grupos: los miles van SIEMPRE de tres en tres.
+    Sin esto, «CDD: 133.93» salia «ciento treinta y tres.noventa y tres», con
+    el punto leido como final de frase en medio de la cifra.
+    """
+    return bool(_SON_MILES.match(s))
+
+
+def _es_rango(a: str, b: str) -> bool:
+    """Si «a-b» es un rango de verdad o un codigo con un guion dentro.
+
+    SALIO DEL CORPUS, no de pensarlo: al pasar el motor por «El libro de los
+    espiritus» aparecio esto en la pagina de creditos:
+
+        ISBN 978-85-98161-66-2  ->  «novecientos setenta y ocho a ochenta y
+                                     cinco-noventa y ocho mil ciento...»
+        70790-090               ->  «setenta mil setecientos noventa a noventa»
+
+    La regla de rangos —la que convierte «paginas 20-25» en «veinte a
+    veinticinco»— se estaba comiendo ISBN, codigos postales y telefonos. Leer
+    mal un codigo es peor que leerlo en cifras: es mas largo y sigue sin
+    entenderse.
+
+    Un rango de verdad cumple las cuatro:
+      - ninguno empieza por cero («090» es un codigo, no el numero noventa);
+      - ninguno pasa de cuatro cifras (un ano es el tope razonable);
+      - el segundo es mayor que el primero;
+      - y no estan dentro de una cadena mas larga, que mira `numeros()`.
+    """
+    if (a.startswith("0") and len(a) > 1) or (b.startswith("0") and len(b) > 1):
+        return False
+    if len(a) > 4 or len(b) > 4:
+        return False
+    return int(b) > int(a)
 
 
 def _palabra_antes(texto: str, i: int) -> str:
@@ -102,16 +151,66 @@ def romanos(texto: str) -> str:
     return _ROMANO.sub(cambia, texto)
 
 
+def _apartar_codigos(texto: str, intocables: dict[str, str]) -> str:
+    """Saca de en medio lo que NO es una cantidad y lo cambia por un marcador.
+
+    Se llama ANTES que ninguna otra regla. El motivo lo destapo el corpus:
+    `simbolos()` convierte el «+» en «mas» y corre ANTES que `numeros()`, asi
+    que cuando la regla del telefono llegaba a mirar ya no quedaba ningun «+»
+    que reconocer, y «+ 55 61 3038 8425» salia leido como cuatro cantidades.
+
+    El marcador no lleva digitos a proposito: si los llevara, la propia regla
+    de enteros se lo comeria y destrozaria la clave — paso al escribirlo, y
+    «ISBN 978-85-98161-66-2» acabo en «ISBN cero». Tampoco lleva mayusculas,
+    que se las quedaria la regla de romanos, ni puntos, que se los quedaria la
+    de abreviaturas: cruza las cuatro fases sin que ninguna lo toque.
+    """
+    def apartar(m: "re.Match") -> str:
+        clave = "\x00" + "".join(chr(97 + int(d))
+                                 for d in str(len(intocables))) + "\x00"
+        intocables[clave] = m.group(0)
+        return clave
+
+    # Telefonos internacionales, y cadenas de tres o mas grupos con guion:
+    # ISBN, codigos postales, referencias.
+    texto = _TELEFONO.sub(apartar, texto)
+    texto = _CADENA.sub(apartar, texto)
+    # Y los puntos entre cifras que no son miles.
+    texto = _PUNTO_ENTRE_CIFRAS.sub(
+        lambda m: m.group(0) if _son_miles(m.group(0)) else apartar(m), texto)
+    # Y los pares con guion que no son un rango de verdad. Apartarlos ENTEROS,
+    # no solo dejar el guion: si no, «70790-090» se quedaba en «setenta mil
+    # setecientos noventa-noventa», que es peor que el original. Los rangos
+    # de verdad se quedan como estan: los convierte `numeros()`.
+    return _RANGO.sub(
+        lambda m: (m.group(0) if _es_rango(m.group(1), m.group(2))
+                   else apartar(m)), texto)
+
+
+def _devolver_codigos(texto: str, intocables: dict[str, str]) -> str:
+    """Devuelve cada codigo a su sitio, tal cual estaba escrito."""
+    for clave, original in intocables.items():
+        texto = texto.replace(clave, original)
+    return texto
+
+
 def numeros(texto: str) -> str:
     """Cifras a palabras, en el orden en que hay que hacerlo."""
+    # Si viene de `normalizar()` los codigos ya estan apartados y esto no
+    # encuentra nada; si alguien llama aqui directamente, quedan igual de
+    # protegidos.
+    intocables: dict[str, str] = {}
+    texto = _apartar_codigos(texto, intocables)
     # Los ordinales primero: «3.º» tiene que verse antes que el «3» suelto.
     # Y OJO: «º» y «ª» no pueden estar en la lista de simbolos, porque esa
     # corre antes y los borraria — «3.º» se quedaba en «3.» y salia «tres.».
     texto = _ORDINAL_MARCA.sub(
         lambda m: _genero(ordinal(int(m.group(1))), m.group(2)), texto)
-    # Los rangos: «paginas 20-25» se dice «de veinte a veinticinco».
+    # Los rangos que sobrevivieron al filtro: «paginas 20-25» se dice «de
+    # veinte a veinticinco».
     texto = _RANGO.sub(
-        lambda m: f"{cardinal(int(m.group(1)))} a {cardinal(int(m.group(2)))}",
+        lambda m: (f"{cardinal(int(m.group(1)))} a {cardinal(int(m.group(2)))}"
+                   if _es_rango(m.group(1), m.group(2)) else m.group(0)),
         texto)
     # Los miles con punto, antes que nada los rompa.
     texto = _MILES.sub(lambda m: cardinal(int(m.group(0).replace(".", ""))),
@@ -125,7 +224,8 @@ def numeros(texto: str) -> str:
     def entero(m):
         s = m.group(0)
         return cardinal(int(s)) if len(s) <= 15 else s
-    return _ENTERO.sub(entero, texto)
+    texto = _ENTERO.sub(entero, texto)
+    return _devolver_codigos(texto, intocables)
 
 
 def _genero(palabra: str, marca: str) -> str:
@@ -169,6 +269,12 @@ def normalizar(texto: str, *, con_romanos: bool = True,
       3. simbolos, que pueden dejar cifras sueltas («80%»);
       4. numeros, al final, cuando ya no queda nada que los produzca.
     """
+    # Y antes que los cuatro, los codigos se apartan. No es un quinto paso:
+    # es la condicion para que el primero no los rompa. `simbolos()` se comia
+    # el «+» del telefono dos fases antes de que nadie pudiera reconocerlo.
+    intocables: dict[str, str] = {}
+    if con_numeros:
+        texto = _apartar_codigos(texto, intocables)
     if con_abreviaturas:
         texto = abreviaturas(texto)
     if con_romanos:
@@ -177,7 +283,10 @@ def normalizar(texto: str, *, con_romanos: bool = True,
         texto = simbolos(texto)
     if con_numeros:
         texto = numeros(texto)
-    return re.sub(r"[ \t]{2,}", " ", texto)
+    # Los espacios se cuadran ANTES de devolver los codigos: un codigo vuelve
+    # exactamente como estaba escrito, o el karaoke deja de cuadrar.
+    texto = re.sub(r"[ \t]{2,}", " ", texto)
+    return _devolver_codigos(texto, intocables)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

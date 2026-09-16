@@ -38,3 +38,6 @@ backend/cifras_base.json
 
 # Notas internas: no van a un repositorio publico
 CONTEXTO_PERMANENTE.md
+
+# Carpetas de traspaso: Claude escribe aqui y tu copias. Nunca al repositorio.
+_NUEVOS*/
