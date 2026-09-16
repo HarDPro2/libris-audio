@@ -23,6 +23,8 @@ import edge_tts
 # Como se DICE un texto: «1605» no es un fonema, es «mil seiscientos
 # cinco». Compartido byte a byte con Quantum Text Codex.
 from decir import normalizar_mapeado
+from secciones import (detectar as detectar_secciones, marcar_prosa,
+                       repartir, como_json as secciones_como_json)
 
 from extractores import (
     extraer as extraer_documento,
@@ -855,6 +857,25 @@ async def upload_pdf(
                 "capitulos": documento.indice,
                 "total_caracteres": len(text),
             }
+            # LAS SECCIONES QUE NADIE QUIERE OIR — «Saltar indice», como
+            # Netflix. Se detectan UNA vez, al subir, y viajan dentro del
+            # mismo index.json: un libro que no las tenga es simplemente un
+            # libro subido antes de esto, y todo sigue funcionando igual.
+            #
+            # Lo que se ahorra no es poco: en «El libro de los espiritus» son
+            # 35 de 292 partes (12%) que no hay que sintetizar nunca.
+            try:
+                secs = marcar_prosa(detectar_secciones(text), text)
+                indice.update(secciones_como_json(
+                    secs, repartir(text, chunks, secs)))
+                if secs:
+                    print("[Upload] Secciones saltables: "
+                          + ", ".join(f"{x.clase}({'audio' if x.sintetizar else 'sin audio'})"
+                                      for x in secs))
+            except Exception as e:
+                # Nunca puede tumbar una subida: sin secciones el libro
+                # funciona exactamente como hasta hoy.
+                print(f"[Upload] Warning secciones: {e}")
             await asyncio.to_thread(
                 r2_upload, f"{book_id}/index.json",
                 json.dumps(indice, ensure_ascii=False).encode("utf-8"),
@@ -900,6 +921,21 @@ async def upload_pdf(
         return JSONResponse(status_code=500, content={"detail": f"Error interno: {str(exc)}"})
 
 
+async def _seccion_de_parte(book_id: str, part_index: int) -> dict | None:
+    """Si esta parte cae dentro de una sección saltable, la devuelve.
+
+    Devuelve None ante cualquier duda —libro viejo sin índice, R2 que no
+    responde, JSON roto—. Que falle esto nunca puede dejar a nadie sin audio:
+    el peor caso es que se sintetice algo que no hacía falta, que es
+    exactamente lo que pasaba antes.
+    """
+    try:
+        raw = await asyncio.to_thread(r2_download, f"{book_id}/index.json")
+        return json.loads(raw.decode("utf-8")).get("partes", {}).get(str(part_index))
+    except Exception:
+        return None
+
+
 @app.get("/api/audio/{book_id}/{part_index}")
 async def get_book_audio(book_id: str, part_index: int, voice: str = VOZ_POR_DEFECTO,
                          authorization: str = Header(default=None)):
@@ -913,6 +949,18 @@ async def get_book_audio(book_id: str, part_index: int, voice: str = VOZ_POR_DEF
 
     mp3_exists = await asyncio.to_thread(r2_exists, mp3_key)
     if not mp3_exists:
+        # RED DE SEGURIDAD, no la puerta principal: el cliente ya sabe por el
+        # indice que esta parte no tiene audio y no deberia pedirla. Esto es
+        # para que un cliente viejo —o uno con el indice en cache— no nos haga
+        # sintetizar 1.500 lineas de cifras por equivocacion.
+        marca = await _seccion_de_parte(book_id, part_index)
+        if marca and not marca.get("sintetizar", True):
+            return JSONResponse(status_code=409, content={
+                "saltar": True,
+                "titulo": marca.get("titulo"),
+                "saltaA": marca.get("saltaA"),
+                "detail": "Esta parte es una sección que no se narra.",
+            })
         txt_key = f"{book_id}/text/part_{part_index}.txt"
         try:
             txt_bytes = await asyncio.to_thread(r2_download, txt_key)
