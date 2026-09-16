@@ -135,6 +135,11 @@ ZONA_NOTAS = 0.30
 # esto, es que se estan juntando cosas que no van juntas.
 CREDITOS_HUECO = 15
 CREDITOS_MAXIMO = 40
+# Y el tope de verdad, en CARACTERES. Una pagina de creditos no pasa de unos
+# pocos miles; el tope en lineas no vale para nada cuando una linea mide 1.360
+# caracteres, que es como llega el texto guardado por parrafos. Con el tope en
+# lineas, los creditos se comian el indice de contenidos entero.
+CREDITOS_MAXIMO_CAR = 3000
 
 # Un indice llega partido en trozos: los numeros de pagina y las lineas en
 # blanco rompen la racha cada pocas decenas de lineas. En Kardec salieron 17
@@ -143,10 +148,43 @@ CREDITOS_MAXIMO = 40
 # medio.
 COSER_HUECO = 30
 COSER_PROSA_MAXIMA = 4
+# El hueco para coser, tambien en caracteres: 30 lineas son 2.000 caracteres
+# en un libro y 40.000 en otro.
+COSER_HUECO_CAR = 2500
 
 # Para el indice sin puntos de relleno: cuanto se mira hacia delante desde la
 # cabecera, cuantas lineas seguidas sin numero de pagina lo dan por terminado,
 # y que proporcion hay que superar para creerselo.
+# POR VENTANAS DE CARACTERES, para el texto que llega en parrafos.
+#
+# Todo lo de arriba mira LINEA A LINEA, y eso da por hecho que el texto
+# conserva los saltos de linea del libro. La mitad de la biblioteca no: los
+# que entraron por EPUB estan guardados en parrafos corridos de mas de mil
+# caracteres, y ahi una entrada de indice queda diluida en un parrafo enorme.
+# Ninguna medida por linea la ve, y «doce lineas seguidas» no significa nada.
+#
+# La densidad de referencias sigue funcionando igual de bien —es una medida
+# por CARACTER, no por linea—, asi que basta con mirarla en ventanas y no en
+# lineas. Esta pasada corre SIEMPRE, tambien en los libros con lineas: si los
+# dos caminos encuentran lo mismo, `_sin_solapes` los junta.
+VENTANA = 400
+VENTANA_PASO = 200
+# Una racha sostenida tiene que medir al menos esto para creersela. Dos mil
+# caracteres son aproximadamente una pagina: una tabla dentro de un capitulo
+# casi nunca llega, y un indice de verdad la pasa de largo.
+BLOQUE_MINIMO = 2000
+# Los puntos de relleno sobreviven a que el texto se guarde en parrafos: si en
+# una ventana hay tres o mas rachas de puntos, eso es un indice de contenidos
+# y da igual donde este.
+#
+# CINCO PUNTOS, NO TRES, y la diferencia la enseño Hamlet. Con tres, esta
+# regla cazaba los PUNTOS SUSPENSIVOS del dialogo —que en una obra de teatro
+# estan por todas partes— y marcaba media obra como indice. Los puntos
+# suspensivos son exactamente tres (o el caracter «…»); el relleno de un
+# indice son docenas. Cinco separa las dos cosas sin discusion.
+_RELLENO_SUELTO = re.compile(r"\.{5,}")
+RELLENOS_POR_VENTANA = 3
+
 INDICE_VENTANA = 400
 INDICE_SECO = 15
 INDICE_CON_PAGINA = 0.35
@@ -233,6 +271,76 @@ def _rachas(lineas: list[str]) -> list[tuple[int, int]]:
     return [(a, b) for a, b in salida if b - a + 1 >= RACHA_MINIMA]
 
 
+def _bloques_densos(texto: str) -> list[tuple[int, int]]:
+    """Tramos de caracteres cargados de referencias, sin mirar las líneas."""
+    marcadas, por_puntos = [], []
+    for a in range(0, max(1, len(texto) - VENTANA + 1), VENTANA_PASO):
+        trozo = texto[a:a + VENTANA]
+        puntos = len(_RELLENO_SUELTO.findall(trozo)) >= RELLENOS_POR_VENTANA
+        marcadas.append(puntos
+                        or _densidad_referencias(trozo) >= REFERENCIAS_MINIMAS)
+        por_puntos.append(puntos)
+
+    salida, inicio, hueco = [], None, 0
+    for k, densa in enumerate(marcadas):
+        if densa:
+            if inicio is None:
+                inicio = k
+            ultima, hueco = k, 0
+        elif inicio is not None:
+            hueco += 1
+            if hueco > 1:
+                salida.append((inicio, ultima))
+                inicio, hueco = None, 0
+    if inicio is not None:
+        salida.append((inicio, ultima))
+
+    tramos = []
+    for a, b in salida:
+        i, f = a * VENTANA_PASO, min(len(texto), b * VENTANA_PASO + VENTANA)
+        if f - i >= BLOQUE_MINIMO:
+            # Si lo que lo delato fueron los puntos de relleno, es un indice
+            # de CONTENIDOS, este donde este: algunos libros lo ponen al
+            # final, y llamarlo «alfabetico» por la posicion seria mentir.
+            tramos.append((i, f, any(por_puntos[a:b + 1])))
+    return tramos
+
+
+def _por_ventanas(texto: str, lineas: list[str],
+                  offsets: list[int]) -> list[Seccion]:
+    """Lo mismo que la pasada por líneas, pero contando caracteres."""
+    import bisect
+    total = len(texto) or 1
+    salida = []
+    for i, f, por_puntos in _bloques_densos(texto):
+        sitio = i / total
+        if por_puntos:
+            clase = "contenidos"
+        elif sitio < ZONA_CREDITOS:
+            clase = "contenidos"
+        elif sitio > ZONA_CIERRE:
+            clase = "alfabetico"
+        else:
+            continue          # en mitad del libro, una tabla es una tabla
+        primera = max(0, bisect.bisect_right(offsets, i) - 1)
+        ultima = max(primera, bisect.bisect_right(offsets, f - 1) - 1)
+        salida.append(Seccion(
+            clase=clase, titulo=TITULOS[clase],
+            primera=primera, ultima=ultima, inicio=i, fin=f,
+            saltable=True, sintetizar=False,
+            razon=f"{f - i} caracteres cargados de referencias, "
+                  f"al {sitio:.0%} del libro"))
+    return salida
+
+
+def _lineas_de(offsets: list[int], inicio: int, fin: int) -> tuple[int, int]:
+    """Qué líneas cubre un tramo de caracteres."""
+    import bisect
+    a = max(0, bisect.bisect_right(offsets, inicio) - 1)
+    b = max(a, bisect.bisect_right(offsets, max(inicio, fin - 1)) - 1)
+    return a, b
+
+
 def _cabecera_cerca(lineas: list[str], i: int, cuantas: int = 6) -> str | None:
     """Busca hacia atrás una cabecera que diga qué es este tramo."""
     for j in range(max(0, i - cuantas), i + 1):
@@ -251,9 +359,19 @@ def _creditos(lineas: list[str], offsets: list[int]) -> Seccion | None:
     contenidos entero. Hay que quedarse con el RACIMO más apretado.
     """
     tope = max(6, int(len(lineas) * ZONA_CREDITOS))
-    marcadas = [i for i, l in enumerate(lineas[:tope])
-                if any(s in l.lower() for s in _SENAS_CREDITOS)]
-    if len(marcadas) < 2:
+    # SE CUENTAN SEÑAS DISTINTAS, NO LINEAS. En un texto guardado por
+    # parrafos, el ISBN, el copyright y los derechos reservados caen todos en
+    # la MISMA linea: contando lineas salia una sola seña y no se marcaba
+    # nada. Paso de verdad, con un libro de Paidos de 1.360 caracteres por
+    # linea.
+    marcadas, vistas = [], set()
+    for i, l in enumerate(lineas[:tope]):
+        bajo = l.lower()
+        aqui = {x for x in _SENAS_CREDITOS if x in bajo}
+        if aqui:
+            marcadas.append(i)
+            vistas |= aqui
+    if len(vistas) < 2:
         return None
 
     racimos: list[list[int]] = [[marcadas[0]]]
@@ -263,21 +381,57 @@ def _creditos(lineas: list[str], offsets: list[int]) -> Seccion | None:
         else:
             racimos.append([i])
     mejor = max(racimos, key=len)
-    if len(mejor) < 2:
-        return None
 
     a, b = max(0, mejor[0] - 4), min(len(lineas) - 1, mejor[-1] + 4)
     if b - a + 1 > CREDITOS_MAXIMO:
         b = a + CREDITOS_MAXIMO - 1
+    inicio = offsets[a]
+    fin = min(offsets[b] + len(lineas[b]), inicio + CREDITOS_MAXIMO_CAR)
+    a, b = _lineas_de(offsets, inicio, fin)
     return Seccion(
         clase="creditos", titulo=TITULOS["creditos"],
         primera=a, ultima=b,
-        inicio=offsets[a], fin=offsets[b] + len(lineas[b]),
+        inicio=inicio, fin=fin,
         saltable=True, sintetizar=False,
-        razon=f"{len(mejor)} señas de créditos juntas")
+        razon=f"{len(vistas)} señas de créditos distintas")
 
 
 _ACABA_EN_PAGINA = re.compile(r"\d{1,4}\s*$")
+
+# EL APARATO CRITICO: lo que tiene una seccion de notas o de bibliografia de
+# verdad y no tiene ningun capitulo.
+#
+# Hizo falta porque la cabecera SOLA no basta, y eso solo se vio al correr
+# esto contra los 98 libros reales: una linea que ponia «Bibliografia» al 42%
+# del libro se llevaba todo lo que venia detras, y salian «bibliografias» que
+# ocupaban el 58% de su libro. El audio no se perdia —son prosa— pero el boton
+# habria hecho que el lector se saltara 38 capitulos de verdad, que es peor.
+#
+# Medido sobre los libros de prueba, llamadas por cada 1.000 caracteres:
+#     Medea, la seccion de notas real     3,14
+#     Medea, el texto de la obra          0,86
+#     1984 / Pedro Paramo / El Extranjero / Hamlet    0,00
+#
+# El umbral en 1,5 deja fuera hasta el propio texto de Medea, que es el
+# negativo mas exigente que hay en el corpus.
+_LLAMADA_NOTA = re.compile(r"\[\d{1,3}\]")
+_CITA_ANO = re.compile(r"\(\d{4}[a-z]?\)")
+_PAGINAS_CITADAS = re.compile(r"\bpp?\.\s*\d", re.I)
+APARATO_MINIMO = 1.5
+
+
+def _densidad_aparato(texto: str) -> float:
+    """Llamadas de nota, citas con año y remisiones a páginas, por 1.000 car."""
+    if not texto:
+        return 0.0
+    cuantas = (len(_LLAMADA_NOTA.findall(texto))
+               + len(_CITA_ANO.findall(texto))
+               + len(_PAGINAS_CITADAS.findall(texto)))
+    return cuantas / (len(texto) / 1000)
+# «Notas [1] La obra de M. Victor Duruy…» — la cabecera y el primer parrafo
+# pegados, que es como queda cuando el texto se guarda sin saltos de linea.
+_CABECERA_ABIERTA = re.compile(
+    r"^\W*(notas|bibliograf[íi]a|referencias|obras\s+citadas)\b\W+\S", re.I)
 
 
 def _indice_bajo_cabecera(lineas: list[str],
@@ -349,7 +503,12 @@ def _por_cabecera(lineas: list[str], offsets: list[int]) -> list[Seccion]:
         for clase, patron in _CABECERAS:
             if clase not in ("notas", "bibliografia"):
                 continue
-            if not patron.match(linea.strip()):
+            # En un texto guardado por parrafos, «Notas» no esta sola en su
+            # linea: el primer parrafo va pegado detras. Se acepta que siga
+            # texto, porque la condicion fuerte es otra —que la seccion
+            # llegue HASTA EL FINAL— y esa no se cumple por casualidad.
+            if not (patron.match(linea.strip())
+                    or _CABECERA_ABIERTA.match(linea.strip())):
                 continue
             # Hasta el final, o hasta la siguiente cabecera de este tipo.
             fin = total - 1
@@ -364,13 +523,21 @@ def _por_cabecera(lineas: list[str], offsets: list[int]) -> list[Seccion]:
             # era un capitulo llamado «Notas», no la seccion de notas.
             if total - 1 - fin > RACHA_MINIMA:
                 continue
+            # Y tiene que PARECERLO por dentro, no solo llamarse asi. Ver la
+            # nota de `_densidad_aparato`: sin esto, una cabecera suelta se
+            # lleva medio libro.
+            cuerpo = "\n".join(lineas[i:fin + 1])
+            aparato = _densidad_aparato(cuerpo)
+            if aparato < APARATO_MINIMO:
+                continue
             salida.append(Seccion(
                 clase=clase, titulo=TITULOS[clase],
                 primera=i, ultima=fin,
                 inicio=offsets[i], fin=offsets[fin] + len(lineas[fin]),
                 saltable=True, sintetizar=False,
-                razon=f"cabecera «{linea.strip()[:24]}» al {i/total:.0%} "
-                      f"del libro, {fin - i + 1} líneas hasta el final"))
+                razon=f"cabecera «{linea.strip()[:24]}» al {i/total:.0%} del "
+                      f"libro, {fin - i + 1} líneas hasta el final, "
+                      f"{aparato:.1f} llamadas por mil caracteres"))
             break
     return salida
 
@@ -378,7 +545,12 @@ def _por_cabecera(lineas: list[str], offsets: list[int]) -> list[Seccion]:
 def detectar(texto: str) -> list[Seccion]:
     """Todas las secciones saltables de un libro, en orden de aparición."""
     lineas = texto.splitlines()
-    if len(lineas) < RACHA_MINIMA * 2:
+    # LA GUARDA VA EN CARACTERES, no en lineas. Con «menos de 24 lineas no es
+    # un libro» se descartaba entero cualquier texto guardado por parrafos:
+    # un libro de 19.000 caracteres son 17 lineas cuando cada una mide 1.200.
+    # Este fallo no daba error, devolvia una lista vacia — que es exactamente
+    # lo que devuelve un libro sin secciones.
+    if len(texto) < BLOQUE_MINIMO:
         return []
 
     offsets, pos = [], 0
@@ -418,33 +590,28 @@ def detectar(texto: str) -> list[Seccion]:
                   + (f", bajo la cabecera «{clase}»" if _cabecera_cerca(lineas, a)
                      else f", al {sitio:.0%} del libro")))
 
+    encontradas.extend(_por_ventanas(texto, lineas, offsets))
     encontradas.extend(_indice_bajo_cabecera(lineas, offsets))
     encontradas.extend(_por_cabecera(lineas, offsets))
-    encontradas.sort(key=lambda s: s.primera)
-    return _coser(_sin_solapes(encontradas), lineas)
+    encontradas.sort(key=lambda s: (s.inicio, s.fin))
+    return _coser(_sin_solapes(encontradas, offsets), lineas, offsets)
 
 
-def _sin_solapes(secciones: list[Seccion]) -> list[Seccion]:
-    """Si dos tramos se pisan, se quedan como uno solo."""
-    salida: list[Seccion] = []
-    for s in secciones:
-        if salida and s.primera <= salida[-1].ultima + HUECO_MAXIMO:
-            previa = salida[-1]
-            previa.ultima = max(previa.ultima, s.ultima)
-            previa.fin = max(previa.fin, s.fin)
-            continue
-        salida.append(s)
-    return salida
+def _sin_solapes(secciones: list[Seccion],
+                 offsets: list[int]) -> list[Seccion]:
+    """Dos tramos que se pisan no pueden quedarse los dos como están.
 
+    SE MIDE EN CARACTERES, no en líneas, y esa es toda la gracia: una línea
+    mide 70 caracteres en un libro sacado de un PDF y 1.360 en uno guardado
+    por párrafos. Cualquier umbral en líneas significa una cosa distinta en cada
+    libro; los caracteres significan lo mismo en los dos.
 
-def _coser(secciones: list[Seccion], lineas: list[str]) -> list[Seccion]:
-    """Junta los pedazos de una misma sección en uno solo.
+    Misma clase → se funden: es el mismo índice visto por los dos caminos (el
+    de líneas y el de ventanas) y el lector quiere UN botón.
 
-    El índice alfabético de Kardec llegaba aquí en DIECISIETE trozos, partido
-    por los números de página y las líneas en blanco. Al lector hay que
-    ofrecerle un botón, no diecisiete. Se cosen dos trozos de la misma clase
-    si el hueco es pequeño y si en ese hueco no hay prosa de verdad — esa
-    última condición es la que impide coser por encima de un capítulo.
+    Clases distintas → se recorta el segundo. Los créditos y el índice van
+    pegados en casi todos los libros, y fundirlos etiquetaría el índice como
+    «créditos», que es mentirle al lector sobre lo que se salta.
     """
     salida: list[Seccion] = []
     for s in secciones:
@@ -452,18 +619,52 @@ def _coser(secciones: list[Seccion], lineas: list[str]) -> list[Seccion]:
             salida.append(s)
             continue
         previa = salida[-1]
-        hueco = s.primera - previa.ultima - 1
-        if previa.clase == s.clase and 0 <= hueco <= COSER_HUECO:
-            # «Larga» no basta: las entradas del índice alfabético pasan de
-            # sobra los 60 caracteres. Prosa es larga Y con pocas cifras.
+        if s.inicio >= previa.fin:
+            salida.append(s)
+            continue
+        if s.clase == previa.clase:
+            previa.fin = max(previa.fin, s.fin)
+            previa.primera, previa.ultima = _lineas_de(
+                offsets, previa.inicio, previa.fin)
+            continue
+        s.inicio = previa.fin
+        if s.inicio >= s.fin:
+            continue
+        s.primera, s.ultima = _lineas_de(offsets, s.inicio, s.fin)
+        salida.append(s)
+    return salida
+
+
+def _coser(secciones: list[Seccion], lineas: list[str],
+           offsets: list[int]) -> list[Seccion]:
+    """Junta los pedazos de una misma sección en uno solo.
+
+    El índice alfabético de Kardec llegaba aquí en DIECISIETE trozos, partido
+    por los números de página y las líneas en blanco. Al lector hay que
+    ofrecerle un botón, no diecisiete. Se cosen dos trozos de la misma clase
+    si el hueco es pequeño —en caracteres— y si en ese hueco no hay prosa de
+    verdad; esa última condición es la que impide coser por encima de un
+    capítulo.
+    """
+    salida: list[Seccion] = []
+    for s in secciones:
+        if not salida:
+            salida.append(s)
+            continue
+        previa = salida[-1]
+        hueco = s.inicio - previa.fin
+        if previa.clase == s.clase and 0 <= hueco <= COSER_HUECO_CAR:
+            # «Larga» no basta: las entradas del índice pasan de sobra los 60
+            # caracteres. Prosa es larga Y con pocas referencias.
             enmedio = [l for l in lineas[previa.ultima + 1:s.primera]
                        if len(l.strip()) > 60
                        and _densidad_referencias(l) < REFERENCIAS_MINIMAS]
             if len(enmedio) <= COSER_PROSA_MAXIMA:
-                previa.ultima = s.ultima
-                previa.fin = s.fin
-                previa.razon = (f"{previa.ultima - previa.primera + 1} líneas "
-                                f"con forma de lista (cosidas de varios trozos)")
+                previa.fin = max(previa.fin, s.fin)
+                previa.primera, previa.ultima = _lineas_de(
+                    offsets, previa.inicio, previa.fin)
+                previa.razon = (f"{previa.fin - previa.inicio} caracteres "
+                                f"de sección (cosidos de varios trozos)")
                 continue
         salida.append(s)
     return salida

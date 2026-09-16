@@ -15,8 +15,9 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from secciones import (detectar, marcar_prosa, repartir, como_json,
-                              _densidad_referencias, RACHA_MINIMA,
-                              REFERENCIAS_MINIMAS)
+                              _densidad_referencias, _densidad_aparato,
+                              RACHA_MINIMA, REFERENCIAS_MINIMAS,
+                              APARATO_MINIMO)
 
 ok, fallos = 0, 0
 
@@ -288,6 +289,28 @@ prueba("el título es el que ve el lector",
 prueba("y la razón queda escrita, para poder discutirla",
        bool(s.razon), s.razon)
 
+print("\nUna cabecera NO basta — salió de los 98 libros de verdad:")
+# Una linea que ponia «Bibliografia» pasado el 30% del libro se llevaba TODO
+# lo que venia detras, y aparecieron «bibliografias» que ocupaban el 58% de su
+# libro. El audio no se perdia (son prosa), pero el boton habria hecho que el
+# lector se saltara 38 capitulos de verdad. Eso es peor que no tener boton.
+prueba("las notas de verdad tienen llamadas de nota",
+       _densidad_aparato("\n".join(NOTAS_EN_PROSA)) >= APARATO_MINIMO,
+       _densidad_aparato("\n".join(NOTAS_EN_PROSA)))
+prueba("la prosa de una novela no tiene ninguna",
+       _densidad_aparato("\n".join(PROSA * 10)) == 0,
+       _densidad_aparato("\n".join(PROSA * 10)))
+# Una novela cuyo ultimo capitulo se titule «Notas» no puede llevarse el final
+# del libro solo por el titulo.
+falsa = ["Notas"] + PROSA * 8
+texto = libro(antes=100, bloque=falsa, despues=0)
+prueba("una cabecera sin aparato crítico NO marca nada",
+       detectar(texto) == [], [x.clase for x in detectar(texto)])
+texto = libro(antes=100, bloque=NOTAS_EN_PROSA * 3, despues=0)
+prueba("pero con llamadas de nota sí", 
+       any(x.clase == "notas" for x in detectar(texto)),
+       [x.clase for x in detectar(texto)])
+
 print("\nDe secciones a partes, que es lo que ve la app:")
 # Los dos proyectos trabajan por partes de unos miles de caracteres. Una parte
 # casi nunca cae ENTERA dentro de una seccion, asi que se marca cuando la
@@ -320,6 +343,75 @@ prueba("y cada parte del JSON dice a dónde va el botón",
 texto = libro(antes=60, bloque=(), despues=60)
 prueba("un libro sin secciones no marca ninguna parte",
        not [p for p in repartir(texto, _partir(texto, 400), []) if p.clase])
+
+print("\nY lo mismo si el libro se reconstruye desde sus partes:")
+# Los libros que ya estaban subidos se arreglan leyendo sus partes de R2 y
+# juntandolas otra vez. El texto reconstruido NO es byte a byte el original
+# —quien partio el libro hizo `.strip()` en cada trozo— asi que hay que
+# comprobar que aun asi sale lo mismo. Si no saliera, un libro arreglado y
+# uno recien subido tendrian secciones distintas, y nadie se enteraria.
+texto = libro(antes=200, bloque=ALFABETICO * 6, despues=2)
+trozos = [t for t in _partir(texto, 400) if t]
+rehecho = "\n".join(trozos)
+a = [(x.clase, x.sintetizar) for x in marcar_prosa(detectar(texto), texto)]
+b = [(x.clase, x.sintetizar) for x in marcar_prosa(detectar(rehecho), rehecho)]
+prueba("las mismas secciones que subiendo el libro de cero", a == b, f"{a} vs {b}")
+pa = [p.indice for p in repartir(texto, trozos, detectar(texto)) if p.clase]
+pb = [p.indice for p in repartir(rehecho, trozos, detectar(rehecho)) if p.clase]
+prueba("y las mismas partes marcadas", pa == pb, f"{pa} vs {pb}")
+
+print("\nY con el texto guardado en PÁRRAFOS, que es como llega medio catálogo:")
+# EL SESGO QUE TENÍA ESTE ARCHIVO, y que solo se vio al correr el detector
+# contra los 98 libros de verdad: los siete PDF de prueba están todos entre 62
+# y 85 caracteres por línea, porque vienen del mismo camino de extracción. Los
+# que entran por EPUB se guardan en párrafos corridos de MÁS DE MIL
+# caracteres, y ahí toda medida por línea es ciega: una entrada de índice
+# queda diluida en un párrafo enorme y «doce líneas seguidas» no significa
+# nada. De 98 libros, 78 no daban ni una sección por esto.
+#
+# Por eso los umbrales de solape y de cosido se miden en CARACTERES: una línea
+# vale 70 en un libro y 1.360 en otro, un carácter vale lo mismo en los dos.
+def en_parrafos(texto, cuantas=18):
+    """Junta las líneas de 18 en 18, como queda el texto sin saltos."""
+    salida, monton = [], []
+    for l in texto.splitlines():
+        if not l.strip():
+            continue
+        monton.append(l.strip())
+        if len(monton) >= cuantas:
+            salida.append(" ".join(monton))
+            monton = []
+    if monton:
+        salida.append(" ".join(monton))
+    return "\n".join(salida)
+
+texto = libro(antes=200, bloque=ALFABETICO * 6, despues=2)
+apretado = en_parrafos(texto)
+largo = max(len(l) for l in apretado.splitlines())
+prueba("el texto de prueba queda de verdad en párrafos largos", largo > 700, largo)
+clases = {x.clase for x in detectar(apretado)}
+prueba("el índice alfabético se encuentra igual", "alfabetico" in clases, clases)
+
+novela = en_parrafos("\n".join(PROSA * 40))
+prueba("y una novela en párrafos sigue sin marcar nada",
+       detectar(novela) == [], [x.clase for x in detectar(novela)])
+
+fechas = en_parrafos(libro(antes=100, bloque=CAPITULO_CON_CIFRAS * 3, despues=100))
+prueba("ni un capítulo de fechas en párrafos",
+       detectar(fechas) == [], [x.clase for x in detectar(fechas)])
+
+# Los puntos de relleno aguantan el aplastado, pero OJO con confundirlos con
+# los puntos suspensivos: con el umbral en tres, Hamlet entero salia marcado
+# como indice por el dialogo. Son cinco.
+conpuntos = en_parrafos(libro(antes=3, bloque=CONTENIDOS_CON_PUNTOS * 3,
+                              despues=200))
+prueba("el índice con puntos se encuentra aplastado en párrafos",
+       any(x.clase == "contenidos" for x in detectar(conpuntos)),
+       [x.clase for x in detectar(conpuntos)])
+suspensivos = ["—No sé... nunca lo supe... y ya no importa —dijo en voz baja."] * 60
+prueba("pero los puntos suspensivos del diálogo NO son un índice",
+       detectar(en_parrafos("\n".join(suspensivos))) == [],
+       [x.clase for x in detectar(en_parrafos("\n".join(suspensivos)))])
 
 print("\nNada de esto revienta con lo raro:")
 for nombre, t in (("texto vacío", ""), ("una línea", "hola"),
