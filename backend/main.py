@@ -13,6 +13,7 @@ import re
 import time
 import uuid
 import json
+import base64
 from pathlib import Path
 
 import boto3
@@ -44,7 +45,8 @@ import httpx
 from gtts import gTTS
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Header, Body
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse, StreamingResponse, PlainTextResponse
+from fastapi.responses import (JSONResponse, FileResponse, StreamingResponse,
+                               PlainTextResponse, Response)
 from appwrite.client import Client as AppwriteClient
 from appwrite.services.databases import Databases as AppwriteDatabases
 
@@ -921,6 +923,30 @@ async def upload_pdf(
         return JSONResponse(status_code=500, content={"detail": f"Error interno: {str(exc)}"})
 
 
+# MEDIO SEGUNDO DE SILENCIO, PEGADO AQUI EN BASE64 Y NO COMO ARCHIVO.
+#
+# Son 576 bytes de MP3 (8 kbps, 16 kHz, mono, sin etiquetas ID3). Va dentro
+# del codigo a proposito: un .mp3 suelto es un archivo binario mas que puede
+# perderse al copiar, llegar corrupto por un puente que lo trate como texto —
+# paso, llego con 9.495 bytes en vez de 3.693— o quedarse fuera de la imagen
+# de Docker sin que nadie lo note hasta que un lector se queda sin audio.
+# Pegado aqui viaja con el modulo y no hay nada que pueda faltar.
+_SILENCIO_B64 = (
+    "//MYxAAAAANIAAAAAExBTUUzLjEwMFVVVVVVVVVVVVVVVUxB//MYxBcAAANIAAAAAE1FMy4x"
+    "MDBVVVVVVVVVVVVVVVVVVUxB//MYxC4AAANIAAAAAE1FMy4xMDBVVVVVVVVVVVVVVVVVVUxB"
+    "//MYxEUAAANIAAAAAE1FMy4xMDBVVVVVVVVVVVVVVVVVVUxB//MYxFwAAANIAAAAAE1FMy4x"
+    "MDBVVVVVVVVVVVVVVVVVVUxB//MYxHMAAANIAAAAAE1FMy4xMDBVVVVVVVVVVVVVVVVVVVVV"
+    "//MYxIoAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//MYxKEAAANIAAAAAFVVVVVV"
+    "VVVVVVVVVVVVVVVVVVVVVVVV//MYxLgAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV"
+    "//MYxM8AAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//MYxOYAAANIAAAAAFVVVVVV"
+    "VVVVVVVVVVVVVVVVVVVVVVVV//MYxOgAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV"
+    "//MYxOgAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//MYxOgAAANIAAAAAFVVVVVV"
+    "VVVVVVVVVVVVVVVVVVVVVVVV//MYxOgAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV"
+    "//MYxOgAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV"
+)
+_SILENCIO = base64.b64decode(_SILENCIO_B64)
+
+
 async def _seccion_de_parte(book_id: str, part_index: int) -> dict | None:
     """Si esta parte cae dentro de una sección saltable, la devuelve.
 
@@ -949,18 +975,36 @@ async def get_book_audio(book_id: str, part_index: int, voice: str = VOZ_POR_DEF
 
     mp3_exists = await asyncio.to_thread(r2_exists, mp3_key)
     if not mp3_exists:
-        # RED DE SEGURIDAD, no la puerta principal: el cliente ya sabe por el
-        # indice que esta parte no tiene audio y no deberia pedirla. Esto es
-        # para que un cliente viejo —o uno con el indice en cache— no nos haga
-        # sintetizar 1.500 lineas de cifras por equivocacion.
+        # LAS PARTES QUE NO SE NARRAN DEVUELVEN SILENCIO, NO UN ERROR.
+        #
+        # La primera version devolvia 409, y estaba mal por una razon que solo
+        # se ve con la app en la mano: `PlayerViewModel` no tiene
+        # `onPlayerError`. ExoPlayer recibe el 409 y SE PARA EN SECO, sin
+        # avisar. Un error honesto que nadie recoge es peor que un silencio.
+        #
+        # Con 0,8 segundos de silencio, el reproductor pasa de largo el solo y
+        # el lector ve el texto en pantalla mientras tanto. Funciona con el
+        # APK que ya esta instalado, sin actualizar nada.
+        #
+        # Las cabeceras llevan lo que el cliente NUEVO necesitara para pintar
+        # el boton «Saltar indice» y saltar de golpe. Un cliente viejo las
+        # ignora y no se entera de nada, que es justo lo que se quiere.
         marca = await _seccion_de_parte(book_id, part_index)
         if marca and not marca.get("sintetizar", True):
-            return JSONResponse(status_code=409, content={
-                "saltar": True,
-                "titulo": marca.get("titulo"),
-                "saltaA": marca.get("saltaA"),
-                "detail": "Esta parte es una sección que no se narra.",
-            })
+            print(f"[Audio] {book_id} parte {part_index}: "
+                  f"{marca.get('clase')} — silencio en vez de sintetizar")
+            cabeceras = {
+                "X-Libris-Saltar": "1",
+                "X-Libris-Salta-A": str(marca.get("saltaA") or ""),
+                "Cache-Control": "public, max-age=3600",
+            }
+            titulo = marca.get("titulo")
+            if titulo:
+                # En ASCII: una cabecera HTTP no admite acentos sin codificar.
+                cabeceras["X-Libris-Titulo"] = titulo.encode(
+                    "ascii", "ignore").decode()
+            return Response(content=_SILENCIO, media_type="audio/mpeg",
+                            headers=cabeceras)
         txt_key = f"{book_id}/text/part_{part_index}.txt"
         try:
             txt_bytes = await asyncio.to_thread(r2_download, txt_key)
