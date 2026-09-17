@@ -194,10 +194,24 @@ fun VirtualBookFrame(
         label = "shimmerT"
     )
 
+    // EL MARCO SOLO OCUPA SI ESTA ENCENDIDO.
+    //
+    // Hasta hoy la decoracion del libro —lomo, emblemas, borde grueso y 22 dp
+    // de margen interior— se dibujaba SIEMPRE, estuviera el marco activo o no.
+    // Eran 40 dp muertos por lado mas 18 del lomo, y en un movil eso se nota:
+    // el texto no llegaba a ocupar la pantalla y parecia que se guardaba sitio
+    // para unos marcos que no estaban.
+    //
+    // Con el marco apagado se queda el papel y un borde fino —sigue leyendose
+    // como una pagina— y el texto se lleva el resto. Con el encendido, todo
+    // exactamente como antes.
+    val margenFuera = if (frames3dOn) 12.dp else 4.dp
+    val margenDentro = if (frames3dOn) 22.dp else 10.dp
+
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(12.dp)
+            .padding(margenFuera)
     ) {
         // Toolbar: estilos (scroll horizontal) + fuente. En pantalla completa se
         // oculta entera: el libro se queda solo, con el botón de salir del modo
@@ -304,7 +318,7 @@ fun VirtualBookFrame(
                 .background(Brush.verticalGradient(listOf(selectedStyle.paperTop, selectedStyle.paperBottom)))
                 .border(
                     BorderStroke(
-                        6.dp,
+                        if (frames3dOn) 6.dp else 1.dp,
                         Brush.linearGradient(
                             colors = listOf(
                                 selectedStyle.coverStart,
@@ -318,8 +332,8 @@ fun VirtualBookFrame(
                     RoundedCornerShape(18.dp)
                 )
         ) {
-            // Sombra del lomo
-            Box(
+            // Sombra del lomo — decoracion, se va con el marco
+            if (frames3dOn) Box(
                 modifier = Modifier
                     .fillMaxHeight()
                     .width(18.dp)
@@ -335,16 +349,18 @@ fun VirtualBookFrame(
                 )
             }
 
-            // Emblemas ornamentales en las esquinas (tenue)
-            Text(selectedStyle.emblem, fontSize = 22.sp,
-                modifier = Modifier.align(Alignment.TopEnd).padding(10.dp).graphicsLayer { alpha = 0.18f })
-            Text(selectedStyle.emblem, fontSize = 22.sp,
-                modifier = Modifier.align(Alignment.BottomStart).padding(10.dp).graphicsLayer { alpha = 0.18f })
+            // Emblemas ornamentales en las esquinas (tenue) — decoracion
+            if (frames3dOn) {
+                Text(selectedStyle.emblem, fontSize = 22.sp,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(10.dp).graphicsLayer { alpha = 0.18f })
+                Text(selectedStyle.emblem, fontSize = 22.sp,
+                    modifier = Modifier.align(Alignment.BottomStart).padding(10.dp).graphicsLayer { alpha = 0.18f })
+            }
 
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(22.dp)
+                    .padding(margenDentro)
                     .graphicsLayer {
                         rotationY = animatedAngle
                         cameraDistance = 12 * density
