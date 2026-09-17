@@ -51,6 +51,9 @@ from secciones import (detectar, marcar_prosa, repartir,          # noqa: E402
 # le olvido el valor.
 BUCKET = (os.environ.get("R2_BUCKET_NAME") or "").strip() or "libris-audio"
 _PARTE = re.compile(r"/text/part_(\d+)\.txt$")
+# Cuantas partes se bajan a la vez. Dieciseis va sobrado para R2 y no hace
+# falta tocarlo; se deja a mano por si alguna vez da problemas de cuota.
+HILOS = 16
 
 
 # ── Lo único que piensa: aislado a propósito, para poder probarlo ───────────
@@ -124,15 +127,32 @@ def libros(s3) -> list[str]:
     return sorted(x for x in salida if x not in NO_SON_LIBROS)
 
 
-def claves(s3, prefijo: str) -> list[str]:
-    salida = []
+def claves(s3, prefijo: str) -> dict:
+    """{clave: fecha de modificación}. La fecha es lo que permite saltarse un
+    libro que ya está al día sin tener que bajar su texto entero."""
+    salida = {}
     for r in _paginas(s3, Bucket=BUCKET, Prefix=prefijo):
-        salida += [o["Key"] for o in r.get("Contents", [])]
+        for o in r.get("Contents", []):
+            salida[o["Key"]] = o.get("LastModified")
     return salida
 
 
 def bajar(s3, clave: str) -> bytes:
     return s3.get_object(Bucket=BUCKET, Key=clave)["Body"].read()
+
+
+def bajar_muchas(s3, claves_ordenadas: list[str]) -> list[str]:
+    """Las partes de un libro, en paralelo y en orden.
+
+    En serie, 97 libros son mas de doce mil descargas de una en una y la
+    revision entera se iba a una hora. La red espera casi todo el tiempo, asi
+    que esto es puro tiempo muerto: con dieciseis a la vez baja a minutos.
+    El orden se conserva porque `map` devuelve en el orden de entrada.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=HILOS) as pool:
+        return [b.decode("utf-8", "replace")
+                for b in pool.map(lambda k: bajar(s3, k), claves_ordenadas)]
 
 
 def subir(s3, clave: str, datos: bytes):
@@ -141,9 +161,34 @@ def subir(s3, clave: str, datos: bytes):
 
 
 # ── Un libro ────────────────────────────────────────────────────────────────
+def al_dia(s3, libro: str, todas: dict) -> bool:
+    """Si este libro ya tiene sus secciones y su texto no ha cambiado desde.
+
+    Sin esto, cada revisión vuelve a bajar el texto entero de los 97 libros
+    aunque no haya cambiado nada. Con esto, la segunda pasada es instantánea:
+    solo se miran los libros cuyo texto es MÁS NUEVO que su índice.
+    """
+    clave_indice = f"{libro}/index.json"
+    fecha_indice = todas.get(clave_indice)
+    if fecha_indice is None:
+        return False
+    try:
+        indice = json.loads(bajar(s3, clave_indice).decode("utf-8"))
+    except Exception:
+        return False
+    if "secciones" not in indice:
+        return False
+    for k, fecha in todas.items():
+        if _PARTE.search(k) and fecha and fecha > fecha_indice:
+            return False
+    return True
+
+
 def procesar(s3, libro: str, aplicar: bool, borrar_audio: bool,
-             crear_indice: bool) -> dict:
+             crear_indice: bool, rehacer: bool = False) -> dict:
     todas = claves(s3, f"{libro}/")
+    if not rehacer and al_dia(s3, libro, todas):
+        return {"libro": libro, "estado": "ya estaba al día"}
     partes = sorted(((int(m.group(1)), k) for k in todas
                      if (m := _PARTE.search(k))), key=lambda x: x[0])
     if not partes:
@@ -156,7 +201,7 @@ def procesar(s3, libro: str, aplicar: bool, borrar_audio: bool,
                 "detalle": f"{len(partes)} partes, la última es "
                            f"{partes[-1][0]}"}
 
-    trozos = [bajar(s3, k).decode("utf-8", "replace") for _, k in partes]
+    trozos = bajar_muchas(s3, [k for _, k in partes])
     datos, secs = analizar(trozos)
     marcadas = len(datos["partes"])
     sin_audio = sum(1 for v in datos["partes"].values() if not v["sintetizar"])
@@ -166,10 +211,6 @@ def procesar(s3, libro: str, aplicar: bool, borrar_audio: bool,
         return {"libro": libro, "estado": "sin index.json",
                 "secciones": secs, "marcadas": marcadas,
                 "sin_audio": sin_audio, "total": len(trozos)}
-
-    if not secs:
-        return {"libro": libro, "estado": "nada que marcar",
-                "total": len(trozos)}
 
     borrables = []
     if borrar_audio:
@@ -194,6 +235,16 @@ def procesar(s3, libro: str, aplicar: bool, borrar_audio: bool,
               json.dumps(indice, ensure_ascii=False).encode("utf-8"))
         for k in borrables:
             s3.delete_object(Bucket=BUCKET, Key=k)
+
+    # «Mirado y no hay nada» TAMBIEN es un resultado, y hay que guardarlo.
+    #
+    # Antes se salia aqui sin escribir, y el efecto era que los 80 libros sin
+    # secciones —el grueso del catalogo— no quedaban marcados como revisados
+    # y se bajaban ENTEROS en cada pasada. De ahi venia la hora. Ahora se les
+    # escribe `secciones: []`, que es la verdad, y `al_dia` los reconoce.
+    if not secs:
+        return {"libro": libro, "estado": "nada que marcar",
+                "total": len(trozos)}
 
     return {"libro": libro, "estado": "aplicado" if aplicar else "simulado",
             "secciones": secs, "marcadas": marcadas, "sin_audio": sin_audio,
@@ -256,6 +307,8 @@ def main():
                    help="borra el MP3 ya generado de las partes que no se narran")
     p.add_argument("--crear-indice", action="store_true",
                    help="crea el index.json en los libros que no lo tengan")
+    p.add_argument("--rehacer", action="store_true",
+                   help="no saltarse los libros que ya están al día")
     p.add_argument("--detalle", action="store_true",
                    help="con --libro: enseña en qué se fijó el detector")
     args = p.parse_args()
@@ -276,7 +329,7 @@ def main():
                          if (m := _PARTE.search(k))), key=lambda x: x[0])
         if not partes:
             sys.exit("Ese libro no tiene texto en R2.")
-        detallar([bajar(s3, k).decode("utf-8", "replace") for _, k in partes])
+        detallar(bajar_muchas(s3, [k for _, k in partes]))
         return
 
     resumen = {}
@@ -284,7 +337,7 @@ def main():
     for libro in lista:
         try:
             r = procesar(s3, libro, args.aplicar, args.borrar_audio,
-                         args.crear_indice)
+                         args.crear_indice, args.rehacer)
         except Exception as e:
             print(f"  {libro}  ERROR  {type(e).__name__}: {e}")
             resumen["error"] = resumen.get("error", 0) + 1
@@ -308,8 +361,9 @@ def main():
               f"{r['marcadas']:3d} con botón  de {r['total']:<4d}"
               f"  ·  {detalle}")
         if r.get("borrables"):
-            print(f"               {r['borrables']} archivos de audio ya "
-                  f"generados que se pueden borrar")
+            print(f"               {r['borrables']} archivos de audio "
+                  + ("BORRADOS" if (args.aplicar and args.borrar_audio)
+                     else "que se pueden borrar (--aplicar --borrar-audio)"))
 
     print("\n" + "=" * 60)
     for estado, n in sorted(resumen.items()):
@@ -319,8 +373,11 @@ def main():
               f"{total_sin_audio} dejan además de sintetizarse.")
         print(f"  (de las {total_partes} partes de los libros con secciones)")
     if total_borrables:
-        print(f"  {total_borrables} archivos de audio viejos se pueden borrar"
-              + ("" if args.borrar_audio else "  (--borrar-audio)"))
+        if args.aplicar and args.borrar_audio:
+            print(f"  {total_borrables} archivos de audio viejos BORRADOS")
+        else:
+            print(f"  {total_borrables} archivos de audio viejos se pueden "
+                  f"borrar  (--aplicar --borrar-audio)")
     if not args.aplicar:
         print("\n  No se ha escrito nada. Para hacerlo: --aplicar")
 
