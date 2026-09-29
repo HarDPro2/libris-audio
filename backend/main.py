@@ -24,6 +24,7 @@ import edge_tts
 # Como se DICE un texto: «1605» no es un fonema, es «mil seiscientos
 # cinco». Compartido byte a byte con Quantum Text Codex.
 from decir import normalizar_mapeado
+from cabeceras import limpiar as limpiar_cabeceras_pagina
 from secciones import (detectar as detectar_secciones, marcar_prosa,
                        repartir, como_json as secciones_como_json)
 
@@ -210,9 +211,12 @@ def extract_text_from_pdf(pdf_bytes: bytes, max_pages: int = 1000) -> str:
     main_font_size = max(font_counts, key=font_counts.get)
     print(f"[PDF] Tamaño fuente dominante: {main_font_size}")
 
-    extracted_lines = []
+    # Por PAGINAS, no una lista plana: las cabeceras corridas solo se pueden
+    # reconocer mientras se sepa donde acaba cada pagina. Ver cabeceras.py.
+    paginas_lineas: list[list[str]] = []
     for i in range(num_pages):
         page = doc[i]
+        lineas_pagina: list[str] = []
         page_height = page.rect.height
         top_margin    = page_height * 0.06
         bottom_margin = page_height * 0.94
@@ -233,9 +237,20 @@ def extract_text_from_pdf(pdf_bytes: bytes, max_pages: int = 1000) -> str:
                         line_text += s.get("text", "")
                 line_text = line_text.strip()
                 if line_text:
-                    extracted_lines.append(line_text)
+                    lineas_pagina.append(line_text)
+        paginas_lineas.append(lineas_pagina)
 
     doc.close()
+
+    # LAS CABECERAS DE PAGINA. El filtro geometrico de arriba —descartar lo que
+    # cae en el 6% superior o inferior— no las pilla: en «El libro de los
+    # espiritus» estan DENTRO de esa banda, y el TTS leia «Libro Segundo,
+    # Capitulo Sexto. Ciento noventa y dos.» en cada hoja.
+    paginas_lineas, informe_cab = limpiar_cabeceras_pagina(paginas_lineas)
+    if informe_cab.total:
+        print(f"[PDF] {informe_cab.resumen()}")
+
+    extracted_lines = [l for p in paginas_lineas for l in p]
     raw_text = "\n".join(extracted_lines)
     print(f"[PDF] {len(extracted_lines)} líneas extraídas.")
     return clean_text_for_tts(raw_text)
