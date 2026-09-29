@@ -98,6 +98,23 @@ def claves(s3, prefijo):
         token = r.get("NextContinuationToken")
 
 
+NO_SON_LIBROS = {"music"}
+
+
+def _prefijos(s3) -> list[str]:
+    """Las carpetas de primer nivel del bucket: un libro cada una."""
+    salida, token = [], None
+    while True:
+        kw = {"Bucket": BUCKET, "Delimiter": "/"}
+        if token:
+            kw["ContinuationToken"] = token
+        r = s3.list_objects_v2(**kw)
+        salida += [p["Prefix"] for p in r.get("CommonPrefixes", [])]
+        if not r.get("IsTruncated"):
+            return sorted(salida)
+        token = r.get("NextContinuationToken")
+
+
 def bajar(s3, clave):
     return s3.get_object(Bucket=BUCKET, Key=clave)["Body"].read()
 
@@ -258,11 +275,17 @@ def limpiar_parte(texto: str, cabeceras,
 
 
 # ── Un libro ────────────────────────────────────────────────────────────────
-def procesar(s3, libro, aplicar, ver):
+def procesar(s3, libro, aplicar, ver, rehacer=False):
     todas = claves(s3, f"{libro}/")
     originales = [k for k in todas if k.startswith(f"{libro}/original/")]
     if not originales:
-        return {"estado": "sin archivo original guardado"}
+        # Sin el archivo original no hay de dónde sacar las cabeceras: el texto
+        # guardado ya no sabe dónde acababa cada página. Los libros que
+        # entraron antes de que se guardara el original están así.
+        return {"estado": "sin archivo original"}
+    if not rehacer and any(k.startswith(f"{libro}/text_original/") for k in todas):
+        # Ya se reparó: text_original/ es el respaldo que deja este script.
+        return {"estado": "ya reparado"}
 
     paginas = _paginas_del_original(bajar(s3, originales[0]))
     cabs = detectar(paginas)
@@ -325,7 +348,9 @@ def main():
     p = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--libro", required=True)
+    p.add_argument("--libro", help="solo este identificador; sin esto, todos")
+    p.add_argument("--rehacer", action="store_true",
+                   help="mirar también los que ya se repararon")
     p.add_argument("--aplicar", action="store_true",
                    help="escribe de verdad (por defecto solo simula)")
     p.add_argument("--ver", type=int, default=6, help="cuántos ejemplos enseñar")
@@ -362,7 +387,14 @@ def main():
                 break
         print(f"  {vistas} apariciones (se enseñan las primeras 8)")
         return
-    r = procesar(s3, a.libro, a.aplicar, a.ver)
+    if not a.libro:
+        if a.aplicar:
+            sys.exit("Sobre toda la biblioteca solo se simula. Para escribir, "
+                     "un libro cada vez con --libro.")
+        revisar_todos(s3, a.rehacer)
+        return
+
+    r = procesar(s3, a.libro, a.aplicar, a.ver, a.rehacer)
 
     if "cambiadas" not in r:
         print(f"  {r['estado']}")
@@ -381,6 +413,51 @@ def main():
                  if a.aplicar else "se borrarán (--aplicar)"))
     if not a.aplicar:
         print("\n  No se ha escrito nada. Para hacerlo: --aplicar")
+
+
+def revisar_todos(s3, rehacer: bool) -> None:
+    """Pasa la simulación por toda la biblioteca y ordena por lo que más duele.
+
+    NUNCA escribe. Reparar se hace libro a libro y mirando los ejemplos: la
+    señal se saca del archivo original de CADA libro, y un libro raro puede
+    dar cabeceras raras. Un lote a ciegas sobre 97 libros no es una comodidad,
+    es una forma de romper muchos a la vez.
+    """
+    libros = [p.rstrip("/") for p in _prefijos(s3) if p.rstrip("/") not in NO_SON_LIBROS]
+    print(f"{len(libros)} libros · solo simulación\n")
+
+    tocados, resumen = [], {}
+    for n, libro in enumerate(libros, 1):
+        print(f"  [{n:3d}/{len(libros)}] {libro}", end="\r", flush=True)
+        try:
+            r = procesar(s3, libro, False, 1, rehacer)
+        except Exception as e:
+            resumen["error"] = resumen.get("error", 0) + 1
+            print(f"  {libro}  ERROR  {type(e).__name__}: {e}")
+            continue
+        resumen[r["estado"]] = resumen.get(r["estado"], 0) + 1
+        if r.get("quitadas"):
+            tocados.append((r["quitadas"], r["cambiadas"], r["partes"], libro,
+                            r["ejemplos"][0] if r["ejemplos"] else None))
+
+    print(" " * 40, end="\r")
+    if tocados:
+        print("  LIBROS CON CABECERAS EN EL TEXTO GUARDADO:\n")
+        for quitadas, cambiadas, partes, libro, ejemplo in sorted(tocados,
+                                                                  reverse=True):
+            print(f"  {libro}  {quitadas:4d} apariciones en "
+                  f"{cambiadas:3d} de {partes:3d} partes")
+            if ejemplo:
+                print(f"               «{ejemplo[1][:38]}» → …{ejemplo[2][:44]}")
+    print("\n" + "=" * 60)
+    for estado, n in sorted(resumen.items()):
+        print(f"  {estado:24s} {n}")
+    if tocados:
+        print(f"\n  {sum(t[0] for t in tocados)} apariciones en "
+              f"{len(tocados)} libros")
+        print("\n  Para reparar uno:")
+        print(f"      python reparar_cabeceras.py --libro {max(tocados)[3]}")
+        print(f"      python reparar_cabeceras.py --libro {max(tocados)[3]} --aplicar")
 
 
 if __name__ == "__main__":
