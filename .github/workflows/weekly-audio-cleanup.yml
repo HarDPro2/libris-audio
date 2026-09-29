@@ -1,63 +1,89 @@
-name: 🧹 Limpieza semanal de audios
+name: 🧹 Limpieza semanal de huérfanos
 
-# Ejecuta cada lunes a las 3:00 AM UTC (11:00 PM hora Venezuela del domingo)
-# También se puede disparar manualmente desde GitHub → Actions → Run workflow
+# Borra de R2 lo que quedó de libros que ya no existen en la base de datos:
+# audio, texto, timings y portada. Nunca toca un libro vivo.
+#
+# Cada lunes a las 3:00 UTC (11:00 PM del domingo en Venezuela).
+# También se dispara a mano desde GitHub → Actions → Run workflow.
+#
+# Secrets que necesita:
+#   BACKEND_URL    https://libris-audio-backend-....run.app   (sin barra final)
+#   CLEANUP_TOKEN  el mismo valor que la variable CLEANUP_TOKEN del servicio
 on:
   schedule:
     - cron: '0 3 * * 1'
   workflow_dispatch:
     inputs:
       dry_run:
-        description: 'Dry run (solo reportar, no borrar)'
+        description: 'Simulación (solo informar, no borrar)'
         required: false
-        default: 'false'
+        default: 'true'
         type: choice
         options:
-          - 'false'
           - 'true'
+          - 'false'
 
 jobs:
-  clean-audio:
-    name: Limpiar MP3 de Supabase Storage
+  clean-orphans:
+    name: Limpiar huérfanos de R2
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     steps:
-      - name: 🧹 Llamar endpoint de limpieza
+      - name: 🧹 Llamar al endpoint de limpieza
         id: cleanup
+        env:
+          BACKEND_URL:   ${{ secrets.BACKEND_URL }}
+          CLEANUP_TOKEN: ${{ secrets.CLEANUP_TOKEN }}
+          DRY_RUN:       ${{ inputs.dry_run || 'false' }}
         run: |
-          echo "Iniciando limpieza semanal de audios..."
-          echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-
-          RESPONSE=$(curl -s -w "\n%{http_code}" \
-            --max-time 300 \
-            "${{ secrets.BACKEND_URL }}/api/clean-audio?token=${{ secrets.CLEANUP_TOKEN }}")
-
-          HTTP_STATUS=$(echo "$RESPONSE" | tail -1)
-          BODY=$(echo "$RESPONSE" | head -n -1)
-
-          echo "HTTP Status: $HTTP_STATUS"
-          echo "Response body: $BODY"
-
-          if [ "$HTTP_STATUS" = "200" ]; then
-            FILES_DELETED=$(echo "$BODY" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('files_deleted', 0) if isinstance(d.get('files_deleted'), int) else len(d.get('files_deleted', [])))" 2>/dev/null || echo "N/A")
-            echo "✅ Limpieza completada. Archivos eliminados: $FILES_DELETED"
-            echo "files_deleted=$FILES_DELETED" >> $GITHUB_OUTPUT
-          else
-            echo "❌ Error en la limpieza. HTTP $HTTP_STATUS"
-            echo "Body: $BODY"
+          if [ -z "$BACKEND_URL" ] || [ -z "$CLEANUP_TOKEN" ]; then
+            echo "::error::Faltan los secrets BACKEND_URL o CLEANUP_TOKEN"
             exit 1
           fi
+
+          echo "Limpieza de huérfanos · $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "Simulación: $DRY_RUN"
+
+          RESPUESTA=$(curl -s -w "\n%{http_code}" --max-time 600 \
+            "${BACKEND_URL%/}/api/clean-orphans?token=${CLEANUP_TOKEN}&dry=${DRY_RUN}")
+
+          ESTADO=$(echo "$RESPUESTA" | tail -1)
+          CUERPO=$(echo "$RESPUESTA" | head -n -1)
+
+          echo "HTTP $ESTADO"
+          echo "$CUERPO"
+
+          if [ "$ESTADO" != "200" ]; then
+            echo "::error::La limpieza devolvió HTTP $ESTADO"
+            exit 1
+          fi
+
+          python3 - "$CUERPO" <<'PY' >> $GITHUB_OUTPUT
+          import json, sys
+          d = json.loads(sys.argv[1])
+          for k in ("libros_vivos", "prefijos", "huerfanos", "files_deleted", "megas"):
+              print(f"{k}={d.get(k, 0)}")
+          print(f"dry_run={str(d.get('dry_run', False)).lower()}")
+          PY
 
       - name: 📊 Resumen
         if: always()
         run: |
-          echo "### 🧹 Limpieza Semanal de Audios" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Campo | Valor |" >> $GITHUB_STEP_SUMMARY
-          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Fecha | $(date -u '+%Y-%m-%d %H:%M UTC') |" >> $GITHUB_STEP_SUMMARY
-          echo "| Estado | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Archivos MP3 eliminados | ${{ steps.cleanup.outputs.files_deleted }} |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "> Los archivos de texto y portadas NO se eliminan. Solo los MP3 generados por TTS." >> $GITHUB_STEP_SUMMARY
+          {
+            echo "### 🧹 Limpieza semanal de huérfanos"
+            echo ""
+            echo "| Campo | Valor |"
+            echo "|-------|-------|"
+            echo "| Fecha | $(date -u '+%Y-%m-%d %H:%M UTC') |"
+            echo "| Estado | ${{ job.status }} |"
+            echo "| Simulación | ${{ steps.cleanup.outputs.dry_run }} |"
+            echo "| Libros vivos | ${{ steps.cleanup.outputs.libros_vivos }} |"
+            echo "| Prefijos en el bucket | ${{ steps.cleanup.outputs.prefijos }} |"
+            echo "| Huérfanos encontrados | ${{ steps.cleanup.outputs.huerfanos }} |"
+            echo "| Archivos borrados | ${{ steps.cleanup.outputs.files_deleted }} |"
+            echo "| MB liberados | ${{ steps.cleanup.outputs.megas }} |"
+            echo ""
+            echo "> Solo se borran prefijos de libros que ya no están en la base de datos."
+            echo "> Si la lista de libros no se pudo leer entera, no se borra nada y esto falla."
+          } >> $GITHUB_STEP_SUMMARY

@@ -14,6 +14,7 @@ import time
 import uuid
 import json
 import base64
+import secrets
 from pathlib import Path
 
 import boto3
@@ -1600,6 +1601,164 @@ async def put_user_state(user_id: str, body: dict = Body(default={})):
     except Exception as e:
         print(f"[UserState] put error: {e}", flush=True)
         return JSONResponse(status_code=500, content={"detail": str(e)})
+
+
+
+# ---------------------------------------------------------------------------
+# Limpieza de huerfanos
+#
+# EL PROBLEMA
+# -----------
+# Cuando se borra un libro desde la app se limpia tambien su prefijo en R2,
+# pero eso no siempre llega a pasar: un borrado a medias, un script viejo, un
+# fallo de red al eliminar. Lo que queda es el prefijo entero de un libro que
+# ya no existe — audio, texto, timings y portada — que nadie va a pedir nunca
+# mas y que sigue ocupando y costando.
+#
+# LA REGLA QUE LO HACE SEGURO
+# ---------------------------
+# Un prefijo solo se borra si la lista de libros vivos se leyo ENTERA y sin un
+# solo error. Appwrite dice cuantos documentos tiene; si los que llegan no
+# cuadran con ese numero, no se borra nada. Sin esa comprobacion, un fallo de
+# red de diez segundos se lleva la biblioteca por delante: los libros vivos no
+# aparecen en la lista, asi que TODOS parecen huerfanos.
+#
+# El tope es la segunda red. Si mas del 30% del bucket parece huerfano, casi
+# siempre es que la lista esta mal, no que hayas borrado media biblioteca: se
+# para y se avisa en vez de borrar.
+# ---------------------------------------------------------------------------
+
+CLEANUP_TOKEN = os.environ.get("CLEANUP_TOKEN", "")
+
+# En el bucket no todo lo que cuelga de la raiz es un libro.
+NO_SON_LIBROS = {"music"}
+
+TOPE_HUERFANOS = 0.30
+LOTE_BORRADO   = 1000          # delete_objects no admite mas de mil por llamada
+
+
+async def _libros_vivos() -> set:
+    """Todos los book_id de la base de datos.
+
+    Lanza si la lista no esta completa — el que llama NO debe borrar nada
+    cuando esto falla.
+    """
+    url = (f"{APPWRITE_ENDPOINT}/databases/{APPWRITE_DB_ID}"
+           f"/collections/global_books/documents")
+    headers = {"X-Appwrite-Project": APPWRITE_PROJECT_ID,
+               "X-Appwrite-Key": APPWRITE_API_KEY or ""}
+    vivos: set = set()
+    total  = None
+    leidos = 0
+    async with httpx.AsyncClient(timeout=30) as client:
+        while True:
+            params = [
+                ("queries[]", json.dumps({"method": "limit",  "values": [100]})),
+                ("queries[]", json.dumps({"method": "offset", "values": [leidos]})),
+            ]
+            r = await client.get(url, params=params, headers=headers)
+            r.raise_for_status()
+            datos = r.json()
+            docs  = datos.get("documents", [])
+            if total is None:
+                total = datos.get("total")
+            for d in docs:
+                bid = d.get("book_id")
+                if bid:
+                    vivos.add(str(bid))
+            leidos += len(docs)
+            if not docs or (total is not None and leidos >= total):
+                break
+    if total is None:
+        raise RuntimeError("Appwrite no dijo cuantos documentos hay")
+    if leidos < total:
+        raise RuntimeError(f"lista incompleta: {leidos} de {total}")
+    return vivos
+
+
+def _prefijos_del_bucket() -> list:
+    """Carpetas de primer nivel del bucket, sin la barra final."""
+    paginator = get_r2().get_paginator("list_objects_v2")
+    prefijos = []
+    for page in paginator.paginate(Bucket=R2_BUCKET, Delimiter="/"):
+        for p in page.get("CommonPrefixes", []):
+            prefijos.append(p["Prefix"].rstrip("/"))
+    return prefijos
+
+
+def _pesar_prefijo(prefix: str) -> tuple:
+    """(claves, bytes) de todo lo que cuelga de un prefijo."""
+    paginator = get_r2().get_paginator("list_objects_v2")
+    claves, tam = [], 0
+    for page in paginator.paginate(Bucket=R2_BUCKET, Prefix=prefix):
+        for obj in page.get("Contents", []):
+            claves.append(obj["Key"])
+            tam += obj.get("Size", 0)
+    return claves, tam
+
+
+@app.get("/api/clean-orphans")
+async def clean_orphans(token: str = "", dry: bool = False):
+    """Borra de R2 lo que quedo de libros que ya no existen.
+
+    GET /api/clean-orphans?token=...&dry=true  -> solo informa
+    """
+    if not CLEANUP_TOKEN:
+        raise HTTPException(status_code=503,
+                            detail="CLEANUP_TOKEN no esta configurado en el servicio")
+    if not secrets.compare_digest(token, CLEANUP_TOKEN):
+        raise HTTPException(status_code=401, detail="token invalido")
+
+    try:
+        vivos = await _libros_vivos()
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"no se pudo leer la lista de libros, no se borra nada: {e}")
+    if not vivos:
+        raise HTTPException(
+            status_code=502,
+            detail="la base de datos no devolvio ni un libro; no se borra nada")
+
+    prefijos   = await asyncio.to_thread(_prefijos_del_bucket)
+    candidatos = sorted(p for p in prefijos
+                        if p not in NO_SON_LIBROS and p not in vivos)
+
+    if prefijos and len(candidatos) > len(prefijos) * TOPE_HUERFANOS:
+        raise HTTPException(
+            status_code=409,
+            detail=(f"{len(candidatos)} de {len(prefijos)} prefijos parecen "
+                    f"huerfanos, mas del {int(TOPE_HUERFANOS * 100)}%. "
+                    f"No se borra nada: revisalo a mano."))
+
+    borrados, bytes_libres, detalle = 0, 0, []
+    for p in candidatos:
+        claves, tam = await asyncio.to_thread(_pesar_prefijo, f"{p}/")
+        if not claves:
+            continue
+        if not dry:
+            for i in range(0, len(claves), LOTE_BORRADO):
+                await asyncio.to_thread(r2_delete, claves[i:i + LOTE_BORRADO])
+        borrados     += len(claves)
+        bytes_libres += tam
+        detalle.append({"book_id": p, "archivos": len(claves),
+                        "megas": round(tam / 1048576, 2)})
+
+    print(f"[Limpieza] {'simulacion' if dry else 'aplicado'} · "
+          f"{len(vivos)} libros vivos · {len(candidatos)} huerfanos · "
+          f"{borrados} archivos · {round(bytes_libres / 1048576, 1)} MB",
+          flush=True)
+
+    return {
+        "status":        "ok",
+        "dry_run":       dry,
+        "libros_vivos":  len(vivos),
+        "prefijos":      len(prefijos),
+        "huerfanos":     len(candidatos),
+        "files_deleted": borrados,
+        "megas":         round(bytes_libres / 1048576, 2),
+        "detalle":       detalle[:50],
+    }
 
 
 if __name__ == "__main__":
