@@ -600,9 +600,44 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 }
                 _books.value = mapped
             } catch (e: Exception) {
+                // SIN RED, LA BIBLIOTECA NO SE QUEDA VACÍA.
+                //
+                // Antes esto ponía emptyList(), y el efecto era que un libro
+                // DESCARGADO no se podía escuchar sin conexión: no es que no
+                // sonara, es que no llegabas a verlo para abrirlo. Un libro
+                // descargado que necesita internet no está descargado.
+                //
+                // El audio, el texto y los tiempos ya preferían el archivo
+                // local; lo único que faltaba era poder llegar a ellos.
                 e.printStackTrace()
-                _books.value = emptyList()
+                _books.value = librosDescargados()
             }
+        }
+    }
+
+    /** Los libros descargados, reconstruidos desde su `meta.json` local.
+     *
+     *  Es lo que se enseña cuando el backend no responde. La portada se queda
+     *  en blanco porque es una URL remota y no se descarga con el libro; el
+     *  resto —título, autor, categoría, partes y el progreso guardado— sale
+     *  entero de lo que hay en el disco.
+     */
+    private fun librosDescargados(): List<Book> {
+        val empezados = prefs.getStringSet("started_books", emptySet()) ?: emptySet()
+        return offline.downloadedBooks().map { o ->
+            val pct = prefs.getInt("pct_${o.bookId}", 0)
+            Book(
+                id               = o.bookId,
+                bookId           = o.bookId,
+                title            = o.title,
+                author           = o.author,
+                category         = o.category,
+                coverUrl         = o.coverUrl ?: "",
+                partsCount       = o.partsCount,
+                currentPartIndex = prefs.getInt("part_${o.bookId}", 0),
+                progressPercent  = if (o.bookId in empezados) pct.coerceAtLeast(1) else pct,
+                addedBy          = ""
+            )
         }
     }
 
