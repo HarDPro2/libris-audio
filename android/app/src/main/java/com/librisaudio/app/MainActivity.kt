@@ -129,9 +129,6 @@ class MainActivity : ComponentActivity() {
         setContent {
             val currentTheme by playerViewModel.selectedTheme.collectAsState()
             val frames3dEnabled by playerViewModel.frames3d.collectAsState()
-            var premiumEnabled by remember {
-                mutableStateOf(com.librisaudio.app.data.model.Premium.isPremium(this@MainActivity))
-            }
 
             LibrisAudioTheme(preset = currentTheme) {
                 val authState by authViewModel.authState.collectAsState()
@@ -488,11 +485,6 @@ class MainActivity : ComponentActivity() {
                                 },
                                 frames3dEnabled = frames3dEnabled,
                                 onToggleFrames3d = { playerViewModel.setFrames3d(it) },
-                                premiumEnabled = premiumEnabled,
-                                onTogglePremium = { activo ->
-                                    com.librisaudio.app.data.model.Premium.setPremium(this@MainActivity, activo)
-                                    premiumEnabled = activo
-                                },
                                 onCheckUpdates = {
                                     updateScope.launch {
                                         val u = UpdateManager.checkForUpdate(BuildConfig.VERSION_NAME)

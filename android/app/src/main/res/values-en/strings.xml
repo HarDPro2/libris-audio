@@ -56,7 +56,7 @@
 
     <!-- Settings (extra) -->
     <string name="settings_theme_subtitle">Each theme has its own animated background</string>
-    <string name="settings_frames3d_title">3D Frames (Premium)</string>
+    <string name="settings_frames3d_title">3D Frames</string>
     <string name="settings_frames3d_subtitle">Illustrated per-genre frames in Book mode. When off, the animated frames are used.</string>
     <string name="settings_check_updates">Check for updates</string>
     <string name="updates_up_to_date">You already have the latest version</string>

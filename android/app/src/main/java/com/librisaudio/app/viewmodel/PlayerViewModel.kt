@@ -171,7 +171,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         saveToCloud()
     }
 
-    // ── Marcos 3D ilustrados (premium, opt-in) ─────────────────────────────
+    // ── Marcos 3D ilustrados (opt-in) ─────────────────────────────
     // Cuando está activo, en el modo "Libro" se usa el marco ilustrado del
     // género (res/drawable/frame_<genero>) si existe; si no, o si está apagado,
     // se mantiene el marco animado actual.
