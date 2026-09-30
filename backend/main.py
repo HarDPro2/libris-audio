@@ -1635,10 +1635,11 @@ NO_SON_LIBROS = {"music"}
 
 TOPE_HUERFANOS = 0.30
 LOTE_BORRADO   = 1000          # delete_objects no admite mas de mil por llamada
+MAX_PAGINAS    = 200           # freno duro de la paginacion: 20.000 libros
 
 
-async def _libros_vivos() -> set:
-    """Todos los book_id de la base de datos.
+async def _libros_vivos() -> tuple:
+    """(claves que salvan un prefijo, cuantos libros hay de verdad).
 
     Lanza si la lista no esta completa — el que llama NO debe borrar nada
     cuando esto falla.
@@ -1648,8 +1649,9 @@ async def _libros_vivos() -> set:
     headers = {"X-Appwrite-Project": APPWRITE_PROJECT_ID,
                "X-Appwrite-Key": APPWRITE_API_KEY or ""}
     vivos: set = set()
-    total  = None
-    leidos = 0
+    total   = None
+    leidos  = 0
+    vueltas = 0
     async with httpx.AsyncClient(timeout=30) as client:
         while True:
             params = [
@@ -1662,18 +1664,31 @@ async def _libros_vivos() -> set:
             docs  = datos.get("documents", [])
             if total is None:
                 total = datos.get("total")
+                # Sin `total` no hay forma de saber si la lista esta completa,
+                # y el bucle no tendria condicion de salida: se para aqui.
+                if total is None:
+                    raise RuntimeError("Appwrite no dijo cuantos documentos hay")
             for d in docs:
-                bid = d.get("book_id")
-                if bid:
-                    vivos.add(str(bid))
+                # Los dos campos: el prefijo de R2 se construye con book_id,
+                # pero si algun documento no lo tiene, su carpeta pareceria
+                # huerfana y se borraria un libro vivo. Ante la duda, se salva.
+                for campo in ("book_id", "$id"):
+                    valor = d.get(campo)
+                    if valor:
+                        vivos.add(str(valor))
             leidos += len(docs)
-            if not docs or (total is not None and leidos >= total):
+            if not docs or leidos >= total:
                 break
-    if total is None:
-        raise RuntimeError("Appwrite no dijo cuantos documentos hay")
+            vueltas += 1
+            if vueltas > MAX_PAGINAS:
+                raise RuntimeError(
+                    f"la paginacion no termina: {vueltas} vueltas, "
+                    f"{leidos} de {total}")
     if leidos < total:
         raise RuntimeError(f"lista incompleta: {leidos} de {total}")
-    return vivos
+    # `vivos` lleva dos claves por libro (book_id y $id), asi que su tamaño no
+    # es el numero de libros: el que se informa es el que dice Appwrite.
+    return vivos, total
 
 
 def _prefijos_del_bucket() -> list:
@@ -1706,11 +1721,12 @@ async def clean_orphans(token: str = "", dry: bool = False):
     if not CLEANUP_TOKEN:
         raise HTTPException(status_code=503,
                             detail="CLEANUP_TOKEN no esta configurado en el servicio")
-    if not secrets.compare_digest(token, CLEANUP_TOKEN):
+    if not secrets.compare_digest(token.encode("utf-8"),
+                                  CLEANUP_TOKEN.encode("utf-8")):
         raise HTTPException(status_code=401, detail="token invalido")
 
     try:
-        vivos = await _libros_vivos()
+        vivos, cuantos = await _libros_vivos()
     except Exception as e:
         raise HTTPException(
             status_code=502,
@@ -1745,14 +1761,14 @@ async def clean_orphans(token: str = "", dry: bool = False):
                         "megas": round(tam / 1048576, 2)})
 
     print(f"[Limpieza] {'simulacion' if dry else 'aplicado'} · "
-          f"{len(vivos)} libros vivos · {len(candidatos)} huerfanos · "
+          f"{cuantos} libros vivos · {len(candidatos)} huerfanos · "
           f"{borrados} archivos · {round(bytes_libres / 1048576, 1)} MB",
           flush=True)
 
     return {
         "status":        "ok",
         "dry_run":       dry,
-        "libros_vivos":  len(vivos),
+        "libros_vivos":  cuantos,
         "prefijos":      len(prefijos),
         "huerfanos":     len(candidatos),
         "files_deleted": borrados,
