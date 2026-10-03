@@ -211,6 +211,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private var voiceOverride: String? = null
 
+    /** Ultimo problema de reproduccion, para que la UI pueda avisar. */
+    private val _mensajeReproduccion = MutableStateFlow<String?>(null)
+    val mensajeReproduccion: StateFlow<String?> = _mensajeReproduccion.asStateFlow()
+
+    fun limpiarMensajeReproduccion() { _mensajeReproduccion.value = null }
+
     /** Voz que se usa realmente para reproducir. */
     private fun voiceEfectiva(): String = voiceOverride ?: _selectedVoice.value
 
@@ -552,6 +558,35 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 }
             }
 
+            /**
+             * Hasta ahora no habia nadie escuchando los errores del reproductor.
+             *
+             * El efecto era el peor posible: al fallar una parte —sin conexion y
+             * sin archivo local, un 409, una URL caida— ExoPlayer paraba y la app
+             * se quedaba igual que antes, con el boton de play puesto y sin
+             * sonido. No habia forma de saber que habia pasado, ni desde dentro
+             * ni desde fuera.
+             *
+             * Ahora al menos: se deja de fingir que suena, se cuenta por que, y
+             * si hay mas partes se intenta seguir en vez de morir ahi.
+             */
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                error.printStackTrace()
+                _isPlaying.value = false
+
+                val libro = _currentBook.value
+                val parte = mediaController?.currentMediaItemIndex ?: 0
+                val hayLocal = libro != null &&
+                    offline.localAudioDeCualquierVoz(libro.bookId, parte, voiceEfectiva()) != null
+
+                _mensajeReproduccion.value = when {
+                    hayLocal -> "No se pudo reproducir esta parte."
+                    libro != null && offline.isDownloaded(libro.bookId) ->
+                        "Esta parte no se descargo. Conectate para oirla o vuelve a descargar el libro."
+                    else -> "Sin conexion y sin descarga: no se puede reproducir."
+                }
+            }
+
             override fun onMediaItemTransition(item: MediaItem?, reason: Int) {
                 // Cambió la parte activa, ya sea por avance automático (fin de parte)
                 // o por salto manual (UI, notificación, Assistant, Android Auto,
@@ -726,7 +761,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private fun buildMediaItem(book: Book, partIndex: Int, voice: String): MediaItem {
         // Offline primero: si el MP3 está descargado, reproduce el archivo local
         // (instantáneo y sin red — ideal con pantalla apagada / sin conexión).
-        val local = offline.localAudio(book.bookId, partIndex, voice)
+        // Vale CUALQUIER voz que este en el disco, no solo la que toca ahora:
+        // sin red no se puede saber el idioma del documento, asi que la voz
+        // efectiva cambia y dejaba de encontrar su propio archivo. Ver
+        // OfflineManager.localAudioDeCualquierVoz.
+        val local = offline.localAudioDeCualquierVoz(book.bookId, partIndex, voice)
         val uri = if (local != null) android.net.Uri.fromFile(local)
                   else android.net.Uri.parse(book.getAudioUrl(partIndex, voice))
         return MediaItem.Builder()

@@ -130,6 +130,18 @@ class MainActivity : ComponentActivity() {
             val currentTheme by playerViewModel.selectedTheme.collectAsState()
             val frames3dEnabled by playerViewModel.frames3d.collectAsState()
 
+            // Un fallo de reproduccion se dice. Antes el reproductor paraba en
+            // silencio y la app se quedaba con cara de que no habia pasado nada.
+            val mensajeReproduccion by playerViewModel.mensajeReproduccion.collectAsState()
+            LaunchedEffect(mensajeReproduccion) {
+                mensajeReproduccion?.let { aviso ->
+                    android.widget.Toast
+                        .makeText(this@MainActivity, aviso, android.widget.Toast.LENGTH_LONG)
+                        .show()
+                    playerViewModel.limpiarMensajeReproduccion()
+                }
+            }
+
             LibrisAudioTheme(preset = currentTheme) {
                 val authState by authViewModel.authState.collectAsState()
 

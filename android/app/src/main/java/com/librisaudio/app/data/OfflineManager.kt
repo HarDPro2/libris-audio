@@ -57,6 +57,46 @@ class OfflineManager(context: Context) {
     fun localAudio(bookId: String, part: Int, voice: String): File? =
         audioFileFor(bookId, part, voice).takeIf { it.exists() && it.length() > 0 }
 
+    /**
+     * El MP3 local de una parte, con la voz que sea.
+     *
+     * EL FALLO QUE ESTO ARREGLA (03-10-2026)
+     * --------------------------------------
+     * Los ficheros se guardan con la voz en el nombre:
+     *
+     *     audio/part_3_es-VE-SebastianNeural.mp3
+     *
+     * La voz con la que se reproduce la decide `voiceEfectiva()`, y esa puede
+     * cambiar entre la descarga y la escucha: el idioma del documento se
+     * consulta al backend, asi que SIN RED esa consulta falla y la voz vuelve a
+     * la preferida. Un libro en ingles descargado con voz inglesa se buscaba
+     * entonces con voz espanola, no se encontraba, y el reproductor se iba a la
+     * URL remota — que sin conexion no responde.
+     *
+     * Visto desde fuera: el libro aparece en la biblioteca, se abre, se le da a
+     * reproducir y no suena nada. Parecia que el archivo no estaba descargado, y
+     * estaba, solo que con otro nombre.
+     *
+     * Asi que primero se prueba la voz pedida y, si no esta, vale CUALQUIER voz
+     * que haya en el disco para esa parte. Un audio con otra voz es
+     * infinitamente mejor que el silencio.
+     */
+    fun localAudioDeCualquierVoz(bookId: String, part: Int, preferida: String): File? {
+        localAudio(bookId, part, preferida)?.let { return it }
+        val dir = File(bookDir(bookId), "audio").takeIf { it.isDirectory } ?: return null
+        return dir.listFiles()
+            ?.firstOrNull {
+                it.isFile && it.length() > 0 &&
+                it.name.startsWith("part_${part}_") && it.name.endsWith(".mp3")
+            }
+    }
+
+    /** La voz con la que se bajo este libro, segun su meta.json. */
+    fun vozDescargada(bookId: String): String? = try {
+        metaFileFor(bookId).takeIf { it.exists() }
+            ?.let { gson.fromJson(it.readText(), OfflineBook::class.java)?.voice }
+    } catch (_: Exception) { null }
+
     fun localText(bookId: String, part: Int): String? =
         textFileFor(bookId, part).takeIf { it.exists() }?.readText(Charsets.UTF_8)
 
