@@ -93,6 +93,33 @@ MIN_LINEAS_PAGINA = 2 * ZONA + 1
 # paginas: con cuatro basta, porque una portadilla, un sumario o una entrada de
 # indice no tienen un numero suelto justo debajo.
 MIN_PAGINAS_CON_NUMERO = 4
+
+# UN ROTULO SUELTO TAMBIEN ES CONTENIDO.
+#
+# «Capitulo II» o «Capitulo Primero», solos en su linea, son el ANUNCIO del
+# capitulo — lo que el oyente quiere oir— y ademas son cabecera de pagina en
+# algunos libros. La portadilla de cada capitulo los pone en la linea 0 con el
+# numero de pagina debajo, que es justo la señal del camino nuevo:
+#
+#     Capitulo III
+#     89
+#     M
+#     Creacion
+#
+# En «El libro de los espiritus» hay cuatro libros, luego cuatro «Capitulo II»:
+# exactamente el minimo de arriba. Quitarlos dejaba «M Dios Dios y lo infinito»
+# al empezar el capitulo, sin anuncio y con el ornamento suelto delante.
+#
+# Asi que un rotulo a secas necesita la prueba dura: muchas paginas y casi
+# siempre en el borde. Una cabecera corrida que ADEMAS lleva rotulo —«Libro
+# Primero – Capitulo II», 13 apariciones— la pasa de sobra, asi que no se
+# pierde nada.
+_ROTULO = re.compile(
+    r"^(?:cap[ií]tulo|libro|parte|tomo|secci[oó]n|volumen)\b"
+    r"[\s.\-–—]*"
+    r"(?:[ivxlcdm]+|\d+|primer[oa]|segund[oa]|tercer[oa]|cuart[oa]|quint[oa]|"
+    r"sext[oa]|s[eé]ptim[oa]|octav[oa]|noven[oa]|d[eé]cim[oa]|[uú]ltim[oa])?"
+    r"[\s.\-–—]*$", re.I)
 _NUMERO_DE_PAGINA = re.compile(r"^\s*(?:\d{1,4}|[ivxlcdmIVXLCDM]{1,7})\s*$")
 
 _SOLO_CIFRAS = re.compile(r"^\d{1,4}$")
@@ -163,7 +190,9 @@ def detectar(paginas: list[list[str]]) -> dict[str, int]:
 
         # CAMINO 1 — el número de página detrás. Pocas apariciones bastan
         # porque la señal no admite confusión. Ver MIN_PAGINAS_CON_NUMERO.
-        if sum(1 for a in en_borde if a[3]) >= MIN_PAGINAS_CON_NUMERO:
+        # Cerrado a los rótulos sueltos, que también son contenido: ver _ROTULO.
+        if (not _ROTULO.match(linea)
+                and sum(1 for a in en_borde if a[3]) >= MIN_PAGINAS_CON_NUMERO):
             salida[linea] = len(apariciones)
             continue
 

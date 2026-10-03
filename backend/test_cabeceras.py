@@ -177,6 +177,33 @@ _romanos = ([_pagina("Prologo", r) for r in ("ix", "xi", "xiii", "xv", "xvii")]
 prueba("el numero en romanos tambien vale",
        "Prologo" in detectar(_romanos), detectar(_romanos))
 
+# ── Un rótulo suelto es contenido, no cabecera ──────────────────────────────
+#
+# «Capítulo II» sale cuatro veces en Kardec —una portadilla por cada uno de los
+# cuatro libros de la obra— con el número de página justo debajo. Son
+# exactamente las cuatro del camino nuevo, y quitarlas dejaba «M Dios Dios y lo
+# infinito» al empezar el capítulo: sin anuncio y con el ornamento suelto.
+print("\nUn rotulo suelto es contenido, no cabecera:")
+
+_rotulo_4 = ([_pagina("Capitulo II", n) for n in (30, 100, 180, 250)]
+             + [[f"otra pagina {k} linea {i}" for i in range(9)]
+                for k in range(5)])
+prueba("rotulo con 4 portadillas: NO es cabecera",
+       "Capitulo II" not in detectar(_rotulo_4), detectar(_rotulo_4))
+
+# Pero si de verdad hace de cabecera corrida, la regla dura lo recoge igual.
+_rotulo_10 = [_pagina("Capitulo II", n) for n in range(30, 50, 2)]
+prueba("rotulo con 10 paginas: si es cabecera",
+       "Capitulo II" in detectar(_rotulo_10), detectar(_rotulo_10))
+
+# Y una cabecera compuesta no es un rótulo suelto: le basta el camino nuevo.
+_compuesta = ([_pagina("Libro Primero - Capitulo II", n)
+               for n in (36, 38, 40, 42)]
+              + [[f"otra pagina {k} linea {i}" for i in range(9)]
+                 for k in range(5)])
+prueba("cabecera compuesta con 4 apariciones: si es cabecera",
+       "Libro Primero - Capitulo II" in detectar(_compuesta), detectar(_compuesta))
+
 print("\n" + "=" * 54)
 print(f"{ok} OK · {fallos} fallos")
 sys.exit(1 if fallos else 0)
