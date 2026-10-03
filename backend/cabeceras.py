@@ -94,6 +94,29 @@ MIN_LINEAS_PAGINA = 2 * ZONA + 1
 # indice no tienen un numero suelto justo debajo.
 MIN_PAGINAS_CON_NUMERO = 4
 
+# UNA CABECERA CORRIDA SALE EN PAGINAS SEGUIDAS. UN TITULO, CADA TANTAS.
+#
+# Esta es la señal mas fuerte de todas, y la ultima en aparecer. Medido
+# (03-10-2026):
+#
+#   «Creacion» (Kardec)                 91, 93, 95, 97, 99        hueco 2
+#   «Pluralidad de las Existencias»    157,159,161,163,165,167    hueco 2
+#   «Libro Segundo – Capitulo VIII»    264,266,268,270,272,274    hueco 2
+#   «ALLAN KARDEC» (Los Mediums)       205 apariciones            hueco 1
+#   ----------------------------------------------------------------------
+#   «Capitulo» (Don Quijote)            19, 24, 30, 36, 42, 46…   hueco 6
+#   «Ejemplo» (guia de estudio)         13, 19, …                 hueco 6
+#
+# Los dos de abajo pasaban TODAS las pruebas anteriores: salen en decenas de
+# paginas y siempre en la linea 1, asi que el borde da 100%. Pero no son
+# cabeceras: son el ANUNCIO de cada capitulo, uno cada cinco o seis paginas.
+# Quitarlos se come el titulo del capitulo.
+#
+# Una cabecera corrida esta en TODAS las paginas de su tramo, o en las pares o
+# en las impares. Nunca una de cada seis. El hueco mediano lo separa sin
+# excepciones en todo lo medido.
+MAX_HUECO = 3
+
 # UN ROTULO SUELTO TAMBIEN ES CONTENIDO.
 #
 # «Capitulo II» o «Capitulo Primero», solos en su linea, son el ANUNCIO del
@@ -184,6 +207,15 @@ def detectar(paginas: list[list[str]]) -> dict[str, int]:
         por_pagina = Counter(p for p, _, _, _ in apariciones)
         if max(por_pagina.values()) > 1:
             continue
+
+        # Las paginas seguidas: lo que separa una cabecera de un rotulo de
+        # capitulo. Ver MAX_HUECO.
+        paginas_vistas = sorted(por_pagina)
+        if len(paginas_vistas) > 1:
+            huecos = sorted(b_ - a_ for a_, b_ in
+                            zip(paginas_vistas, paginas_vistas[1:]))
+            if huecos[len(huecos) // 2] > MAX_HUECO:
+                continue
 
         en_borde = [a for a in apariciones
                     if a[1] < ZONA or a[1] >= a[2] - ZONA]

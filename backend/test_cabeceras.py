@@ -204,6 +204,42 @@ _compuesta = ([_pagina("Libro Primero - Capitulo II", n)
 prueba("cabecera compuesta con 4 apariciones: si es cabecera",
        "Libro Primero - Capitulo II" in detectar(_compuesta), detectar(_compuesta))
 
+# ── Paginas seguidas: cabecera. Cada seis: anuncio de capitulo ──────────────
+#
+# Don Quijote: «Capitulo» sale 52 veces, SIEMPRE en la linea 1 —el borde da el
+# 100%— y con decenas de paginas. Pasaba todas las pruebas anteriores. Pero
+# aparece en las paginas 19, 24, 30, 36, 42, 46, 53, 58: una cada cinco o seis.
+# No es cabecera, es el anuncio de cada capitulo, y quitarlo se come el titulo.
+print("\nPaginas seguidas es cabecera; una cada seis, no:")
+
+
+def _apertura(numero_capitulo, titulo):
+    """Como abre un capitulo en Don Quijote: el numero, «Capitulo», el titulo."""
+    return [str(numero_capitulo), "Capitulo", titulo] + [
+        f"cuerpo de la pagina {i}" for i in range(9)]
+
+
+_quijote = []
+_aperturas = {19: 1, 24: 2, 30: 3, 36: 4, 42: 5, 46: 6, 53: 7, 58: 8}
+for _pag in range(19, 62):
+    if _pag in _aperturas:
+        _quijote.append(_apertura(_aperturas[_pag], f"Que trata de lo del {_pag}"))
+    else:
+        _quijote.append([f"prosa corrida {i} de la pagina {_pag}" for i in range(12)])
+
+prueba("«Capitulo» una cada seis paginas: NO es cabecera",
+       "Capitulo" not in detectar(_quijote), detectar(_quijote))
+
+# La misma linea, pero en paginas alternas, SI es cabecera corrida.
+_alternas = []
+for _pag in range(19, 62):
+    if _pag % 2:
+        _alternas.append(_apertura(_pag, f"titulo del {_pag}"))
+    else:
+        _alternas.append([f"prosa corrida {i}" for i in range(12)])
+prueba("la misma linea en paginas alternas: SI es cabecera",
+       "Capitulo" in detectar(_alternas), detectar(_alternas))
+
 print("\n" + "=" * 54)
 print(f"{ok} OK · {fallos} fallos")
 sys.exit(1 if fallos else 0)
