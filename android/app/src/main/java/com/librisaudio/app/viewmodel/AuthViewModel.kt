@@ -247,8 +247,25 @@ class AuthViewModel : ViewModel() {
             .apply()
     }
 
+    /**
+     * Cerrar sesion borra la SESION, no la vida del usuario.
+     *
+     * Esto hacia `prefs.edit().clear()`, y en `libris_prefs` no esta solo la
+     * sesion: esta el progreso de cada libro (`part_`, `pos_`, `pct_`, `ts_`),
+     * los libros empezados, la voz elegida, el idioma, la racha y el aviso de
+     * bateria. Un cierre de sesion se llevaba TODO por delante. El que volvia a
+     * entrar encontraba su biblioteca en blanco, con los libros aun descargados
+     * en el telefono pero sin un solo minuto de avance.
+     *
+     * No daba ningun error, claro: hacia exactamente lo que decia el codigo.
+     */
     private fun clearSession() {
-        prefs.edit().clear().apply()
+        prefs.edit()
+            .remove("user_id")
+            .remove("user_email")
+            .remove("user_name")
+            .remove("session_id")
+            .apply()
     }
 
     private fun parseAppwriteError(e: HttpException): String {
