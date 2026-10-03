@@ -74,6 +74,27 @@ MAX_PALABRAS = 10
 # o paginas casi en blanco, y perderles la cabecera no cuesta nada.
 MIN_LINEAS_PAGINA = 2 * ZONA + 1
 
+# EL NUMERO DE PAGINA DETRAS: la señal que no se puede falsificar.
+#
+# Medido sobre «El libro de los espiritus» (Kardec), cabecera «Creacion», sus
+# nueve apariciones:
+#
+#     pag 91, 93, 95, 97, 99  -> linea 0, y detras '91', '93', '95'...  CABECERA
+#     pag 89                  -> linea 3, detras 'Formacion de los mundos'  portadilla
+#     pag 71                  -> linea 7, entre '• Capitulo III' y '• Capitulo IV'  sumario
+#     pag 5                   -> dentro de 'Capitulo III – Creacion'  indice
+#
+# Solo cinco son cabecera, y el minimo de ocho paginas las dejaba fuera: el
+# titulo de un capitulo hace de cabecera SOLO dentro de su capitulo, y solo en
+# las impares. Un capitulo corto nunca llega a ocho.
+#
+# Pero esas cinco llevan el numero de pagina pegado detras, y ninguna de las
+# otras cuatro lo lleva. Esa señal es tan limpia que no hace falta exigir ocho
+# paginas: con cuatro basta, porque una portadilla, un sumario o una entrada de
+# indice no tienen un numero suelto justo debajo.
+MIN_PAGINAS_CON_NUMERO = 4
+_NUMERO_DE_PAGINA = re.compile(r"^\s*(?:\d{1,4}|[ivxlcdmIVXLCDM]{1,7})\s*$")
+
 _SOLO_CIFRAS = re.compile(r"^\d{1,4}$")
 _EMPIEZA_MINUSCULA = re.compile(r"^[a-záéíóúüñ]")
 
@@ -123,20 +144,34 @@ def detectar(paginas: list[list[str]]) -> dict[str, int]:
         if n < MIN_LINEAS_PAGINA:
             continue
         for j, (_, linea) in enumerate(utiles):
-            if _candidata(linea):
-                donde[linea].append((p, j, n))
+            if not _candidata(linea):
+                continue
+            siguiente = utiles[j + 1][1] if j + 1 < n else ""
+            donde[linea].append(
+                (p, j, n, bool(_NUMERO_DE_PAGINA.match(siguiente))))
 
     salida: dict[str, int] = {}
     for linea, apariciones in donde.items():
-        if len(apariciones) < MIN_PAGINAS:
-            continue
-        # Nunca dos veces en la misma página: eso es un personaje, no una
-        # cabecera.
-        por_pagina = Counter(p for p, _, _ in apariciones)
+        # Nunca dos veces en la misma página: eso es un personaje de teatro,
+        # no una cabecera.
+        por_pagina = Counter(p for p, _, _, _ in apariciones)
         if max(por_pagina.values()) > 1:
             continue
-        en_borde = sum(1 for _, j, n in apariciones if j < ZONA or j >= n - ZONA)
-        if en_borde / len(apariciones) >= BORDE_MINIMO:
+
+        en_borde = [a for a in apariciones
+                    if a[1] < ZONA or a[1] >= a[2] - ZONA]
+
+        # CAMINO 1 — el número de página detrás. Pocas apariciones bastan
+        # porque la señal no admite confusión. Ver MIN_PAGINAS_CON_NUMERO.
+        if sum(1 for a in en_borde if a[3]) >= MIN_PAGINAS_CON_NUMERO:
+            salida[linea] = len(apariciones)
+            continue
+
+        # CAMINO 2 — el de siempre, para las cabeceras que el original no
+        # numera: muchas páginas y casi siempre en el borde.
+        if len(apariciones) < MIN_PAGINAS:
+            continue
+        if len(en_borde) / len(apariciones) >= BORDE_MINIMO:
             salida[linea] = len(apariciones)
     return salida
 

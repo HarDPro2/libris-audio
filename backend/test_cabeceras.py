@@ -129,6 +129,54 @@ for nombre, entrada in (("sin páginas", []),
     except Exception as e:
         prueba(nombre, False, repr(e))
 
+# ── La cabecera de un capítulo corto, medida en Kardec ──────────────────────
+#
+# «Creación» es el título del capítulo III y hace de cabecera en sus páginas
+# impares: cinco veces, no ocho. Con el mínimo de ocho páginas se perdía. Lo
+# que la salva es el número de página justo detrás, que ni la portadilla, ni el
+# sumario, ni la entrada del índice tienen.
+print("\nLa cabecera de un capitulo corto (medido en Kardec):")
+
+
+def _pagina(cab, numero):
+    return [cab, str(numero)] + [f"texto corriente de la pagina {i}"
+                                 for i in range(8)]
+
+
+paginas_kardec = [
+    # Índice: «Creación» va dentro de otra línea, no es la línea entera.
+    ["Capitulo III - Creacion"] + [f"entrada {i} ........" for i in range(10)],
+    # Sumario: suelta, pero en medio de la página y sin número detrás.
+    ["Sumario"] + [f"linea {i}" for i in range(5)]
+    + ["* Capitulo III", "Creacion", "* Capitulo IV", "Principio vital"],
+    # Portadilla del capítulo: detrás va el subtítulo, no un número.
+    ["M", "Creacion", "Formacion de los mundos y de los seres vivos"]
+    + [f"relleno {i}" for i in range(8)],
+]
+for _n in (91, 93, 95, 97, 99):
+    paginas_kardec.append(_pagina("Creacion", _n))
+
+_hallado = detectar(paginas_kardec)
+prueba("capitulo corto: la encuentra con 5 apariciones",
+       "Creacion" in _hallado, _hallado)
+prueba("la portadilla no se cuela como cabecera",
+       "Formacion de los mundos y de los seres vivos" not in _hallado, _hallado)
+prueba("la capitular suelta no es cabecera", "M" not in _hallado, _hallado)
+
+# Sin número detrás, cinco apariciones NO bastan: ahí manda la regla de siempre.
+_sin_numero = [["Creacion"] + [f"texto {i}" for i in range(9)] for _ in range(5)]
+prueba("sin numero detras, cinco apariciones no bastan",
+       "Creacion" not in detectar(_sin_numero), detectar(_sin_numero))
+
+# Los números en romanos de las primeras páginas también cuentan.
+# Con páginas de relleno hasta el mínimo del documento: por debajo de
+# MIN_PAGINAS no se mira nada, y eso se comprueba aparte.
+_romanos = ([_pagina("Prologo", r) for r in ("ix", "xi", "xiii", "xv", "xvii")]
+            + [[f"pagina suelta {k} linea {i}" for i in range(9)]
+               for k in range(3)])
+prueba("el numero en romanos tambien vale",
+       "Prologo" in detectar(_romanos), detectar(_romanos))
+
 print("\n" + "=" * 54)
 print(f"{ok} OK · {fallos} fallos")
 sys.exit(1 if fallos else 0)
