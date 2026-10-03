@@ -64,6 +64,9 @@ RESTO_MINIMO = 25
 COMPARAR = 50
 # Lo mínimo que tiene que medir la segunda línea de un título para salvarlo.
 TITULO_MINIMO = 12
+# Cuantas continuaciones distintas puede aportar UNA cabecera antes de que
+# dejemos de creernos que son titulos. Ver _titulos_legitimos.
+MAX_TITULOS_POR_CABECERA = 3
 
 
 # ── R2 ──────────────────────────────────────────────────────────────────────
@@ -188,7 +191,7 @@ def _titulos_legitimos(paginas: list[list[str]], cabeceras) -> set:
     libro. La forma de la línea no los distingue; lo que los distingue es que
     el original tiene un número en medio de una y no de la otra.
     """
-    legitimos = set()
+    por_cabecera: dict = {}
     for lineas in paginas:
         utiles = [l for l in lineas if l.strip()]
         for j, linea in enumerate(utiles):
@@ -201,7 +204,26 @@ def _titulos_legitimos(paginas: list[list[str]], cabeceras) -> set:
             # guardada, que sigue más allá. Y con un mínimo de longitud, para
             # que un resto de dos palabras no salve cualquier cosa.
             if plano and not plano.isdigit() and len(plano) >= TITULO_MINIMO:
-                legitimos.add(plano)
+                por_cabecera.setdefault(linea, set()).add(plano)
+
+    # UN TITULO SALE UNA VEZ. EL CUERPO DE LA PAGINA, DOSCIENTAS.
+    #
+    # Medido en «El libro de los mediums» (03-10-2026): sus dos cabeceras salen
+    # 196 y 205 veces, y en ESE original el numero de pagina NO va en la linea
+    # siguiente — va directamente el texto del cuerpo. Asi que esta funcion
+    # apuntaba como «titulo legitimo» la primera linea de casi cada pagina del
+    # libro, y despues las indultaba todas: 205 cabeceras encontradas, CERO
+    # quitadas, sin un solo error por ninguna parte.
+    #
+    # La asimetria es enorme y por eso sirve para separarlos. «Introduccion»,
+    # el caso que esta funcion vino a salvar, aporta UNA continuacion: la
+    # segunda linea de su titulo. Una cabecera corrida aporta tantas como
+    # paginas tenga. Pasado el tope, lo que manda es la cabecera y lo que sigue
+    # es cuerpo, no titulo.
+    legitimos = set()
+    for continuaciones in por_cabecera.values():
+        if len(continuaciones) <= MAX_TITULOS_POR_CABECERA:
+            legitimos |= continuaciones
     return legitimos
 
 

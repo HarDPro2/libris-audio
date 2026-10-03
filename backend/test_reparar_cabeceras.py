@@ -115,6 +115,50 @@ for nombre, texto in (("texto vacío", ""), ("solo saltos", "\n\n\n"),
 prueba("sin cabeceras no cambia nada",
        rep.limpiar_parte("Muchos hombres", [])[0] == "Muchos hombres")
 
+# ── Un titulo sale una vez; el cuerpo de la pagina, doscientas ──────────────
+#
+# «El libro de los mediums»: sus dos cabeceras salen 196 y 205 veces, y en ESE
+# original el numero de pagina no va en la linea siguiente — va el cuerpo. La
+# funcion apuntaba como «titulo legitimo» la primera linea de casi cada pagina
+# y luego las indultaba todas: 205 cabeceras encontradas, CERO quitadas.
+print("\nUn titulo sale una vez; el cuerpo de la pagina, doscientas:")
+
+_mediums = []
+_cuerpos = [
+    "28. Los Espiritus pueden hacerse visibles bajo otra apariencia",
+    "Observacion. Solo la supersticion puede hacer creer que ciertos",
+    "La vision general y permanente de los Espiritus es excepcional",
+    "Respuesta del Espiritu sobre la naturaleza de las apariciones",
+    "Continuacion del capitulo anterior acerca de las manifestaciones",
+    "Nota del traductor sobre la terminologia empleada en esta obra",
+]
+for _k, _c in enumerate(_cuerpos * 2):          # 12 paginas
+    _mediums.append(["ALLAN KARDEC", _c] + [f"resto {i} de la pagina {_k}"
+                                            for i in range(8)])
+
+_titulos = rep._titulos_legitimos(_mediums, {"ALLAN KARDEC"})
+prueba("una cabecera con 6 continuaciones distintas no legitima ninguna",
+       _titulos == set(), sorted(_titulos)[:2])
+
+# Y el caso que esta guarda vino a salvar sigue salvado: «Introduccion» como
+# titulo de verdad aporta UNA continuacion.
+_intro = [["Introduccion", "al Estudio de la Doctrina Espirita, por Allan Kardec"]
+          + [f"cuerpo {i}" for i in range(8)]]
+for _n in range(9):
+    _intro.append(["Introduccion", str(20 + _n)]
+                  + [f"texto corriente {i}" for i in range(8)])
+_titulos_intro = rep._titulos_legitimos(_intro, {"Introduccion"})
+prueba("un titulo de verdad sigue siendo legitimo",
+       "al Estudio de la Doctrina Espirita, por Allan Kardec" in _titulos_intro,
+       sorted(_titulos_intro))
+
+# Y entonces la cabecera SI se quita del texto guardado.
+_limpio, _cambios = rep.limpiar_parte(
+    "ALLAN KARDEC 28. Los Espiritus pueden hacerse visibles bajo otra apariencia",
+    ["ALLAN KARDEC"], frozenset(), _titulos)
+prueba("con la lista acotada, la cabecera se quita",
+       _limpio.startswith("28. Los Espiritus"), _limpio[:40])
+
 print("\n" + "=" * 54)
 print(f"{ok} OK · {fallos} fallos")
 sys.exit(1 if fallos else 0)
