@@ -102,6 +102,26 @@ def soltar(*args, **kwargs) -> None:
         pass
 
 
+def lanzar(corrutina) -> None:
+    """Deja corriendo una corrutina de telemetria sin esperarla.
+
+    Sirve para los pulsos que antes de salir necesitan averiguar algo —quien
+    escucha, por ejemplo—. Esa averiguacion tampoco debe hacer esperar a nadie,
+    asi que va dentro de la tarea suelta y no en la ruta.
+
+    Si no hay nada que mandar, la corrutina se cierra a mano: una corrutina
+    creada y nunca esperada deja un aviso feo en los registros por cada
+    peticion.
+    """
+    if not activo():
+        corrutina.close()
+        return
+    try:
+        asyncio.get_running_loop().create_task(corrutina)
+    except RuntimeError:
+        corrutina.close()
+
+
 class Cronometro:
     """Mide un trozo de trabajo. `with Cronometro() as c: ...` y luego `c.ms`."""
 

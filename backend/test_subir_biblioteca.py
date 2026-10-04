@@ -147,10 +147,15 @@ correr(S4, "--subir")
 c("el reintento si los sube", len(h4["subidas"]) == 2, str(h4["subidas"]))
 
 print("\nLee el id del libro tal como lo devuelve el endpoint:")
-R, almacen, h = montar()
+# Con el registro de la prueba anterior, estos libros ya constan subidos y
+# no se vuelven a tocar: hay que empezar en limpio para que R.subir corra.
+reg_previo = os.path.join(carpeta, "registro.json")
+if os.path.exists(reg_previo):
+    os.remove(reg_previo)
+R, h = montar()
 R.subir = lambda *a, **k: {"ok": True, "respuesta": {"status": "success",
-                                                    "bookId": "abc123"}}
-correr("--subir")
+                                                     "bookId": "abc123"}}
+correr(R, "--subir")
 reg = json.load(open(os.path.join(carpeta, "registro.json"), encoding="utf-8"))
 c("guarda el bookId nuevo",
   all(v.get("book_id_nuevo") == "abc123" for v in reg.values()), str(reg))

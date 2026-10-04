@@ -92,17 +92,31 @@ class Diccionario:
     def __init__(self, ruta: str | None = None):
         self._dic = None
         self.ruta = None
+        # Por que no esta disponible. Que falten los ficheros y que falte
+        # spylls son dos averias distintas y se arreglan de forma distinta;
+        # un «diccionario no disponible» a secas obliga a adivinar cual es.
+        self.motivo = ""
         candidatas = [ruta] if ruta else list(self.RUTAS)
+        faltan, fallaron = [], []
         for r in candidatas:
-            if not r or not os.path.exists(r + ".dic"):
+            if not r:
+                continue
+            if not os.path.exists(r + ".dic"):
+                faltan.append(r)
                 continue
             try:
                 from spylls.hunspell import Dictionary
                 self._dic = Dictionary.from_files(r)
                 self.ruta = r
                 break
-            except Exception:
-                continue
+            except Exception as fallo:
+                fallaron.append(f"{r} ({type(fallo).__name__}: {fallo})")
+        if self._dic is None:
+            self.motivo = (
+                "encontre los ficheros pero no pude cargarlos: "
+                + "; ".join(fallaron) if fallaron else
+                "no encuentro los ficheros .aff/.dic. Busque en: "
+                + ", ".join(faltan))
 
     @property
     def disponible(self) -> bool:

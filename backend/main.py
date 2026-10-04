@@ -979,6 +979,31 @@ async def _seccion_de_parte(book_id: str, part_index: int) -> dict | None:
         return None
 
 
+async def _pulso_audio(authorization, book_id: str, part_index: int,
+                       voice: str, ms: int, caracteres: int) -> None:
+    """Manda el pulso de una generacion, averiguando antes QUIEN escucha.
+
+    El identificador tiene que ser el del oyente, no el del libro: Nexus cuenta
+    usuarios con ese campo, y mandando el book_id el panel acababa enseñando
+    libros en la tabla de economia por usuario — datos que parecen ciertos y no
+    lo son.
+
+    Averiguar quien es cuesta una consulta a Appwrite, asi que todo esto va
+    dentro de la tarea suelta y no en la ruta: el oyente no espera ni por la
+    consulta ni por el pulso. Y solo pasa al GENERAR, que ya de por si tarda
+    segundos; cuando el MP3 esta en cache no se hace nada de esto.
+    """
+    try:
+        usuario = await _user_from_header(authorization)
+    except Exception:
+        usuario = None
+    await nexus.pulso(
+        usuario=usuario or "anonimo", proveedor="edge-tts", modelo=voice,
+        operacion="generar_audio", duracion_ms=ms,
+        extra={"libro": book_id, "parte": part_index, "caracteres": caracteres},
+    )
+
+
 @app.get("/api/audio/{book_id}/{part_index}")
 async def get_book_audio(book_id: str, part_index: int, voice: str = VOZ_POR_DEFECTO,
                          authorization: str = Header(default=None)):
@@ -1044,12 +1069,8 @@ async def get_book_audio(book_id: str, part_index: int, voice: str = VOZ_POR_DEF
         # CPU gasta en Cloud Run — y la CPU es lo que se paga. Aqui se mide
         # cuanto tarda cada parte; multiplicado por cuantas se generan al mes,
         # eso ES la factura.
-        nexus.soltar(
-            usuario=book_id, proveedor="edge-tts", modelo=voice,
-            operacion="generar_audio", duracion_ms=crono.ms,
-            extra={"libro": book_id, "parte": part_index,
-                   "caracteres": len(text)},
-        )
+        nexus.lanzar(_pulso_audio(authorization, book_id, part_index,
+                                  voice, crono.ms, len(text)))
 
         try:
             with open(local_mp3, "rb") as f:
@@ -1488,8 +1509,11 @@ async def chat_with_book(req: ChatBookRequest):
                     datos = res.json()
                     reply = datos["choices"][0]["message"]["content"]
                     uso = datos.get("usage") or {}
+                    # Esta ruta no recibe la sesion, asi que no hay a quien
+                    # atribuirlo. «anonimo» dice la verdad; el book_id habria
+                    # contado libros como si fueran usuarios.
                     nexus.soltar(
-                        usuario=req.book_id, proveedor="openrouter", modelo=model,
+                        usuario="anonimo", proveedor="openrouter", modelo=model,
                         operacion="chat_libro",
                         entrada=int(uso.get("prompt_tokens") or 0),
                         salida=int(uso.get("completion_tokens") or 0),
@@ -1581,7 +1605,7 @@ async def voice_command(req: VoiceCommandRequest):
                     if action:
                         uso = datos.get("usage") or {}
                         nexus.soltar(
-                            usuario="voz", proveedor="openrouter", modelo=model,
+                            usuario="anonimo", proveedor="openrouter", modelo=model,
                             operacion="comando_voz",
                             entrada=int(uso.get("prompt_tokens") or 0),
                             salida=int(uso.get("completion_tokens") or 0),

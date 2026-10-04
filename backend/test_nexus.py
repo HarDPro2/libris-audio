@@ -57,6 +57,42 @@ with contextlib.redirect_stdout(salida2):
     asyncio.run(nexus.pulso("u", "p", "m", "o"))
 prueba("los siguientes se callan", salida2.getvalue() == "", repr(salida2.getvalue()[:60]))
 
+print("\nlanzar() no deja corrutinas colgando:")
+import inspect
+
+async def _marca(caja):
+    caja.append("corrio")
+
+# Sin claves no hay a donde mandar nada. Lo que NO puede pasar es que la
+# corrutina se quede creada y sin esperar: eso suelta un RuntimeWarning por
+# cada peticion y ensucia los registros de Cloud Run hasta hacerlos inutiles.
+nexus.NEXUS_URL, nexus.CLAVE = "", ""
+caja = []
+c3 = _marca(caja)
+nexus.lanzar(c3)
+prueba("sin claves la cierra", inspect.getcoroutinestate(c3) == "CORO_CLOSED",
+       inspect.getcoroutinestate(c3))
+prueba("y no la ejecuta", caja == [], caja)
+
+# Fuera de un bucle de eventos tampoco hay donde programarla.
+nexus.NEXUS_URL, nexus.CLAVE = "https://127.0.0.1:1", "clave"
+c4 = _marca(caja)
+nexus.lanzar(c4)
+prueba("fuera de un bucle la cierra", inspect.getcoroutinestate(c4) == "CORO_CLOSED",
+       inspect.getcoroutinestate(c4))
+
+# Y con claves y bucle, corre de verdad — pero despues, sin hacer esperar.
+async def _dentro():
+    caja2 = []
+    nexus.lanzar(_marca(caja2))
+    antes = list(caja2)
+    await asyncio.sleep(0.05)
+    return antes, caja2
+
+antes, despues = asyncio.run(_dentro())
+prueba("no corre antes de devolver el control", antes == [], antes)
+prueba("pero corre poco despues", despues == ["corrio"], despues)
+
 print("\n" + "=" * 54)
 print(f"{ok} OK · {fallos} fallos")
 sys.exit(1 if fallos else 0)
