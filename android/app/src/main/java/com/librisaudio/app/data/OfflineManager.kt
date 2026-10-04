@@ -50,6 +50,7 @@ class OfflineManager(context: Context) {
     private fun timingFileFor(bookId: String, part: Int, voice: String) =
         File(bookDir(bookId), "timing/part_${part}_${sanitize(voice)}.json")
     private fun metaFileFor(bookId: String) = File(bookDir(bookId), "meta.json")
+    private fun coverFileFor(bookId: String) = File(bookDir(bookId), "cover.img")
 
     // ── Consultas (para reproducción y UI) ──────────────────────────────────
     fun isDownloaded(bookId: String): Boolean = metaFileFor(bookId).exists()
@@ -96,6 +97,16 @@ class OfflineManager(context: Context) {
         metaFileFor(bookId).takeIf { it.exists() }
             ?.let { gson.fromJson(it.readText(), OfflineBook::class.java)?.voice }
     } catch (_: Exception) { null }
+
+    /**
+     * La portada guardada en el telefono, si esta.
+     *
+     * La URL de la portada es remota, asi que un libro descargado se quedaba
+     * con el hueco en blanco en modo avion: todo lo demas sonaba y solo
+     * faltaba la imagen. Se baja una vez junto al audio y pesa unos kilobytes.
+     */
+    fun localCover(bookId: String): File? =
+        coverFileFor(bookId).takeIf { it.exists() && it.length() > 0 }
 
     fun localText(bookId: String, part: Int): String? =
         textFileFor(bookId, part).takeIf { it.exists() }?.readText(Charsets.UTF_8)
@@ -150,10 +161,40 @@ class OfflineManager(context: Context) {
 
                 onProgress(i + 1, total)
             }
+            guardarPortada(book)
+
             val complete = audioOk == total
             if (audioOk > 0) writeMeta(book, voice, complete)
             complete
         }
+
+    private fun guardarPortada(book: Book) {
+        val url = book.coverUrl
+        if (url.isNullOrBlank()) return
+        val destino = coverFileFor(book.bookId)
+        if (destino.exists() && destino.length() > 0) return
+        downloadTo(url, destino)
+    }
+
+    /**
+     * Baja las portadas que falten de los libros ya descargados.
+     *
+     * Los que se bajaron antes de que esto existiera no tienen imagen, y
+     * resubirlos entero por una portada no tiene sentido. Se intenta en
+     * silencio cuando hay red; si no la hay, no pasa nada y se reintenta la
+     * proxima vez.
+     */
+    suspend fun completarPortadas(): Int = withContext(Dispatchers.IO) {
+        var bajadas = 0
+        for (libro in downloadedBooks()) {
+            val url = libro.coverUrl
+            if (url.isNullOrBlank()) continue
+            val destino = coverFileFor(libro.bookId)
+            if (destino.exists() && destino.length() > 0) continue
+            if (downloadTo(url, destino)) bajadas++
+        }
+        bajadas
+    }
 
     private fun writeMeta(book: Book, voice: String, complete: Boolean) {
         val meta = OfflineBook(

@@ -87,6 +87,17 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _offlineBooks.value = list
         _downloadedIds.value = list.map { it.bookId }.toSet()
         _offlineTotalBytes.value = offline.totalSizeBytes()
+
+        // Las portadas que falten, en silencio y solo si hay red. Los libros
+        // bajados antes de que esto existiera no la tienen, y resubirlos
+        // enteros por una imagen de unos kilobytes no tiene sentido.
+        viewModelScope.launch {
+            val bajadas = try { offline.completarPortadas() } catch (_: Exception) { 0 }
+            if (bajadas > 0) {
+                _offlineBooks.value = offline.downloadedBooks()
+                _offlineTotalBytes.value = offline.totalSizeBytes()
+            }
+        }
     }
 
     /** Descarga el libro completo (audio+texto+timing) para la voz seleccionada. */
@@ -739,7 +750,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 title            = o.title,
                 author           = o.author,
                 category         = o.category,
-                coverUrl         = o.coverUrl ?: "",
+                // La portada del disco antes que la URL remota: sin red,
+                // la remota deja el hueco en blanco.
+                coverUrl         = offline.localCover(o.bookId)
+                                       ?.let { "file://${it.absolutePath}" }
+                                   ?: (o.coverUrl ?: ""),
                 partsCount       = o.partsCount,
                 currentPartIndex = prefs.getInt("part_${o.bookId}", 0),
                 progressPercent  = if (o.bookId in empezados) pct.coerceAtLeast(1) else pct,
