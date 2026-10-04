@@ -359,7 +359,12 @@ def procesar(s3, libro, aplicar, ver, rehacer=False):
                        if (m := re.search(r"/(?:audio|timing)/part_(\d+)_", k))
                        and int(m.group(1)) in cambiadas)
 
-    return {"estado": "aplicado" if aplicar else "simulado",
+    # «Encontre cabeceras y no pude quitar ninguna» NO es lo mismo que «aqui no
+    # habia nada», y durante toda la noche del 3 de octubre el resumen las
+    # conto igual. Asi se escondio que Los Mediums tenia 205 apariciones
+    # detectadas y cero quitadas: el libro aparecia entre los normales.
+    return {"estado": ("cabeceras sin pegar" if not total
+                       else ("aplicado" if aplicar else "simulado")),
             "cabeceras": len(orden), "partes": len(partes),
             "cambiadas": len(cambiadas), "quitadas": total,
             "audio": borrados, "ejemplos": ejemplos,
@@ -448,7 +453,7 @@ def revisar_todos(s3, rehacer: bool) -> None:
     libros = [p.rstrip("/") for p in _prefijos(s3) if p.rstrip("/") not in NO_SON_LIBROS]
     print(f"{len(libros)} libros · solo simulación\n")
 
-    tocados, resumen = [], {}
+    tocados, mudos, resumen = [], [], {}
     for n, libro in enumerate(libros, 1):
         print(f"  [{n:3d}/{len(libros)}] {libro}", end="\r", flush=True)
         try:
@@ -461,6 +466,8 @@ def revisar_todos(s3, rehacer: bool) -> None:
         if r.get("quitadas"):
             tocados.append((r["quitadas"], r["cambiadas"], r["partes"], libro,
                             r["ejemplos"][0] if r["ejemplos"] else None))
+        elif r["estado"] == "cabeceras sin pegar":
+            mudos.append((r["cabeceras"], libro, r.get("lista") or []))
 
     print(" " * 40, end="\r")
     if tocados:
@@ -471,6 +478,16 @@ def revisar_todos(s3, rehacer: bool) -> None:
                   f"{cambiadas:3d} de {partes:3d} partes")
             if ejemplo:
                 print(f"               «{ejemplo[1][:38]}» → …{ejemplo[2][:44]}")
+    if mudos:
+        print("\n  CON CABECERAS EN EL ORIGINAL Y NADA PEGADO EN EL TEXTO:")
+        print("  (no hay trabajo que hacer, pero si oyes cabeceras en uno de")
+        print("   estos, es que el detector no ve la que suena — míralo con")
+        print("   --porque antes de dar el libro por bueno)\n")
+        for cuantas, libro, lista in sorted(mudos, reverse=True):
+            nombres = ", ".join(f"«{texto}»" for texto, _ in lista[:3])
+            print(f"  {libro}  {cuantas:3d} cabeceras en el original"
+                  + (f"  {nombres}" if nombres else ""))
+
     print("\n" + "=" * 60)
     for estado, n in sorted(resumen.items()):
         print(f"  {estado:24s} {n}")

@@ -310,7 +310,8 @@ def main():
     p.add_argument("--rehacer", action="store_true",
                    help="no saltarse los libros que ya están al día")
     p.add_argument("--detalle", action="store_true",
-                   help="con --libro: enseña en qué se fijó el detector")
+                   help="con --libro: enseña en qué se fijó el detector, "
+                        "y después hace lo que se le haya pedido")
     args = p.parse_args()
 
     s3 = cliente_r2()
@@ -330,7 +331,12 @@ def main():
         if not partes:
             sys.exit("Ese libro no tiene texto en R2.")
         detallar(bajar_muchas(s3, [k for _, k in partes]))
-        return
+        # Y SIGUE. Antes habia un `return` aqui, asi que `--detalle` imprimia
+        # el diagnostico y se iba: con `--rehacer` o `--aplicar` delante no
+        # calculaba nada y tampoco avisaba de que los estaba ignorando. Costo
+        # media vuelta de diagnostico el 3 de octubre, buscando por que un
+        # libro con su indice a la vista no se marcaba.
+        print()
 
     resumen = {}
     total_sin_audio = total_partes = total_borrables = total_boton = 0
