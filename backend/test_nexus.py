@@ -42,6 +42,21 @@ except ValueError:
     prueba("la excepcion sale", True)
     prueba("y aun asi midio", c2.ms >= 0, c2.ms)
 
+print("\nEl primer fallo se cuenta; los demas se callan:")
+import io, contextlib
+nexus._ya_me_queje = False
+nexus.NEXUS_URL, nexus.CLAVE = "https://127.0.0.1:1", "clave"
+salida = io.StringIO()
+with contextlib.redirect_stdout(salida):
+    asyncio.run(nexus.pulso("u", "p", "m", "o"))
+primero = salida.getvalue()
+prueba("el primer fallo avisa", "[Nexus]" in primero, repr(primero[:60]))
+salida2 = io.StringIO()
+with contextlib.redirect_stdout(salida2):
+    asyncio.run(nexus.pulso("u", "p", "m", "o"))
+    asyncio.run(nexus.pulso("u", "p", "m", "o"))
+prueba("los siguientes se callan", salida2.getvalue() == "", repr(salida2.getvalue()[:60]))
+
 print("\n" + "=" * 54)
 print(f"{ok} OK · {fallos} fallos")
 sys.exit(1 if fallos else 0)

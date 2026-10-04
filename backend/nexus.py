@@ -35,6 +35,17 @@ CLAVE     = os.environ.get("NEXUS_PROJECT_KEY") or ""
 # Un pulso no puede hacer esperar a nadie: si Nexus tarda, se abandona.
 ESPERA_S = 3.0
 
+# EL SILENCIO ABSOLUTO ES CORRECTO EN MARCHA, Y UNA TRAMPA AL ENCHUFARLO.
+#
+# Un pulso que falla para siempre sin decir nada se parece demasiado a un
+# pulso que nunca se mando: el panel sale en cero en los dos casos. Es el mismo
+# fallo que llevamos toda la noche arreglando en los informes.
+#
+# Asi que el PRIMER fallo se cuenta, una sola vez por arranque, y los demas se
+# callan. Con eso, enchufarlo mal se ve en los registros; y si Nexus se cae un
+# martes a las tres, no llena el disco de quejas.
+_ya_me_queje = False
+
 
 def activo() -> bool:
     return bool(NEXUS_URL and CLAVE)
@@ -69,8 +80,12 @@ async def pulso(
                     "metadata":      extra,
                 },
             )
-    except Exception:
-        pass
+    except Exception as fallo:
+        global _ya_me_queje
+        if not _ya_me_queje:
+            _ya_me_queje = True
+            print(f"[Nexus] El pulso no llego ({type(fallo).__name__}: {fallo}). "
+                  f"Destino: {NEXUS_URL}. No se vuelve a avisar.", flush=True)
 
 
 def soltar(*args, **kwargs) -> None:
