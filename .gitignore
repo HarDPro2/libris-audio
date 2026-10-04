@@ -42,3 +42,6 @@ CONTEXTO_PERMANENTE.md
 # Carpetas de traspaso: Claude escribe aqui y tu copias. Nunca al repositorio.
 _NUEVOS*/
 claves-r2.txt
+
+# Candados de git que device_bash no puede borrar (se vacia a mano)
+_basura_git/
