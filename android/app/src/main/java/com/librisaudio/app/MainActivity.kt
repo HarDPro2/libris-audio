@@ -517,6 +517,8 @@ class MainActivity : ComponentActivity() {
 
                         if (currentBook != null && isFullPlayerOpen && !isCarModeOpen) {
                             PlayerScreen(
+                                seccionActual = playerViewModel.seccionActual.collectAsState().value,
+                                onSaltarSeccion = { playerViewModel.saltarSeccion() },
                                 book = currentBook!!,
                                 isPlaying = isPlaying,
                                 currentPartIndex = currentPartIndex,

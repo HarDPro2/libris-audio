@@ -211,6 +211,16 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private var voiceOverride: String? = null
 
+    /** Las partes marcadas como saltables del libro abierto, por índice. */
+    private var marcasDelLibro: Map<Int, com.librisaudio.app.data.model.ParteMarcadaDto> =
+        emptyMap()
+
+    /** La marca de la parte que suena ahora, si es saltable. Null si no lo es. */
+    private val _seccionActual =
+        MutableStateFlow<com.librisaudio.app.data.model.ParteMarcadaDto?>(null)
+    val seccionActual: StateFlow<com.librisaudio.app.data.model.ParteMarcadaDto?> =
+        _seccionActual.asStateFlow()
+
     /** Ultimo problema de reproduccion, para que la UI pueda avisar. */
     private val _mensajeReproduccion = MutableStateFlow<String?>(null)
     val mensajeReproduccion: StateFlow<String?> = _mensajeReproduccion.asStateFlow()
@@ -221,11 +231,26 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private fun voiceEfectiva(): String = voiceOverride ?: _selectedVoice.value
 
     private fun aplicarIdiomaDocumento(bookId: String) {
+        // Lo guardado primero, para que el botón de saltar aparezca al instante
+        // y siga apareciendo sin conexión: un libro descargado tiene que poder
+        // saltarse su índice igual que uno en línea.
+        marcasDelLibro = marcasGuardadas(bookId)
+        refrescarSeccion(_currentPartIndex.value)
+
         viewModelScope.launch {
-            val idioma = try {
-                ApiClient.backendService.getBookIndex(bookId).language
+            // El idioma y las marcas salen del MISMO índice: una sola petición.
+            val indice = try {
+                ApiClient.backendService.getBookIndex(bookId)
             } catch (_: Exception) { null }
+            val idioma = indice?.language
             _idiomaDocumento.value = idioma
+            indice?.partes?.let { crudas ->
+                marcasDelLibro = crudas.mapNotNull { (clave, marca) ->
+                    clave.toIntOrNull()?.let { it to marca }
+                }.toMap()
+                guardarMarcas(bookId, marcasDelLibro)
+                refrescarSeccion(_currentPartIndex.value)
+            }
             val preferida = _selectedVoice.value
             voiceOverride = when {
                 idioma == "en" && !preferida.startsWith("en-") ->
@@ -235,6 +260,46 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 else -> null
             }
         }
+    }
+
+    private fun marcasGuardadas(
+        bookId: String
+    ): Map<Int, com.librisaudio.app.data.model.ParteMarcadaDto> {
+        val json = prefs.getString("secciones_$bookId", null) ?: return emptyMap()
+        return try {
+            val tipo = object : com.google.gson.reflect.TypeToken<
+                Map<String, com.librisaudio.app.data.model.ParteMarcadaDto>>() {}.type
+            val crudas: Map<String, com.librisaudio.app.data.model.ParteMarcadaDto> =
+                com.google.gson.Gson().fromJson(json, tipo) ?: emptyMap()
+            crudas.mapNotNull { (clave, marca) ->
+                clave.toIntOrNull()?.let { it to marca }
+            }.toMap()
+        } catch (_: Exception) { emptyMap() }
+    }
+
+    private fun guardarMarcas(
+        bookId: String,
+        marcas: Map<Int, com.librisaudio.app.data.model.ParteMarcadaDto>
+    ) {
+        prefs.edit().putString(
+            "secciones_$bookId",
+            com.google.gson.Gson().toJson(marcas.mapKeys { it.key.toString() })
+        ).apply()
+    }
+
+    /** Hay botón de saltar solo si esta parte es saltable y lleva a algún sitio. */
+    private fun refrescarSeccion(indice: Int) {
+        val marca = marcasDelLibro[indice]
+        val destino = marca?.saltaA
+        _seccionActual.value = if (destino != null && destino > indice) marca else null
+    }
+
+    /** Salta al final de la sección actual: índice, bibliografía, créditos. */
+    fun saltarSeccion() {
+        val book = _currentBook.value ?: return
+        val destino = _seccionActual.value?.saltaA ?: return
+        val tope = (book.partsCount - 1).coerceAtLeast(0)
+        playBook(book, destino.coerceIn(0, tope))
     }
 
     fun syncNow() {
@@ -526,6 +591,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         loadBooks()
         startPositionTracker()
         refreshOffline()
+        // La marca se recalcula sola cada vez que cambia la parte, venga de
+        // donde venga el cambio: la pantalla, el avance automático al acabar,
+        // la notificación, Android Auto o el mando del volante. Hacerlo en cada
+        // sitio donde se asigna la parte era pedir que se olvidara uno.
+        viewModelScope.launch {
+            _currentPartIndex.collect { refrescarSeccion(it) }
+        }
     }
 
     fun initMediaController(context: Context) {

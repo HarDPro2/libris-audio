@@ -42,9 +42,26 @@ data class ChapterDto(
     @com.google.gson.annotations.SerializedName("offset")   val offset: Int = 0
 )
 
-/** Índice del documento: capítulos navegables e idioma detectado. */
+/**
+ * Una parte marcada como saltable: índice, tabla de contenidos, bibliografía,
+ * créditos. La calcula el backend al subir el libro.
+ *
+ * `sintetizar = false` quiere decir que esa parte ni siquiera se lee en voz
+ * alta — el servidor devuelve medio segundo de silencio. `saltaA` es la parte
+ * donde vuelve a empezar el libro de verdad, y es lo que usa el botón de
+ * saltar.
+ */
+data class ParteMarcadaDto(
+    @com.google.gson.annotations.SerializedName("clase")      val clase: String = "",
+    @com.google.gson.annotations.SerializedName("titulo")     val titulo: String = "",
+    @com.google.gson.annotations.SerializedName("sintetizar") val sintetizar: Boolean = true,
+    @com.google.gson.annotations.SerializedName("saltaA")     val saltaA: Int? = null
+)
+
+/** Índice del documento: capítulos navegables, idioma y secciones saltables. */
 data class BookIndexDto(
     @com.google.gson.annotations.SerializedName("formato")   val format: String? = null,
     @com.google.gson.annotations.SerializedName("idioma")    val language: String? = null,
-    @com.google.gson.annotations.SerializedName("capitulos") val chapters: List<ChapterDto>? = null
+    @com.google.gson.annotations.SerializedName("capitulos") val chapters: List<ChapterDto>? = null,
+    @com.google.gson.annotations.SerializedName("partes")    val partes: Map<String, ParteMarcadaDto>? = null
 )

@@ -347,4 +347,7 @@
     <string name="guia_update_h">Automático, o Buscar actualizaciones en Ajustes.</string>
     <string name="guia_open">Todo lo que puedes hacer</string>
     <string name="guia_open_sub">Guía de las funciones de la app</string>
+    <string name="skip_section_generic">Esta parte no es el libro</string>
+    <string name="skip_section_hint">Índice, créditos o bibliografía — no se lee en voz alta</string>
+    <string name="skip_section_action">Saltar</string>
 </resources>

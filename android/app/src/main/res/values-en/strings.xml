@@ -345,4 +345,7 @@
     <string name="guia_update_h">Automatic, or Check for updates in Settings.</string>
     <string name="guia_open">Everything you can do</string>
     <string name="guia_open_sub">Guide to the app\'s features</string>
+    <string name="skip_section_generic">This part isn't the book</string>
+    <string name="skip_section_hint">Index, credits or bibliography — not read aloud</string>
+    <string name="skip_section_action">Skip</string>
 </resources>

@@ -125,6 +125,8 @@ fun PlayerScreen(
     voiceProcessing: Boolean = false,
     voiceMessage: String? = null,
     onClearVoiceMessage: () -> Unit = {},
+    seccionActual: com.librisaudio.app.data.model.ParteMarcadaDto? = null,
+    onSaltarSeccion: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var viewMode by remember { mutableStateOf(PlayerViewMode.CLASSIC_PLAYER) }
@@ -289,6 +291,49 @@ fun PlayerScreen(
               }
 
               Spacer(modifier = Modifier.height(6.dp))
+
+              // ─── Esto no es el libro: ofrecer el salto ──────────────────
+              //
+              // El backend marca al subir el libro qué partes son índice,
+              // tabla de contenidos, bibliografía o créditos, y hasta dónde
+              // llegan. Esas partes ya no se sintetizan —suena medio segundo
+              // de silencio y pasa a la siguiente—, pero en un índice de 36
+              // partes eso son 36 silencios seguidos y el oyente no sabe qué
+              // está pasando. Con el aviso lo sabe, y de un toque se planta
+              // donde empieza el libro de verdad.
+              seccionActual?.let { marca ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(currentTheme.primary.copy(alpha = 0.16f))
+                        .clickable { onSaltarSeccion() }
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            marca.titulo.ifBlank { stringResource(R.string.skip_section_generic) },
+                            fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White
+                        )
+                        Text(
+                            stringResource(R.string.skip_section_hint),
+                            fontSize = 11.sp, color = TextMuted
+                        )
+                    }
+                    Text(
+                        stringResource(R.string.skip_section_action),
+                        fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                        color = currentTheme.primary
+                    )
+                    Icon(
+                        Icons.Default.SkipNext,
+                        contentDescription = stringResource(R.string.skip_section_action),
+                        tint = currentTheme.primary
+                    )
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+              }
 
               // Selector de modo de vista — fila propia y centrada (evita el descuadre/overflow)
               Row(
