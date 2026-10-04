@@ -24,6 +24,7 @@ import edge_tts
 
 # Como se DICE un texto: «1605» no es un fonema, es «mil seiscientos
 # cinco». Compartido byte a byte con Quantum Text Codex.
+import nexus
 from decir import normalizar_mapeado
 from cabeceras import limpiar as limpiar_cabeceras_pagina
 from secciones import (detectar as detectar_secciones, marcar_prosa,
@@ -1033,10 +1034,22 @@ async def get_book_audio(book_id: str, part_index: int, voice: str = VOZ_POR_DEF
         local_timing = Path(f"/tmp/{book_id}_part_{part_index}_{safe_voice}.json")
         timing_key   = f"{book_id}/timing/part_{part_index}_{safe_voice}_v3.json"
         try:
-            await text_to_mp3(text, local_mp3, voice=voice, timing_path=local_timing)
+            with nexus.Cronometro() as crono:
+                await text_to_mp3(text, local_mp3, voice=voice, timing_path=local_timing)
         except Exception as exc:
             import traceback; traceback.print_exc()
             raise HTTPException(status_code=500, detail=f"Error al generar audio: {exc}")
+
+        # EL PULSO QUE IMPORTA. Generar un MP3 es, con diferencia, lo que mas
+        # CPU gasta en Cloud Run — y la CPU es lo que se paga. Aqui se mide
+        # cuanto tarda cada parte; multiplicado por cuantas se generan al mes,
+        # eso ES la factura.
+        nexus.soltar(
+            usuario=book_id, proveedor="edge-tts", modelo=voice,
+            operacion="generar_audio", duracion_ms=crono.ms,
+            extra={"libro": book_id, "parte": part_index,
+                   "caracteres": len(text)},
+        )
 
         try:
             with open(local_mp3, "rb") as f:
@@ -1472,7 +1485,16 @@ async def chat_with_book(req: ChatBookRequest):
                     json={"model": model, "messages": messages, "max_tokens": 500, "temperature": 0.7},
                 )
                 if res.status_code == 200:
-                    reply = res.json()["choices"][0]["message"]["content"]
+                    datos = res.json()
+                    reply = datos["choices"][0]["message"]["content"]
+                    uso = datos.get("usage") or {}
+                    nexus.soltar(
+                        usuario=req.book_id, proveedor="openrouter", modelo=model,
+                        operacion="chat_libro",
+                        entrada=int(uso.get("prompt_tokens") or 0),
+                        salida=int(uso.get("completion_tokens") or 0),
+                        extra={"libro": req.book_id, "parte": req.part_index},
+                    )
                     return JSONResponse({"reply": reply, "model_used": model})
             except Exception as ex:
                 print(f"[Chat] Modelo {model} falló: {ex}")
@@ -1553,9 +1575,18 @@ async def voice_command(req: VoiceCommandRequest):
                     json={"model": model, "messages": messages, "max_tokens": 80, "temperature": 0.0},
                 )
                 if res.status_code == 200:
-                    content = res.json()["choices"][0]["message"]["content"]
+                    datos   = res.json()
+                    content = datos["choices"][0]["message"]["content"]
                     action  = _extract_json_action(content)
                     if action:
+                        uso = datos.get("usage") or {}
+                        nexus.soltar(
+                            usuario="voz", proveedor="openrouter", modelo=model,
+                            operacion="comando_voz",
+                            entrada=int(uso.get("prompt_tokens") or 0),
+                            salida=int(uso.get("completion_tokens") or 0),
+                            extra={"accion": action.get("action")},
+                        )
                         return JSONResponse(action)
             except Exception as ex:
                 print(f"[Voice] Modelo {model} falló: {ex}")
