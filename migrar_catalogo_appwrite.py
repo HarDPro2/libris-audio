@@ -18,7 +18,11 @@ import urllib.error
 
 # Se leen desde variables de entorno (las pasas en el comando de PowerShell).
 APPWRITE_API_KEY = os.environ.get("APPWRITE_API_KEY", "")
-DATABASE_ID      = os.environ.get("APPWRITE_DATABASE_ID", "libris_db")
+DATABASE_ID      = (os.environ.get("APPWRITE_DATABASE_ID") or "").strip()
+if not DATABASE_ID:
+    sys.exit("Falta APPWRITE_DATABASE_ID. No hay valor por defecto a "
+             "proposito: sin ella no se sabe contra que base se "
+             "estaria trabajando.")
 
 # ──────────────────────────────────────────────────────────────────────
 # No hace falta tocar nada debajo de esta línea.

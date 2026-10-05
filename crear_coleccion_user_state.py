@@ -20,7 +20,11 @@ import urllib.error
 
 APPWRITE_ENDPOINT = "https://nyc.cloud.appwrite.io/v1"
 APPWRITE_PROJECT  = "6a72f5d6002eeff78bc2"
-DATABASE_ID       = os.environ.get("APPWRITE_DATABASE_ID", "libris_db")
+DATABASE_ID       = (os.environ.get("APPWRITE_DATABASE_ID") or "").strip()
+if not DATABASE_ID:
+    sys.exit("Falta APPWRITE_DATABASE_ID. No hay valor por defecto a "
+             "proposito: sin ella no se sabe contra que base se "
+             "estaria trabajando.")
 COLLECTION_ID     = "user_state"
 API_KEY           = os.environ.get("APPWRITE_API_KEY", "")
 

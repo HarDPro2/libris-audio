@@ -61,13 +61,23 @@ from appwrite.services.databases import Databases as AppwriteDatabases
 # Venezolana desde el 12-09-2026 (antes es-MX-JorgeNeural).
 VOZ_POR_DEFECTO = os.environ.get("VOZ_POR_DEFECTO", "es-VE-SebastianNeural")
 
-APPWRITE_ENDPOINT   = os.environ.get("APPWRITE_ENDPOINT", "https://nyc.cloud.appwrite.io/v1")
-APPWRITE_PROJECT_ID = os.environ.get("APPWRITE_PROJECT_ID", "6a72f5d6002eeff78bc2")
-APPWRITE_API_KEY    = os.environ.get("APPWRITE_API_KEY")  # obligatorio en Cloud Run env vars
-APPWRITE_DB_ID      = os.environ.get("APPWRITE_DATABASE_ID", "libris_db")
+# SIN VALOR POR DEFECTO, Y A PROPOSITO. Ver ajustes.obligatoria(): el backend
+# de Render servia 126 libros reales sin NINGUNA variable de Appwrite puesta,
+# porque los defectos de estas tres lineas le bastaban para conectarse. Que
+# falten tiene que impedir arrancar, no imprimir un aviso que nadie lee.
+#
+# El endpoint si lo conserva: es la region de Appwrite, y por si sola no lleva
+# a ningun dato.
+from ajustes import obligatoria                                   # noqa: E402
 
-if not APPWRITE_API_KEY:
-    print("WARNING: APPWRITE_API_KEY no configurada en variables de entorno.", flush=True)
+APPWRITE_ENDPOINT   = os.environ.get("APPWRITE_ENDPOINT",
+                                     "https://nyc.cloud.appwrite.io/v1")
+APPWRITE_PROJECT_ID = obligatoria("APPWRITE_PROJECT_ID",
+                                  "el proyecto de Appwrite")
+APPWRITE_API_KEY    = obligatoria("APPWRITE_API_KEY",
+                                  "sin ella Appwrite contesta como invitado")
+APPWRITE_DB_ID      = obligatoria("APPWRITE_DATABASE_ID",
+                                  "la base de datos contra la que se trabaja")
 
 appwrite_client = AppwriteClient()
 appwrite_client.set_endpoint(APPWRITE_ENDPOINT)

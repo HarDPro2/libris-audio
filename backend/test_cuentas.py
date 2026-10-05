@@ -2,6 +2,14 @@
 import io, sys
 sys.path.insert(0, '.')
 
+# Los modulos de Appwrite EXIGEN estas tres y se niegan a importarse sin ellas
+# (ver ajustes.obligatoria). Valores falsos: aqui no se habla con Appwrite.
+import os as _os
+for _v, _falso in (("APPWRITE_PROJECT_ID", "proyecto_de_prueba"),
+                   ("APPWRITE_API_KEY", "clave_de_prueba"),
+                   ("APPWRITE_DATABASE_ID", "base_de_prueba")):
+    _os.environ.setdefault(_v, _falso)
+
 ok = fallos = 0
 def c(n, cond, extra=""):
     global ok, fallos

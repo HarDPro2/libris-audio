@@ -26,10 +26,15 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-ENDPOINT = os.environ.get("APPWRITE_ENDPOINT", "https://nyc.cloud.appwrite.io/v1").rstrip("/")
-PROJECT  = os.environ.get("APPWRITE_PROJECT_ID", "6a72f5d6002eeff78bc2")
-API_KEY  = os.environ.get("APPWRITE_API_KEY", "")
-DB_ID    = os.environ.get("APPWRITE_DATABASE_ID", "libris_db")
+from ajustes import obligatoria
+
+ENDPOINT = os.environ.get("APPWRITE_ENDPOINT",
+                          "https://nyc.cloud.appwrite.io/v1").rstrip("/")
+# Sin defecto: este script ESCRIBE. Ver ajustes.obligatoria().
+PROJECT  = obligatoria("APPWRITE_PROJECT_ID", "el proyecto de Appwrite")
+API_KEY  = obligatoria("APPWRITE_API_KEY", "para escribir hace falta")
+DB_ID    = obligatoria("APPWRITE_DATABASE_ID",
+                       "la base de datos contra la que se trabaja")
 COLL     = "global_books"
 
 APLICAR = "--aplicar" in sys.argv

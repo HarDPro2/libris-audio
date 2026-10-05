@@ -6,6 +6,38 @@ backend entero.
 import os
 
 
+class FaltaVariable(RuntimeError):
+    """Una variable sin la que NO se puede seguir."""
+
+
+def obligatoria(nombre: str, para: str = "") -> str:
+    """El valor de la variable, o se para aqui diciendo cual falta.
+
+    POR QUE NO HAY VALOR POR DEFECTO. El 5 de octubre de 2026 se descubrio un
+    backend de Libris corriendo en Render que nadie recordaba. No tenia NINGUNA
+    variable de Appwrite configurada y aun asi servia 126 libros con sus ids
+    reales: los valores por defecto del codigo —el id del proyecto y
+    `libris_db`— le bastaron para conectarse a una base de verdad.
+
+    El mismo defecto vive en `resetear_libros.py`, que borra. Un script
+    destructivo con destino por defecto es un script que, sin configurar,
+    parece configurado.
+
+    Un defecto que FUNCIONA es peor que uno que falla, porque no se nota. Aqui
+    se prefiere que el proceso se niegue a arrancar: en Cloud Run las variables
+    estan puestas, asi que esto solo lo ve un despliegue mal configurado — que
+    es justo quien tiene que enterarse.
+    """
+    valor = (os.environ.get(nombre) or "").strip()
+    if not valor:
+        raise FaltaVariable(
+            f"Falta la variable de entorno {nombre}"
+            + (f" ({para})" if para else "")
+            + ". No hay valor por defecto a proposito: sin ella no se sabe "
+              "contra que base se estaria trabajando.")
+    return valor
+
+
 def _activo(nombre: str, por_defecto: str = "1") -> bool:
     return os.environ.get(nombre, por_defecto).strip().lower() not in (
         "0", "false", "no", "off"

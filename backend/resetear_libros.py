@@ -33,12 +33,13 @@ import urllib.parse
 import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from ajustes import obligatoria  # noqa: E402
 from reparar_libros import cliente_r2, listar_libros   # noqa: E402
 
 AW_ENDPOINT = os.environ.get("APPWRITE_ENDPOINT", "https://nyc.cloud.appwrite.io/v1")
-AW_PROJECT  = os.environ.get("APPWRITE_PROJECT_ID", "6a72f5d6002eeff78bc2")
+AW_PROJECT  = obligatoria("APPWRITE_PROJECT_ID", "el proyecto de Appwrite")
 AW_KEY      = os.environ.get("APPWRITE_API_KEY", "")
-AW_DB       = os.environ.get("APPWRITE_DATABASE_ID", "libris_db")
+AW_DB       = obligatoria("APPWRITE_DATABASE_ID", "la base de datos contra la que se trabaja")
 COLECCION   = "global_books"
 
 

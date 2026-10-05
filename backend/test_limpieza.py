@@ -19,6 +19,14 @@ AQUI = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(AQUI))
 sys.modules.setdefault("fitz", types.ModuleType("fitz"))
 
+# main.py EXIGE las tres de Appwrite y se niega a importarse sin ellas (ver
+# ajustes.obligatoria). Valores falsos a proposito: estas pruebas no hablan con
+# Appwrite, le ponen un doble.
+for _v, _falso in (("APPWRITE_PROJECT_ID", "proyecto_de_prueba"),
+                   ("APPWRITE_API_KEY", "clave_de_prueba"),
+                   ("APPWRITE_DATABASE_ID", "base_de_prueba")):
+    os.environ.setdefault(_v, _falso)
+
 _spec = importlib.util.spec_from_file_location("main_limpieza", AQUI / "main.py")
 main = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(main)
@@ -284,6 +292,38 @@ cli, bucket = montar({"music": [("music/x.mp3", 10)]}, [docs("aaa1")], 1)
 d = cli.get("/api/clean-orphans?token=secreto-de-prueba").json()
 prueba("solo music/ -> 0 huérfanos", d["huerfanos"] == 0 and not bucket.borrados, d)
 
+
+print("\nY sin configurar, el backend NO arranca:")
+# El caso Render: un despliegue sin ninguna variable de Appwrite servia 126
+# libros reales porque los defectos del codigo le bastaban. Ahora tiene que
+# negarse, y la queja tiene que decir CUAL falta.
+import ajustes
+
+for _falta in ("APPWRITE_PROJECT_ID", "APPWRITE_API_KEY", "APPWRITE_DATABASE_ID"):
+    _guardado = os.environ.pop(_falta)
+    try:
+        _s = importlib.util.spec_from_file_location("main_sin_" + _falta,
+                                                    AQUI / "main.py")
+        _m = importlib.util.module_from_spec(_s)
+        _s.loader.exec_module(_m)
+        prueba(f"sin {_falta} se niega a arrancar", False, "arranco igual")
+    except ajustes.FaltaVariable as _e:
+        prueba(f"sin {_falta} se niega a arrancar", _falta in str(_e), str(_e)[:50])
+    finally:
+        os.environ[_falta] = _guardado
+
+# Y una puesta a vacio cuenta como ausente: es como quedo CLEANUP_TOKEN el
+# 05-10 tras un pegado que no llego.
+os.environ["APPWRITE_DATABASE_ID"] = "   "
+try:
+    _s = importlib.util.spec_from_file_location("main_vacio", AQUI / "main.py")
+    _m = importlib.util.module_from_spec(_s)
+    _s.loader.exec_module(_m)
+    prueba("una variable puesta a vacio tambien para el arranque", False)
+except ajustes.FaltaVariable:
+    prueba("una variable puesta a vacio tambien para el arranque", True)
+finally:
+    os.environ["APPWRITE_DATABASE_ID"] = "base_de_prueba"
 
 print("\n" + "=" * 54)
 print(f"{ok} OK · {fallos} fallos")
