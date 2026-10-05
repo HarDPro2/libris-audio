@@ -1683,7 +1683,9 @@ async def put_user_state(user_id: str, body: dict = Body(default={})):
 # para y se avisa en vez de borrar.
 # ---------------------------------------------------------------------------
 
-CLEANUP_TOKEN = os.environ.get("CLEANUP_TOKEN", "")
+# .strip() a proposito: un espacio invisible al final convierte el
+# compare_digest en un 401 que no se puede explicar mirando el valor.
+CLEANUP_TOKEN = (os.environ.get("CLEANUP_TOKEN") or "").strip()
 
 # En el bucket no todo lo que cuelga de la raiz es un libro.
 NO_SON_LIBROS = {"music"}
@@ -1774,8 +1776,18 @@ async def clean_orphans(token: str = "", dry: bool = False):
     GET /api/clean-orphans?token=...&dry=true  -> solo informa
     """
     if not CLEANUP_TOKEN:
-        raise HTTPException(status_code=503,
-                            detail="CLEANUP_TOKEN no esta configurado en el servicio")
+        # AUSENTE y PUESTA VACIA son averias distintas y se arreglan distinto,
+        # y el nombre de la variable sale en la lista del servicio en los dos
+        # casos — mirar los nombres no las distingue. Decir cual es ahorro una
+        # vuelta entera la noche del 5 de octubre.
+        crudo = os.environ.get("CLEANUP_TOKEN")
+        raise HTTPException(
+            status_code=503,
+            detail=("CLEANUP_TOKEN no esta configurado en el servicio"
+                    if crudo is None else
+                    "CLEANUP_TOKEN esta en el servicio pero VACIA: el valor se "
+                    "perdio al configurarla. Comprueba su LONGITUD, no su "
+                    "nombre."))
     if not secrets.compare_digest(token.encode("utf-8"),
                                   CLEANUP_TOKEN.encode("utf-8")):
         raise HTTPException(status_code=401, detail="token invalido")

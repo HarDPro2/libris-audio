@@ -147,6 +147,29 @@ cli, _ = montar(CON_MUSICA, [docs("aaa1")], 1, token="")
 prueba("servicio sin CLEANUP_TOKEN -> 503",
        cli.get("/api/clean-orphans?token=algo").status_code == 503)
 
+# AUSENTE y PUESTA VACIA son la misma cosa para el endpoint —las dos dan 503—
+# pero NO para quien tiene que arreglarlo, y el nombre de la variable sale en
+# la lista del servicio en los dos casos. Que el mensaje diga cual es.
+import os as _os
+_guardado = _os.environ.pop("CLEANUP_TOKEN", None)
+_detalle = cli.get("/api/clean-orphans?token=algo").json()["detail"]
+prueba("ausente: lo dice asi", "no esta configurado" in _detalle, _detalle)
+
+_os.environ["CLEANUP_TOKEN"] = ""
+_detalle = cli.get("/api/clean-orphans?token=algo").json()["detail"]
+prueba("puesta vacia: lo dice distinto", "VACIA" in _detalle, _detalle)
+prueba("y manda mirar la longitud, no el nombre",
+       "LONGITUD" in _detalle, _detalle)
+
+_os.environ["CLEANUP_TOKEN"] = "   "
+_detalle = cli.get("/api/clean-orphans?token=algo").json()["detail"]
+prueba("solo espacios cuenta como vacia", "VACIA" in _detalle, _detalle)
+
+if _guardado is None:
+    _os.environ.pop("CLEANUP_TOKEN", None)
+else:
+    _os.environ["CLEANUP_TOKEN"] = _guardado
+
 
 # ---------------------------------------------------------------------------
 print("\nEN LA DUDA NO BORRA — esto es lo que importa:")
