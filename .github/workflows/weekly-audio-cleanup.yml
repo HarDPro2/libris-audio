@@ -44,6 +44,13 @@ jobs:
 
           echo "Limpieza de huérfanos · $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
           echo "Simulación: $DRY_RUN"
+          # A QUE HOST se llama. El valor completo del secret lo enmascara
+          # GitHub, pero el host solo es otra cadena y sí sale — y sin esto,
+          # un BACKEND_URL que apunte a un servicio viejo da un error del
+          # endpoint que parece del endpoint y no lo es. Pasó el 05-10-2026:
+          # tres ejecuciones culpando a una variable que estaba bien puesta.
+          echo "Host destino: $(printf '%s' "${BACKEND_URL%/}" \
+            | sed -E 's#^https?://##; s#/.*##')"
 
           RESPUESTA=$(curl -s -w "\n%{http_code}" --max-time 600 \
             "${BACKEND_URL%/}/api/clean-orphans?token=${CLEANUP_TOKEN}&dry=${DRY_RUN}")
