@@ -255,8 +255,19 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             } catch (_: Exception) { null }
             val idioma = indice?.language
             _idiomaDocumento.value = idioma
-            indice?.partes?.let { crudas ->
-                marcasDelLibro = crudas.mapNotNull { (clave, marca) ->
+            // OJO AL `if (indice != null)`: antes esto era `indice?.partes?.let`,
+            // y ahí vivía un fallo silencioso. Un índice que llega SIN marcas
+            // y una petición que no llega son la misma cosa para `?.let`: en
+            // los dos casos no entra, y se conservan las marcas guardadas.
+            //
+            // Pero significan lo contrario. Si el servidor contesta y no trae
+            // marcas, es que ya no hay: el libro no tenía secciones, o se
+            // repararon sus cabeceras y las posiciones viejas apuntan a otro
+            // sitio. Quedarse con las guardadas es seguir ofreciendo un botón
+            // de saltar que lleva a mitad de un capítulo, y el teléfono nunca
+            // se enteraría: las marcas viven en las preferencias.
+            if (indice != null) {
+                marcasDelLibro = indice.partes.orEmpty().mapNotNull { (clave, marca) ->
                     clave.toIntOrNull()?.let { it to marca }
                 }.toMap()
                 guardarMarcas(bookId, marcasDelLibro)

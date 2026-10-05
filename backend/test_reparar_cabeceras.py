@@ -159,6 +159,106 @@ _limpio, _cambios = rep.limpiar_parte(
 prueba("con la lista acotada, la cabecera se quita",
        _limpio.startswith("28. Los Espiritus"), _limpio[:40])
 
+# ───────────────────────────────────────────────────────────────────────────
+print("\nLAS SECCIONES SE INVALIDAN — el pendiente que llevaba dos dias:")
+# Las secciones son posiciones de caracter sobre el texto unido. Al quitar
+# cabeceras el texto encoge y todas las de detras se desplazan: el boton de
+# «saltar indice» lleva a mitad de un capitulo. Y nada avisa.
+import json as _json
+
+_INDICE = {
+    "title": "El libro de los espiritus",
+    "language": "es",
+    "capitulos": [{"titulo": "Prolegomenos", "parte": 3}],
+    "secciones": [{"clase": "creditos", "inicio": 0, "fin": 900},
+                  {"clase": "indice", "inicio": 240000, "fin": 310000}],
+    "partes": {"0": {"clase": "creditos", "sintetizar": False, "saltaA": 2},
+               "246": {"clase": "indice", "sintetizar": False, "saltaA": None},
+               "247": {"clase": "indice", "sintetizar": False, "saltaA": None}},
+}
+
+_limpio, _ns, _np = rep._sin_secciones(_INDICE)
+prueba("cuenta las secciones y las partes marcadas", (_ns, _np) == (2, 3),
+       (_ns, _np))
+prueba("quita las dos claves",
+       "secciones" not in _limpio and "partes" not in _limpio,
+       sorted(_limpio))
+prueba("y NO se lleva el resto del indice",
+       _limpio["title"] == "El libro de los espiritus"
+       and _limpio["language"] == "es" and len(_limpio["capitulos"]) == 1,
+       sorted(_limpio))
+prueba("sin tocar el diccionario que le dieron",
+       "secciones" in _INDICE and len(_INDICE["partes"]) == 3)
+
+# EL CASO QUE HAY QUE NO ROMPER. Un libro ya revisado y sin secciones tiene
+# `secciones: []` escrito a proposito: es lo que hace que marcar_secciones no
+# vuelva a bajarlo entero. Borrar ese [] costaria una hora en cada pasada.
+_vacio, _ns0, _np0 = rep._sin_secciones({"title": "Una novela",
+                                         "secciones": [], "partes": {}})
+prueba("un «revisado y no hay nada» se deja en paz",
+       _vacio is None and (_ns0, _np0) == (0, 0), (_vacio, _ns0, _np0))
+prueba("y un indice que nunca se marco, igual",
+       rep._sin_secciones({"title": "x"})[0] is None)
+# Al reves si: partes sin secciones tambien son marcas que estorban.
+prueba("solo con partes marcadas, tambien invalida",
+       rep._sin_secciones({"partes": {"5": {"clase": "indice"}}})[0] == {},
+       rep._sin_secciones({"partes": {"5": {}}})[0])
+
+print("\nY escribe solo cuando toca:")
+
+
+class _R2Falso:
+    """Lo minimo para ver QUE se escribe y cuando. Sin red."""
+
+    def __init__(self, indice):
+        self.guardado = _json.dumps(indice).encode("utf-8")
+        self.escrituras = []
+
+    def get_object(self, Bucket, Key):
+        import io
+        return {"Body": io.BytesIO(self.guardado)}
+
+    def put_object(self, Bucket, Key, Body, ContentType=None):
+        self.escrituras.append((Key, Body, ContentType))
+
+
+_r2 = _R2Falso(_INDICE)
+_marcas = rep._invalidar_secciones(_r2, "LIBRO", ["LIBRO/index.json"], False)
+prueba("la simulacion cuenta pero no escribe",
+       _marcas == (2, 3) and _r2.escrituras == [], (_marcas, _r2.escrituras))
+
+_r2 = _R2Falso(_INDICE)
+_marcas = rep._invalidar_secciones(_r2, "LIBRO", ["LIBRO/index.json"], True)
+prueba("con --aplicar escribe una vez", len(_r2.escrituras) == 1,
+       _r2.escrituras)
+prueba("y la escribe donde va", _r2.escrituras[0][0] == "LIBRO/index.json")
+prueba("con el tipo de un json",
+       "application/json" in (_r2.escrituras[0][2] or ""),
+       _r2.escrituras[0][2])
+_tras = _json.loads(_r2.escrituras[0][1].decode("utf-8"))
+prueba("lo escrito ya no tiene marcas",
+       "secciones" not in _tras and "partes" not in _tras, sorted(_tras))
+prueba("pero sigue siendo el indice del libro",
+       _tras["title"] == "El libro de los espiritus")
+
+# `marcar_secciones.al_dia` se niega a dar por bueno un indice sin `secciones`,
+# y de ahi sale que el libro se vuelva a analizar. Si esto deja de ser verdad,
+# la invalidacion no sirve de nada: el libro se queda sin marcas para siempre.
+_spec_ms = importlib.util.spec_from_file_location(
+    "marcar_secciones", AQUI / "marcar_secciones.py")
+_ms = importlib.util.module_from_spec(_spec_ms)
+_spec_ms.loader.exec_module(_ms)
+_ms.bajar = lambda s3, clave: _json.dumps(_tras).encode("utf-8")
+prueba("y marcar_secciones NO lo da por al dia",
+       _ms.al_dia(None, "LIBRO", {"LIBRO/index.json": "2026-10-05"}) is False)
+
+_r2_vacio = _R2Falso({"title": "Una novela", "secciones": [], "partes": {}})
+prueba("un libro sin marcas no se reescribe",
+       rep._invalidar_secciones(_r2_vacio, "L", ["L/index.json"], True)
+       == (0, 0) and _r2_vacio.escrituras == [], _r2_vacio.escrituras)
+prueba("y sin index.json no pasa nada",
+       rep._invalidar_secciones(_R2Falso({}), "L", [], True) == (0, 0))
+
 print("\n" + "=" * 54)
 print(f"{ok} OK · {fallos} fallos")
 sys.exit(1 if fallos else 0)

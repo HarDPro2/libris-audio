@@ -41,10 +41,22 @@ Antes de sobrescribir una parte se guarda copia en `{book_id}/text_original/`,
 y solo la primera vez, igual que `reparar_libros.py`. El audio y los tiempos de
 las partes que cambian se borran para que se regeneren solos.
 
+LAS SECCIONES SE INVALIDAN, Y HAY QUE VOLVER A MARCARLAS
+--------------------------------------------------------
+Las secciones saltables son posiciones de caracter sobre el texto unido. Al
+quitar cabeceras el texto encoge y todas las de detras se desplazan, asi que
+`--aplicar` quita las marcas del `index.json`. A diferencia del audio, esto NO
+se regenera solo: el libro se queda sin boton de saltar hasta que se corra
+
+    python marcar_secciones.py --libro {book_id} --aplicar
+
+El propio script lo recuerda al final, con el comando hecho.
+
 Variables de entorno (las mismas del backend):
     R2_ACCESS_KEY_ID  R2_SECRET_ACCESS_KEY  R2_ENDPOINT_URL  R2_BUCKET_NAME
 """
 import argparse
+import json
 import os
 import re
 import sys
@@ -86,6 +98,58 @@ def cliente_r2():
                         aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
                         aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
                         region_name="auto")
+
+
+# Las dos claves que `marcar_secciones.py` escribe en el index.json.
+MARCAS = ("secciones", "partes")
+
+
+def _sin_secciones(indice: dict):
+    """El indice sin sus marcas de seccion, y cuantas habia.
+
+    Las secciones son POSICIONES DE CARACTER sobre el texto unido del libro.
+    Al quitar una cabecera el texto encoge, y todo lo que venia detras se
+    desplaza: el boton de «saltar indice» acaba llevando a mitad de un
+    capitulo. El audio se borra y se regenera solo; esto no se regenera solo,
+    asi que hay que quitarlo y volver a marcar.
+
+    Devuelve (None, 0, 0) si no habia nada que invalidar. Importa distinguirlo:
+    un libro ya revisado y sin secciones tiene `secciones: []` escrito a
+    proposito, y es eso lo que hace que `marcar_secciones.al_dia` no vuelva a
+    bajarlo entero. Borrar ese `[]` costaria una hora en la siguiente pasada.
+
+    Va separado de R2 para poder probarlo sin red.
+    """
+    secciones = indice.get("secciones") or []
+    partes = indice.get("partes") or {}
+    if not secciones and not partes:
+        return None, 0, 0
+    limpio = {k: v for k, v in indice.items() if k not in MARCAS}
+    return limpio, len(secciones), len(partes)
+
+
+def _invalidar_secciones(s3, libro: str, todas, aplicar: bool):
+    """Quita las marcas de seccion del index.json. Devuelve (secciones, partes).
+
+    Solo escribe si hay algo que quitar Y se pidio --aplicar. Las dos guardas
+    importan: la primera protege el `secciones: []` de los libros ya revisados
+    (sin el, la siguiente pasada de marcar_secciones baja el catalogo entero);
+    la segunda es la regla de la casa, que la simulacion no toque nada.
+    """
+    if f"{libro}/index.json" not in todas:
+        return 0, 0
+    try:
+        indice = json.loads(bajar(s3, f"{libro}/index.json").decode("utf-8"))
+    except Exception:
+        return 0, 0
+    limpio, n_secs, n_partes = _sin_secciones(indice)
+    if limpio is None:
+        return 0, 0
+    if aplicar:
+        subir(s3, f"{libro}/index.json",
+              json.dumps(limpio, ensure_ascii=False).encode("utf-8"),
+              "application/json; charset=utf-8")
+    return n_secs, n_partes
 
 
 def claves(s3, prefijo):
@@ -359,6 +423,12 @@ def procesar(s3, libro, aplicar, ver, rehacer=False):
                        if (m := re.search(r"/(?:audio|timing)/part_(\d+)_", k))
                        and int(m.group(1)) in cambiadas)
 
+    # Y LAS SECCIONES, que hasta hoy había que acordarse de rehacer a mano.
+    # Acordarse a mano es el fallo esperando a pasar: nada avisa, el botón de
+    # saltar sigue ahí y lleva a donde ya no está lo que se quería saltar.
+    marcas = (_invalidar_secciones(s3, libro, todas, aplicar)
+              if cambiadas else (0, 0))
+
     # «Encontre cabeceras y no pude quitar ninguna» NO es lo mismo que «aqui no
     # habia nada», y durante toda la noche del 3 de octubre el resumen las
     # conto igual. Asi se escondio que Los Mediums tenia 205 apariciones
@@ -367,7 +437,7 @@ def procesar(s3, libro, aplicar, ver, rehacer=False):
                        else ("aplicado" if aplicar else "simulado")),
             "cabeceras": len(orden), "partes": len(partes),
             "cambiadas": len(cambiadas), "quitadas": total,
-            "audio": borrados, "ejemplos": ejemplos,
+            "audio": borrados, "marcas": marcas, "ejemplos": ejemplos,
             "lista": [(t, cabs[t]) for t in orden[:6]]}
 
 
@@ -438,6 +508,20 @@ def main():
         print(f"\n  {r['audio']} archivos de audio y tiempos "
               + ("BORRADOS: se regeneran solos"
                  if a.aplicar else "se borrarán (--aplicar)"))
+    n_secs, n_partes = r.get("marcas", (0, 0))
+    if n_secs or n_partes:
+        print(f"\n  {n_secs} secciones y {n_partes} partes marcadas "
+              + ("INVALIDADAS" if a.aplicar else "se invalidarán (--aplicar)")
+              + ": son posiciones de carácter y el texto ha encogido.")
+        if a.aplicar:
+            # Esto NO se regenera solo, al contrario que el audio. Decirlo aquí
+            # y con el comando hecho es la diferencia entre un pendiente y un
+            # libro que se queda sin botón de saltar durante semanas.
+            print("\n  FALTA VOLVER A MARCARLAS — el audio se regenera solo,")
+            print("  esto no. El libro se queda sin botón de saltar hasta que")
+            print("  corras:")
+            print(f"      python marcar_secciones.py --libro {a.libro}")
+            print(f"      python marcar_secciones.py --libro {a.libro} --aplicar")
     if not a.aplicar:
         print("\n  No se ha escrito nada. Para hacerlo: --aplicar")
 
