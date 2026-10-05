@@ -38,6 +38,9 @@ backend/cifras_base.json
 
 # Notas internas: no van a un repositorio publico
 CONTEXTO_PERMANENTE.md
+# No lleva valores, pero si el mapa: que clave esta donde y que
+# puede hacer. El repositorio es publico.
+REGISTRO_DE_CLAVES.md
 
 # Carpetas de traspaso: Claude escribe aqui y tu copias. Nunca al repositorio.
 _NUEVOS*/
