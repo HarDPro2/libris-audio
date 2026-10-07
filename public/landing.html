@@ -34,10 +34,10 @@
 
   --e1:.5rem; --e2:1rem; --e3:1.75rem; --e4:3rem; --e5:6rem;
 
-  /* La columna no crece sin fin, pero se arrima al tabique en vez de quedarse
-     anclada al borde izquierdo de la pantalla. */
-  --col:min(50vw,860px);
-  --sangria:max(16px, calc(50vw - min(50vw,860px) + 3.5vw));
+  /* Margenes de la columna. Los mismos los usa el pie, para que el texto del
+     cuerpo y el del pie arranquen en la misma vertical. */
+  --sangria:max(16px,4vw);
+  --sangria-der:max(16px,2.5vw);
 }
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
@@ -86,10 +86,10 @@ a{color:var(--acento)}
 
 .envoltura{
   position:relative; z-index:1; max-width:none;
-  width:var(--col); margin-left:auto; margin-right:50vw;
-  padding-inline:max(16px,3.5vw) max(16px,2.5vw);
+  width:50vw; padding-inline:var(--sangria) var(--sangria-der);
 }
-.envoltura > *{max-width:700px}
+.envoltura > *{max-width:960px}
+.tarjeta{max-width:800px}
 /* La escena vive dentro de la envoltura —para que en movil quede debajo de la
    barra— y la regla de arriba le estaba recortando el ancho: con 50vw pedido
    se quedaba en 700 px y por eso aparecia un claro entre el texto y el marco.
@@ -192,7 +192,7 @@ footer{
   position:relative; z-index:1; margin-top:var(--e5);
   background:var(--panel); color:var(--panel-texto);
   padding-block:var(--e4); width:50vw;
-  padding-inline:var(--sangria) max(16px,2.5vw);
+  padding-inline:var(--sangria) var(--sangria-der);
   border-top:1px solid var(--borde);
 }
 .marca-producto{
