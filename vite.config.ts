@@ -43,6 +43,12 @@ export default defineConfig(({ mode }) => ({
         ]
       },
       workbox: {
+        // La entrada de la SPA pasa a ser app.html: sin esto el service worker
+        // seguiria devolviendo /index.html, que ya no se genera.
+        navigateFallback: '/app.html',
+        // Y la raiz no cae al fallback: ahi vive la landing, que es un fichero
+        // propio y la sirve el servidor.
+        navigateFallbackDenylist: [/^\/$/, /^\/landing\.html$/],
         runtimeCaching: [
           {
             urlPattern: /^http:\/\/localhost:8000\/api\/audio\/.*/i,
@@ -66,6 +72,15 @@ export default defineConfig(({ mode }) => ({
       }
     })
   ].filter(Boolean),
+  build: {
+    rollupOptions: {
+      // La entrada de la SPA ya no se llama index.html, y Vite no la busca
+      // sola: la entrada por defecto esta fijada a ese nombre. Al declararla
+      // aqui, la salida se llama igual que la entrada —dist/app.html— y la
+      // raiz queda libre para la landing.
+      input: path.resolve(__dirname, "app.html"),
+    },
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
