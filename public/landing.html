@@ -34,10 +34,10 @@
 
   --e1:.5rem; --e2:1rem; --e3:1.75rem; --e4:3rem; --e5:6rem;
 
-  /* La columna no crece sin fin, pero se arrima al tabique en vez de quedarse
-     anclada al borde izquierdo de la pantalla. */
-  --col:min(50vw,860px);
-  --sangria:max(16px, calc(50vw - min(50vw,860px) + 3.5vw));
+  /* Margenes de la columna. Los mismos los usa el pie, para que el texto del
+     cuerpo y el del pie arranquen en la misma vertical. */
+  --sangria:max(16px,4vw);
+  --sangria-der:max(16px,2.5vw);
 }
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
@@ -86,10 +86,10 @@ a{color:var(--acento)}
 
 .envoltura{
   position:relative; z-index:1; max-width:none;
-  width:var(--col); margin-left:auto; margin-right:50vw;
-  padding-inline:max(16px,3.5vw) max(16px,2.5vw);
+  width:50vw; padding-inline:var(--sangria) var(--sangria-der);
 }
-.envoltura > *{max-width:700px}
+.envoltura > *{max-width:960px}
+.tarjeta{max-width:800px}
 /* La escena vive dentro de la envoltura —para que en movil quede debajo de la
    barra— y la regla de arriba le estaba recortando el ancho: con 50vw pedido
    se quedaba en 700 px y por eso aparecia un claro entre el texto y el marco.
@@ -192,7 +192,7 @@ footer{
   position:relative; z-index:1; margin-top:var(--e5);
   background:var(--panel); color:var(--panel-texto);
   padding-block:var(--e4); width:50vw;
-  padding-inline:var(--sangria) max(16px,2.5vw);
+  padding-inline:var(--sangria) var(--sangria-der);
   border-top:1px solid var(--borde);
 }
 .marca-producto{
@@ -242,19 +242,52 @@ footer ul{list-style:none; display:flex; gap:.9rem; flex-wrap:wrap; margin:var(-
 footer li{font-size:.8rem; color:var(--panel-suave)}
 footer .fina{color:var(--panel-suave); margin-top:var(--e2)}
 
-/* ── movil: la escena deja de ser fondo y pasa a ser un bloque, DEBAJO de la
-   barra. En Q-Codex quedaba absoluta en top:0 y la barra la tapaba. ──────── */
+/* ── movil ──────────────────────────────────────────────────────────────
+   En una pantalla de telefono el reparto en dos mitades no existe, asi que la
+   escena pasa a ser un bloque. Y va DESPUES del heroe, no antes: medido en
+   390 px, la barra se comia tres filas y el titular caia por debajo del
+   pliegue, de modo que lo primero que veia el visitante era un marco sin
+   saber todavia que es esto. Primero se dice que es, luego se enseña. */
 @media (max-width:900px){
+  .envoltura{
+    width:100%; margin-inline:0; padding-inline:max(16px,5vw);
+    display:flex; flex-direction:column;
+  }
+  nav{order:-2; position:sticky}
+  .hero{order:-1}
+  #escena{order:0}            /* las demas secciones se quedan en su sitio */
   #escena{
     position:relative; width:100%; height:min(50vh,400px);
-    border-left:none; border-bottom:1px solid var(--borde);
-    margin-bottom:var(--e3);
+    border-left:none; border-block:1px solid var(--borde);
+    margin-block:var(--e4) var(--e2);
   }
-  .envoltura{width:100%; margin-inline:0; padding-inline:max(16px,5vw)}
   .envoltura > *{max-width:none}
-  nav{position:sticky}
   section,footer{background:var(--fondo); position:relative; z-index:1}
   footer{width:100%; background:var(--panel); padding-inline:max(16px,5vw)}
+
+  /* La barra, en dos filas en vez de tres: marca y mandos arriba, y los
+     enlaces debajo en una tira que se desliza si no caben. */
+  nav{
+    display:grid; grid-template-columns:1fr auto; align-items:center;
+    column-gap:var(--e2); row-gap:0; padding-block:.5rem;
+  }
+  nav .marca{grid-column:1; grid-row:1}
+  nav .mandos{grid-column:2; grid-row:1; margin-left:0}
+  nav ul{
+    grid-column:1 / -1; grid-row:2;
+    flex-wrap:nowrap; overflow-x:auto; gap:var(--e3);
+    scrollbar-width:none; -ms-overflow-style:none;
+    margin-inline:calc(-1 * max(16px,5vw)); padding-inline:max(16px,5vw);
+  }
+  nav ul::-webkit-scrollbar{display:none}
+  /* Un dedo no acierta en 18 px de alto. Los enlaces y los botones pasan a
+     tener la altura que pide un pulgar. */
+  nav a{display:inline-block; padding-block:.8rem}
+  .tema{min-height:44px; display:inline-flex; align-items:center}
+
+  /* Los aires de escritorio, en un telefono, son scroll vacio. */
+  nav{margin-bottom:var(--e2)}
+  section{padding-block:var(--e4) 0}
 }
 
 @media (prefers-reduced-motion:reduce){
