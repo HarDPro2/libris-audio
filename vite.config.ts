@@ -49,6 +49,11 @@ export default defineConfig(({ mode }) => ({
         // Y la raiz no cae al fallback: ahi vive la landing, que es un fichero
         // propio y la sirve el servidor.
         navigateFallbackDenylist: [/^\/$/, /^\/landing\.html$/],
+        // La landing fuera del precache: son 846 KB de pagina de marketing que
+        // se tragaba quien abre la APLICACION y no la va a ver. El fichero
+        // sigue estando en el servidor; lo que deja de hacer el service worker
+        // es guardarselo.
+        globIgnores: ['**/landing.html'],
         runtimeCaching: [
           {
             urlPattern: /^http:\/\/localhost:8000\/api\/audio\/.*/i,
