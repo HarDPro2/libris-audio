@@ -1,0 +1,60 @@
+name: 🩺 Vigilancia de los servicios
+
+# Comprueba desde FUERA que los servicios del ecosistema siguen en pie.
+#
+# POR QUE AQUI Y NO EN GOOGLE CLOUD
+# ---------------------------------
+# El 09-10-2026 se desactivo la facturacion del proyecto y cayeron seis
+# servicios durante dos dias. Nexus Monitor no aviso porque vive en el mismo
+# proyecto: estaba caido tambien. Un vigilante dentro de lo que vigila se
+# calla justo cuando hace falta que grite.
+#
+# Esto corre en GitHub: otra empresa, otra factura. Si Google entero se cae,
+# esto sigue despierto.
+#
+# COMO AVISA
+# ----------
+# Si algo falla, el job termina en rojo y GitHub manda un correo al dueño del
+# repositorio. No hace falta configurar nada mas. Se comprueba en
+# github.com/settings/notifications -> Actions.
+#
+# CADA CUANTO
+# -----------
+# Cada hora, en el minuto 17. Dos razones para no usar el minuto 0: la
+# documentacion de GitHub dice que «the schedule event can be delayed during
+# periods of high loads» y que «high load times include the start of every
+# hour»; y una hora basta de sobra para un fallo que duro dos dias.
+# Para afinar mas: '*/30 17 * * *' -> cada media hora. En repositorios
+# privados eso consume minutos del plan gratuito; en publicos no.
+#
+# AVISO: GitHub desactiva los workflows programados de un repositorio PUBLICO
+# si pasa 60 dias sin actividad. Avisa por correo antes de hacerlo.
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+jobs:
+  comprobar:
+    name: ¿Siguen en pie?
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Comprobar los servicios
+        id: revision
+        run: |
+          python3 vigilancia/comprobar.py | tee informe.txt
+        # El script sale 1 si algo va mal, y eso pone el job en rojo.
+
+      - name: Dejar el informe a la vista
+        if: always()
+        run: |
+          {
+            echo '## Vigilancia'
+            echo '```'
+            cat informe.txt 2>/dev/null || echo 'sin informe'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
