@@ -183,8 +183,11 @@ def main():
         marca = {BIEN: "  ok  ", LENTO: " lento", DEGRADADO: " RARO ",
                  CAIDO: " CAIDO", PLATAFORMA: " CAIDO"}[f["situacion"]]
         print(f"[{marca}] {f['nombre']:<{ancho}}  {f['producto']}")
-        if f["situacion"] != BIEN:
-            print(f"           {f['porque']}")
+        # Se enseña SIEMPRE, tambien cuando todo va bien. Un informe que solo
+        # habla cuando falla dice si hay problema, pero no deja MEDIR nada:
+        # no se puede afinar lo que se espera de un servicio si no se sabe
+        # que contesta hoy.
+        print(f"           {f['porque']}")
 
     conclusion = diagnostico(informe)
     if conclusion:
