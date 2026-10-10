@@ -758,6 +758,7 @@ async def get_tts_sample(voice: str = VOZ_POR_DEFECTO):
 async def upload_pdf(
     file:     UploadFile = File(...),
     title:    str        = Form(None),
+    author:   str        = Form(None),
     category: str        = Form("General"),
     added_by: str        = Form("upload"),   # ignorado: se toma del token
     authorization: str   = Header(default=None),
@@ -913,6 +914,21 @@ async def upload_pdf(
         except Exception as e:
             print(f"[Upload] Warning índice: {e}")
 
+        # ── El autor ────────────────────────────────────────────────────
+        # Manda lo que diga quien sube; si no dice nada, lo que DECLARE el
+        # archivo en sus metadatos; y si tampoco, «Desconocido» a las claras.
+        #
+        # Lo que NO se hace es sacarlo del titulo. Los 97 libros del catalogo
+        # tenian el autor dentro del titulo en siete patrones distintos, y
+        # separarlos hizo falta un catalogo de nombres escrito a mano y una
+        # revision humana: tres veces la regla automatica acerto MAL con
+        # confianza alta. Ver autores.py. Adivinar aqui repetiria el problema
+        # un libro cada vez, que es peor porque no se nota.
+        autor_final = (author or "").strip() or documento.autor or "Desconocido"
+        if autor_final != "Desconocido":
+            print(f"[Upload] Autor: {autor_final}"
+                  f"{' (de los metadatos)' if not (author or '').strip() else ' (lo dijo quien sube)'}")
+
         # Registrar en Appwrite
         try:
             appwrite_db.create_document(
@@ -921,6 +937,7 @@ async def upload_pdf(
                 data={
                     "book_id":    book_id,
                     "title":      title,
+                    "author":     autor_final,
                     "category":   category,
                     "added_by":   owner_id,
                     "visibility": VISIBILIDAD_AL_SUBIR,

@@ -64,6 +64,9 @@ class Capitulo:
 class Documento:
     titulo: str
     formato: str
+    # Lo que el archivo DECLARA como autor, ya filtrado. Cadena vacia cuando
+    # no lo declara o lo que declara es basura. Ver autor_de_metadatos().
+    autor: str = ""
     capitulos: list[Capitulo] = field(default_factory=list)
     necesita_ocr: bool = False          # META 2 lo usará como disparador
     aviso: str | None = None
@@ -81,6 +84,63 @@ class Documento:
             salida.append({"titulo": c.titulo, "capitulo": c.indice, "offset": cursor})
             cursor += len(c.texto) + 1
         return salida
+
+
+# ---------------------------------------------------------------------------
+# El autor que declara el archivo
+#
+# Casi todos los PDF traen algo en el campo `author`, y casi nada de eso es un
+# autor: es el programa que generó el archivo, la cuenta de Windows de quien
+# lo escaneó, una ruta, un correo o la palabra «unknown». Guardar eso sería
+# peor que dejarlo vacío, porque en la ficha no se distingue de un autor de
+# verdad: «Administrador» parece un nombre.
+#
+# Así que esto filtra con mano dura y, en la duda, devuelve cadena vacía. Un
+# autor que falta se ve; uno inventado, no.
+
+_BASURA_AUTOR = {
+    "unknown", "desconocido", "anonymous", "anonimo", "none", "null", "n/a",
+    "author", "autor", "user", "usuario", "admin", "administrador",
+    "administrator", "owner", "propietario", "default", "windows", "pc",
+    "microsoft word", "word", "microsoft office word", "office", "acrobat",
+    "adobe acrobat", "adobe indesign", "adobe", "calibre", "pdfcreator",
+    "pdffactory", "ghostscript", "libreoffice", "openoffice", "latex",
+    "pdftex", "pdflatex", "scansnap", "abbyy finereader", "abbyy",
+    "kindle", "epubor", "wondershare", "nitro pro", "foxit", "canva",
+}
+# Un autor con cualquiera de estos dentro es un programa o una ruta.
+_SENALES_BASURA = ("\\", "/", "@", "http", ".pdf", ".doc", ".epub",
+                   "created by", "generated", "converted", "trial version")
+
+
+def autor_de_metadatos(crudo, titulo=""):
+    """Lo que el archivo dice que es su autor, o cadena vacía si no es creíble."""
+    t = " ".join((crudo or "").split())
+    if not t:
+        return ""
+    # Los EPUB de biblioteca traen el autor en formato de catalogo, con las
+    # fechas de vida detras: «Hernandez Gilabert, Miguel, 1910-1942». Las
+    # fechas sobran y quitarlas no tiene ambiguedad.
+    #
+    # El apellido delante NO se invierte. «Leon, Luis de» saldria bien, pero
+    # no hay forma fiable de distinguirlo de una cadena con dos autores, y
+    # adivinar aqui es exactamente lo que nos costo el catalogo entero.
+    t = re.sub(r",?\s*\(?\d{4}\s*[-–]\s*\d{0,4}\)?\s*$", "", t).strip(" ,;")
+    bajo = t.lower()
+    if bajo in _BASURA_AUTOR:
+        return ""
+    if any(s in bajo for s in _SENALES_BASURA):
+        return ""
+    if len(t) < 3 or len(t) > 80:
+        return ""
+    # Tiene que parecer un nombre: mayoria de letras, y al menos una.
+    letras = sum(c.isalpha() for c in t)
+    if letras < 3 or letras < len(t) * 0.6:
+        return ""
+    # El autor no es el titulo. Pasa en los EPUB mal generados.
+    if titulo and " ".join(titulo.split()).lower() == bajo:
+        return ""
+    return t
 
 
 # ---------------------------------------------------------------------------
@@ -355,6 +415,12 @@ def _extraer_mupdf(datos: bytes, ext: str, titulo: str,
         if nivel <= 2 and pagina >= 1:
             inicios.setdefault(pagina - 1, nombre.strip() or f"Capítulo {len(inicios)+1}")
 
+    # MuPDF ya trae esto para PDF y para EPUB; hasta hoy se tiraba.
+    try:
+        autor = autor_de_metadatos((doc.metadata or {}).get("author", ""), titulo)
+    except Exception:
+        autor = ""
+
     crudas   = [doc.load_page(i).get_text() for i in range(doc.page_count)]
     repetidas = _lineas_repetidas(crudas)
     # El vocabulario sale del documento entero: es lo que permite decidir si
@@ -390,7 +456,7 @@ def _extraer_mupdf(datos: bytes, ext: str, titulo: str,
         capitulos.append(actual)
 
     return Documento(titulo=titulo, formato=ext, capitulos=capitulos,
-                     necesita_ocr=necesita_ocr, aviso=aviso)
+                     autor=autor, necesita_ocr=necesita_ocr, aviso=aviso)
 
 
 _ETIQUETAS = re.compile(r"<[^>]+>")
@@ -445,6 +511,10 @@ def _extraer_docx(datos: bytes, titulo: str) -> Documento:
             "Conviértelo a PDF o EPUB mientras tanto."
         )
     d = docx.Document(io.BytesIO(datos))
+    try:
+        autor = autor_de_metadatos(d.core_properties.author or "", titulo)
+    except Exception:
+        autor = ""
     capitulos: list[Capitulo] = []
     actual = Capitulo("Inicio", 0)
     for p in d.paragraphs:
@@ -459,7 +529,8 @@ def _extraer_docx(datos: bytes, titulo: str) -> Documento:
             actual.bloques.append(t)
     capitulos.append(actual)
     capitulos = [c for c in capitulos if c.texto.strip()] or [Capitulo("Documento", 0, [])]
-    return Documento(titulo=titulo, formato="docx", capitulos=capitulos)
+    return Documento(titulo=titulo, formato="docx", capitulos=capitulos,
+                     autor=autor)
 
 
 # ---------------------------------------------------------------------------
