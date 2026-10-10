@@ -25,6 +25,7 @@ import edge_tts
 # Como se DICE un texto: «1605» no es un fonema, es «mil seiscientos
 # cinco». Compartido byte a byte con Quantum Text Codex.
 import nexus
+import autoridades
 from decir import normalizar_mapeado
 from cabeceras import limpiar as limpiar_cabeceras_pagina
 from secciones import (detectar as detectar_secciones, marcar_prosa,
@@ -46,7 +47,7 @@ except ImportError as ex:
 import uvicorn
 import httpx
 from gtts import gTTS
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Header, Body
+from fastapi import Body, FastAPI, File, Form, HTTPException, Header, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import (JSONResponse, FileResponse, StreamingResponse,
                                PlainTextResponse, Response)
@@ -739,6 +740,47 @@ async def get_all_books(authorization: str = Header(default=None)):
             }
         ]
     return books
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Autocompletado de autores
+#
+# La lista NO es un catalogo global de millones de nombres: es la semilla
+# revisada a mano mas los autores que ya estan EN USO en la biblioteca. Un
+# autocompletado empeora segun crece —quien sube ya sabe de quien es el libro,
+# lo que necesita es escribirlo igual que la vez anterior— y ademas los
+# autores en uso crecen solos con cada subida, sin tabla nueva que sincronizar.
+# Ver autoridades.py.
+# ─────────────────────────────────────────────────────────────────────────────
+_autores_cache = {"cuando": 0.0, "lista": None}
+
+
+@app.get("/api/autores")
+async def autores_autocompletar(
+    q:      str = Query(default=""),
+    limite: int = Query(default=8, ge=1, le=25),
+):
+    ahora = time.time()
+    if (_autores_cache["lista"] is None
+            or ahora - _autores_cache["cuando"] > autoridades.CACHE_S):
+        try:
+            documentos = await _appwrite_list_documents(
+                "global_books", queries=[{"method": "limit", "values": [500]}])
+            en_uso = [d.get("author", "") for d in documentos]
+        except Exception as ex:
+            # Sin biblioteca se responde con la semilla, no con una lista
+            # vacia: vacio se leeria como «no hay autores», que es falso.
+            print(f"[Autores] No se pudo leer la biblioteca: {ex}")
+            en_uso = []
+        _autores_cache.update({"cuando": ahora,
+                               "lista": autoridades.mezclar(en_uso)})
+
+    lista = _autores_cache["lista"]
+    return {
+        "consulta": q,
+        "total": len(lista),
+        "sugerencias": autoridades.buscar(q, lista, limite),
+    }
 
 
 @app.get("/api/tts-sample")
